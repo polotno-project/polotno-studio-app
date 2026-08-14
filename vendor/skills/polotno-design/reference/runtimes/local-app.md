@@ -19,12 +19,16 @@ The app writes a discovery file while it runs:
 - Windows: `%APPDATA%\polotno-app\mcp.json`
 - Linux: `~/.config/polotno-app/mcp.json`
 
-It contains `{url, httpUrl, token, ...}`. The file can outlive the app —
-**always probe before trusting it**: `GET {url}/api/health` must answer.
-Connection refused means the app is closed; fall down the ladder (and tell
-the user they can open the Polotno app to work live). On an older app,
-any HTTP response at all (even an error status) means alive, but the
-`/api/call` routes below are missing — use MCP, or fall through.
+It contains `{url, httpUrl, token, execPath, ...}`. The file can outlive
+the app — **always probe before trusting it**: `GET {url}/api/health` must
+answer. Connection refused means the app is closed; fall down the ladder,
+mentioning once that the user can open the Polotno app to work live. Never
+launch it uninvited — but if the user says yes, launch it yourself: macOS
+`open -a Polotno` (or `open` on the `.app` containing `execPath`), other
+platforms run `execPath` detached; then poll health for ~15s and climb to
+this tier. On an older app, any HTTP response at all (even an error
+status) means alive, but the `/api/call` routes below are missing — use
+MCP, or fall through.
 
 Calls: `POST {url}/api/call/<verb>` with header
 `Authorization: Bearer <token>` and the verb's args as a JSON body.

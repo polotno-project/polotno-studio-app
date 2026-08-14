@@ -48,6 +48,8 @@ export interface McpDiscovery {
   pid: number
   appVersion: string
   startedAt: string
+  /** App binary — lets an agent relaunch the app when the user asks for it. */
+  execPath: string
 }
 
 export async function writeDiscoveryFile(url: string, token: string): Promise<void> {
@@ -57,7 +59,8 @@ export async function writeDiscoveryFile(url: string, token: string): Promise<vo
     token,
     pid: process.pid,
     appVersion: app.getVersion(),
-    startedAt: new Date().toISOString()
+    startedAt: new Date().toISOString(),
+    execPath: process.execPath
   }
   await fs.writeFile(discoveryPath(), JSON.stringify(discovery, null, 2))
 }

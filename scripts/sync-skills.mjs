@@ -7,7 +7,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const SKILL_COMMIT = '36b3d765a1659f30cb8d5538a64499b1f149df89'
+const SKILL_COMMIT = '84f169b'
 const SKILL_PATH = 'skills/polotno-design'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
