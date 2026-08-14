@@ -31,14 +31,7 @@ export interface InvokeApi {
   'dialog:externalChange': (p: { name: string }) => 'reload' | 'keep'
 }
 
-export type MenuAction =
-  | 'newTab'
-  | 'openFile'
-  | 'save'
-  | 'saveAs'
-  | 'closeTab'
-  | 'export'
-  | 'devBridgeTest'
+export type MenuAction = 'newTab' | 'openFile' | 'save' | 'saveAs' | 'closeTab' | 'export'
 
 // main -> renderer pushes (webContents.send).
 export interface MainEvents {

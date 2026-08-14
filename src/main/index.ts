@@ -4,6 +4,7 @@ import { createEditorWindow } from './window'
 import { installAppMenu } from './menu'
 import { registerIpcHandlers } from './ipc'
 import { collectOpenablePaths, requestOpenPath } from './open-files'
+import { initBridgeRouter } from './bridge-router'
 
 // Headless CLI subcommands (stage 3) branch before any window or lock exists,
 // so the GUI path and the CLI path never fight.
@@ -38,6 +39,7 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
     app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
 
     registerIpcHandlers()
+    initBridgeRouter()
     installAppMenu()
     createEditorWindow()
 

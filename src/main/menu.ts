@@ -1,6 +1,8 @@
-import { app, Menu, BrowserWindow } from 'electron'
+import { app, dialog, Menu, BrowserWindow } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import type { MenuAction } from '../shared/ipc-contract'
+import { documents } from './documents'
+import { execCommand } from './bridge-router'
 
 function sendMenuAction(action: MenuAction): void {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
@@ -79,7 +81,18 @@ export function installAppMenu(): void {
             submenu: [
               {
                 label: 'Bridge Round-Trip Test',
-                click: (): void => sendMenuAction('devBridgeTest')
+                click: async (): Promise<void> => {
+                  const entry = documents.all()[0]
+                  if (!entry) return
+                  const pong = await execCommand(entry.docId, { type: 'ping' })
+                  const json = await execCommand(entry.docId, { type: 'get_json' })
+                  const pages =
+                    json.ok && json.value ? (json.value as { pages: unknown[] }).pages.length : '?'
+                  dialog.showMessageBoxSync({
+                    message: 'Bridge round-trip',
+                    detail: `ping -> ${JSON.stringify(pong)}\nget_json -> ${pages} page(s)`
+                  })
+                }
               }
             ]
           }

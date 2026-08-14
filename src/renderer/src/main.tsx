@@ -5,6 +5,7 @@ import App from './App'
 import { loadSystemLocaleTranslations } from './editor/i18n'
 import { installThemeSync } from './editor/theme'
 import { installOfflineFonts } from './editor/offline-fonts'
+import './editor/bridge'
 import './index.css'
 
 setAnimationsEnabled(true)
