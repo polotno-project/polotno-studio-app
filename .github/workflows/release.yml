@@ -19,6 +19,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          VITE_POLOTNO_KEY: ${{ secrets.VITE_POLOTNO_KEY }}
       - name: Package and upload to draft release
         run: npx electron-builder --publish always
         env:

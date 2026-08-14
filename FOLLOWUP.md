@@ -5,15 +5,11 @@ place — each item is an account, credential, or publish step only you can do.
 
 ## 1. Polotno license key
 
-- In https://polotno.com/cabinet, add the domain `electron` to the key you
-  will ship (the packaged app runs on `file://`, which the SDK reports as
-  origin `electron`).
-- Build with the key: set `VITE_POLOTNO_KEY` (env or `.env`).
-- Until this is done, every canvas, agent render, and export carries the red
-  trial banner.
-- After the key works, regenerate the template previews (they contain the
-  banner now): `npm run build && node scripts/build-template-previews.mjs`,
-  then commit the changed JPEGs.
+- Done locally: the key lives in `.env` (`VITE_POLOTNO_KEY`, gitignored).
+- Make sure the domains `electron` (packaged app, file://) and `localhost`
+  (dev) are allowed for the key at https://polotno.com/cabinet.
+- Add the key as the `VITE_POLOTNO_KEY` GitHub secret — the CI workflows
+  already pass it to builds.
 
 ## 2. GitHub repository
 
