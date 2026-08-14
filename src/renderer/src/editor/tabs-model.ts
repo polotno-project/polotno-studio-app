@@ -12,6 +12,10 @@ export interface DesignTab {
   baseline: string
   // True while an untitled tab has an autosaved draft file on disk.
   hasDraft: boolean
+  // True while a programmatic load settles (loadJSON + async asset loading).
+  // Change events during a load must not mark the tab dirty (studio's
+  // loadingRef pattern) — otherwise autosave overwrites external edits.
+  loading: boolean
 }
 
 export function designSnapshot(store: DesignStore): string {
@@ -68,7 +72,8 @@ class TabsModel {
       name: name ?? (filePath ? nameFromPath(filePath) : 'Untitled'),
       dirty: false,
       baseline: '',
-      hasDraft: false
+      hasDraft: false,
+      loading: Boolean(json)
     }
     if (json) {
       tab.store.loadJSON(json)

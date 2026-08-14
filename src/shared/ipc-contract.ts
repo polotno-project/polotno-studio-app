@@ -26,6 +26,7 @@ export interface InvokeApi {
   'draft:write': (p: { docId: DocId; content: string }) => void
   'draft:remove': (p: { docId: DocId }) => void
   'dialog:confirmCloseUntitled': (p: { name: string }) => 'save' | 'discard' | 'cancel'
+  'dialog:externalChange': (p: { name: string }) => 'reload' | 'keep'
 }
 
 export type MenuAction =

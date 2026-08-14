@@ -29,7 +29,12 @@ export function createEditorWindow(): BrowserWindow {
     }
   })
 
-  editorWindow.on('ready-to-show', () => editorWindow?.show())
+  // POLOTNO_SHOW_INACTIVE: automated test runs show the window without
+  // activating the app, so launches don't steal the user's focus.
+  editorWindow.on('ready-to-show', () => {
+    if (process.env.POLOTNO_SHOW_INACTIVE) editorWindow?.showInactive()
+    else editorWindow?.show()
+  })
   editorWindow.on('closed', () => {
     editorWindow = null
   })

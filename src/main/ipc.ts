@@ -2,6 +2,7 @@ import { ipcMain, dialog, BrowserWindow } from 'electron'
 import type { InvokeApi } from '../shared/ipc-contract'
 import { documents } from './documents'
 import { listDrafts, writeDraft, removeDraft } from './drafts'
+import { watchDocument, unwatchDocument } from './watcher'
 import {
   readDesignFile,
   readDesignFileBase64,
@@ -30,10 +31,17 @@ function windowOf(event: Electron.IpcMainInvokeEvent): BrowserWindow {
 export function registerIpcHandlers(): void {
   handle('doc:register', (event, { docId, filePath }) => {
     documents.register(docId, event.sender.id, filePath)
+    if (filePath) watchDocument(docId)
   })
-  handle('doc:setFilePath', (_event, { docId, filePath }) => documents.setFilePath(docId, filePath))
+  handle('doc:setFilePath', (_event, { docId, filePath }) => {
+    documents.setFilePath(docId, filePath)
+    watchDocument(docId)
+  })
   handle('doc:setDirty', (_event, { docId, dirty }) => documents.setDirty(docId, dirty))
-  handle('doc:close', (_event, { docId }) => documents.close(docId))
+  handle('doc:close', (_event, { docId }) => {
+    unwatchDocument(docId)
+    documents.close(docId)
+  })
 
   handle('file:openDialog', (event) => showOpenDesignDialog(windowOf(event)))
   handle('file:read', (_event, { filePath }) => readDesignFile(filePath))
@@ -59,6 +67,18 @@ export function registerIpcHandlers(): void {
       cancelId: 2
     })
     return (['save', 'discard', 'cancel'] as const)[response]
+  })
+
+  handle('dialog:externalChange', async (event, { name }) => {
+    const { response } = await dialog.showMessageBox(windowOf(event), {
+      type: 'question',
+      message: `"${name}" changed on disk`,
+      detail: 'The file was modified outside this app while you have unsaved changes.',
+      buttons: ['Reload From Disk', 'Keep My Changes'],
+      defaultId: 0,
+      cancelId: 1
+    })
+    return response === 0 ? 'reload' : 'keep'
   })
 
   // Populated by the recent-files step (stage 1 step 10).
