@@ -7,6 +7,8 @@ type Invoke = <C extends keyof InvokeApi>(
 ) => Promise<ReturnType<InvokeApi[C]>>
 
 const desktop = {
+  platform: process.platform,
+
   invoke: ((channel, ...args) => ipcRenderer.invoke(channel, ...args)) as Invoke,
 
   on<C extends keyof MainEvents>(channel: C, listener: (payload: MainEvents[C]) => void): () => void {

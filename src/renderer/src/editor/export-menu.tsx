@@ -83,24 +83,22 @@ export async function runExport(format: ExportFormat): Promise<void> {
 
 export const ExportMenu = observer(function ExportMenu(): React.JSX.Element {
   return (
-    <div className="ml-auto mr-1 self-center">
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button size="sm">
-              <Download className="size-3.5" />
-              Export
-            </Button>
-          }
-        />
-        <DropdownMenuContent align="end">
-          {FORMATS.map(({ format, label }) => (
-            <DropdownMenuItem key={format} onSelect={() => void runExport(format)}>
-              {label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button size="sm">
+            <Download className="size-3.5" />
+            Export
+          </Button>
+        }
+      />
+      <DropdownMenuContent align="end">
+        {FORMATS.map(({ format, label }) => (
+          <DropdownMenuItem key={format} onSelect={() => void runExport(format)}>
+            {label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 })

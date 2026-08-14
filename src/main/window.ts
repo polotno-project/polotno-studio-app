@@ -21,6 +21,12 @@ export function createEditorWindow(options: { hidden?: boolean } = {}): BrowserW
     minWidth: 900,
     minHeight: 600,
     show: false,
+    // The tab strip doubles as the title bar: no system chrome, only the
+    // native window controls (macOS traffic lights / Windows overlay).
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' as const } : {}),
+    ...(process.platform === 'win32'
+      ? { titleBarStyle: 'hidden' as const, titleBarOverlay: { height: 40 } }
+      : {}),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

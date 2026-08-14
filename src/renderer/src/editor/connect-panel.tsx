@@ -93,7 +93,7 @@ export function ConnectPanel(): React.JSX.Element {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button variant="outline" size="sm" className="mr-1 self-center">
+          <Button variant="ghost" size="sm">
             <Bot className="size-3.5" />
             Connect AI
           </Button>

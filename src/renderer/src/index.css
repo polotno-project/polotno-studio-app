@@ -7,3 +7,12 @@ body,
   margin: 0;
   overflow: hidden;
 }
+
+/* Frameless window: the tab strip is the draggable title bar; anything
+   clickable inside it opts out. */
+.app-drag {
+  -webkit-app-region: drag;
+}
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
