@@ -7,6 +7,7 @@ import { collectOpenablePaths, requestOpenPath } from './open-files'
 import { initBridgeRouter } from './bridge-router'
 import { startMcpServer, stopMcpServer } from './mcp/launcher'
 import { runCli } from './cli'
+import { initUpdater } from './updater'
 
 // Headless CLI subcommands (stage 3) branch before any window or lock exists,
 // so the GUI path and the CLI path never fight.
@@ -44,6 +45,7 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
     installAppMenu()
     createEditorWindow()
     startMcpServer()
+    initUpdater()
 
     // Windows/Linux: files arrive as launch arguments.
     if (process.platform !== 'darwin') {

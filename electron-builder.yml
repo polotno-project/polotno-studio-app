@@ -6,6 +6,8 @@ files:
   - '!**/.vscode/*'
   - '!src/*'
   - '!scripts/*'
+  - '!mcpb/*'
+  - '!vendor/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
@@ -26,6 +28,15 @@ fileAssociations:
     role: Editor
 win:
   executableName: Polotno
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+  # Azure Trusted Signing — set env AZURE_TENANT_ID / AZURE_CLIENT_ID /
+  # AZURE_CLIENT_SECRET in CI and uncomment:
+  # azureSignOptions:
+  #   endpoint: https://eus.codesigning.azure.net
+  #   codeSigningAccountName: polotno
+  #   certificateProfileName: polotno-app
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -33,10 +44,17 @@ nsis:
   createDesktopShortcut: always
 mac:
   entitlementsInherit: build/entitlements.mac.plist
+  # zip is required — electron-updater consumes it; dmg is for humans.
+  target:
+    - target: dmg
+      arch: universal
+    - target: zip
+      arch: universal
   extendInfo:
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  # Signing + notarization are wired in the release stage.
+  # Flip to true once APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID
+  # secrets are set in CI (electron-builder >= 26 notarizes automatically).
   notarize: false
 dmg:
   artifactName: ${name}-${version}.${ext}
@@ -47,4 +65,8 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
-# publish: configured in the release stage (GitHub Releases).
+publish:
+  provider: github
+  owner: polotno-project
+  repo: polotno-studio-app
+  releaseType: draft

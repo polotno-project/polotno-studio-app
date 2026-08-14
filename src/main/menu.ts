@@ -3,6 +3,7 @@ import { is } from '@electron-toolkit/utils'
 import type { MenuAction } from '../shared/ipc-contract'
 import { documents } from './documents'
 import { execCommand } from './bridge-router'
+import { checkForUpdatesInteractive } from './updater'
 
 function sendMenuAction(action: MenuAction): void {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
@@ -12,8 +13,31 @@ function sendMenuAction(action: MenuAction): void {
 export function installAppMenu(): void {
   const isMac = process.platform === 'darwin'
 
+  const checkForUpdatesItem: Electron.MenuItemConstructorOptions = {
+    label: 'Check for Updates…',
+    click: () => void checkForUpdatesInteractive()
+  }
+
   const template: Electron.MenuItemConstructorOptions[] = [
-    ...(isMac ? [{ role: 'appMenu' as const }] : []),
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: 'about' as const },
+              checkForUpdatesItem,
+              { type: 'separator' as const },
+              { role: 'services' as const },
+              { type: 'separator' as const },
+              { role: 'hide' as const },
+              { role: 'hideOthers' as const },
+              { role: 'unhide' as const },
+              { type: 'separator' as const },
+              { role: 'quit' as const }
+            ]
+          }
+        ]
+      : []),
     {
       label: 'File',
       submenu: [
@@ -74,6 +98,7 @@ export function installAppMenu(): void {
     },
     { role: 'viewMenu' },
     { role: 'windowMenu' },
+    ...(isMac ? [] : [{ label: 'Help', submenu: [checkForUpdatesItem] }]),
     ...(is.dev
       ? [
           {
@@ -100,6 +125,7 @@ export function installAppMenu(): void {
       : [])
   ]
 
+  // No app.setName here: renaming would also move userData (it is keyed to
+  // package.json "name" = polotno-app, which the mcpb proxy relies on).
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
-  app.setName('Polotno')
 }

@@ -1,0 +1,30 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Package (unsigned, no publish)
+        run: npx electron-builder --publish never
+      - name: CLI smoke test (render bundled templates)
+        if: runner.os == 'macOS'
+        run: |
+          ./node_modules/electron/dist/Electron.app/Contents/MacOS/Electron . render \
+            src/renderer/src/templates/social-media-post.json -o /tmp/cli-smoke.png --pixel-ratio 1
+          test -s /tmp/cli-smoke.png
