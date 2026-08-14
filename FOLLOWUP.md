@@ -43,6 +43,14 @@ Linux AppImage stays unsigned by design.
   (signature still "Notarized Developer ID" after the update).
 - Remaining: repeat the update check on Windows and Linux installs.
 
+## 4b. Skill entry page (polotno-website)
+
+- Committed locally on `polotno-website` master ("Add agent-readable design
+  skill entry page"): `public/skills/design.md`, llms.txt entry,
+  skills-lock source fix. Pushing master deploys polotno.com — push when
+  ready, then verify `curl https://polotno.com/skills/design.md` serves raw
+  markdown and run the one-paste line in a fresh agent session.
+
 ## 5. Skills repo
 
 - Done: `polotno-ai-rules` commit `9d99923` ("polotno-design: add live MCP
