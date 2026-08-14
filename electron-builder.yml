@@ -53,9 +53,10 @@ mac:
   extendInfo:
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  # Flip to true once APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID
-  # secrets are set in CI (electron-builder >= 26 notarizes automatically).
-  notarize: false
+  # Notarization runs in CI via APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD /
+  # APPLE_TEAM_ID secrets. Local unsigned builds skip it automatically because
+  # the release workflow unsets empty env vars.
+  notarize: true
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
