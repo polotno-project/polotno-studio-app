@@ -29,6 +29,10 @@ export interface InvokeApi {
   'draft:remove': (p: { docId: DocId }) => void
   'dialog:confirmCloseUntitled': (p: { name: string }) => 'save' | 'discard' | 'cancel'
   'dialog:externalChange': (p: { name: string }) => 'reload' | 'keep'
+  'mcp:getStatus': () => { running: boolean; url: string | null; token: string }
+  'mcp:regenerateToken': () => { token: string }
+  'mcp:saveMcpb': () => { filePath: string } | null
+  'shell:openExternal': (p: { url: string }) => void
 }
 
 export type MenuAction = 'newTab' | 'openFile' | 'save' | 'saveAs' | 'closeTab' | 'export'

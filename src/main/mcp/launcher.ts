@@ -135,3 +135,17 @@ export function stopMcpServer(): void {
   child?.kill()
   child = null
 }
+
+// Token rotation: kill the child (without triggering crash-restart) and start
+// fresh — the new token flows in via env.
+export function restartMcpServer(): void {
+  const current = child
+  child = null
+  currentUrl = null
+  restarts = []
+  if (current) {
+    current.removeAllListeners('exit')
+    current.kill()
+  }
+  startMcpServer()
+}

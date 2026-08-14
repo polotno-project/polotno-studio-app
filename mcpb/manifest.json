@@ -1,0 +1,16 @@
+{
+  "manifest_version": "0.2",
+  "name": "polotno",
+  "display_name": "Polotno Design Editor",
+  "version": "1.0.0",
+  "description": "Create, edit, see, and export designs in the Polotno desktop app.",
+  "author": { "name": "Polotno" },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"]
+    }
+  }
+}

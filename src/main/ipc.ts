@@ -1,10 +1,15 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { app, ipcMain, dialog, shell, BrowserWindow } from 'electron'
+import { promises as fs } from 'node:fs'
+import { join } from 'node:path'
+import { is } from '@electron-toolkit/utils'
 import type { InvokeApi } from '../shared/ipc-contract'
 import { documents } from './documents'
 import { listDrafts, writeDraft, removeDraft } from './drafts'
 import { watchDocument, unwatchDocument } from './watcher'
 import { listRecent, addRecent } from './recent'
 import { markRendererReady } from './open-files'
+import { getMcpStatus, restartMcpServer } from './mcp/launcher'
+import { regenerateMcpToken } from './mcp/token'
 import {
   readDesignFile,
   readDesignFileBase64,
@@ -89,4 +94,27 @@ export function registerIpcHandlers(): void {
 
   handle('recent:list', () => listRecent())
   handle('app:rendererReady', () => markRendererReady())
+
+  handle('mcp:getStatus', () => getMcpStatus())
+  handle('mcp:regenerateToken', () => {
+    const token = regenerateMcpToken()
+    restartMcpServer()
+    return { token }
+  })
+  handle('mcp:saveMcpb', async (event) => {
+    const source = is.dev
+      ? join(app.getAppPath(), 'out/Polotno.mcpb')
+      : join(process.resourcesPath, 'Polotno.mcpb')
+    const { canceled, filePath } = await dialog.showSaveDialog(windowOf(event), {
+      defaultPath: 'Polotno.mcpb',
+      filters: [{ name: 'MCP Bundle', extensions: ['mcpb'] }]
+    })
+    if (canceled || !filePath) return null
+    await fs.copyFile(source, filePath)
+    return { filePath }
+  })
+  handle('shell:openExternal', (_event, { url }) => {
+    if (!/^(https?|cursor|vscode):/.test(url)) throw new Error(`Refusing to open ${url}`)
+    void shell.openExternal(url)
+  })
 }

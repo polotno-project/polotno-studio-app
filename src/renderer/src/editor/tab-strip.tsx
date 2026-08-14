@@ -3,6 +3,7 @@ import { Plus, X } from 'lucide-react'
 import { tabs } from './tabs-model'
 import { requestCloseTab } from './document'
 import { ExportMenu } from './export-menu'
+import { ConnectPanel } from './connect-panel'
 
 export const TabStrip = observer(function TabStrip(): React.JSX.Element {
   return (
@@ -44,7 +45,10 @@ export const TabStrip = observer(function TabStrip(): React.JSX.Element {
       >
         <Plus className="size-4" />
       </button>
-      <ExportMenu />
+      <div className="ml-auto flex items-center">
+        <ConnectPanel />
+        <ExportMenu />
+      </div>
     </div>
   )
 })
