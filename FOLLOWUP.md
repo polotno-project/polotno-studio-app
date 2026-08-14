@@ -38,8 +38,10 @@ Linux AppImage stays unsigned by design.
 - Done: `v0.1.0` published (mac universal dmg+zip signed+notarized, win
   setup.exe, linux AppImage, blockmaps, updater manifests); `spctl` verified
   on macOS.
-- Remaining: install `v0.1.0`, then tag `v0.1.1` and confirm the installed
-  app auto-updates (differential download in the updater log).
+- Done (macOS): installed `v0.1.0` from the published dmg, tagged and
+  published `v0.1.1`, and the installed app auto-updated to 0.1.1
+  (signature still "Notarized Developer ID" after the update).
+- Remaining: repeat the update check on Windows and Linux installs.
 
 ## 5. Skills repo
 
