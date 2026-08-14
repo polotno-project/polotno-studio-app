@@ -5,20 +5,19 @@ import { PolotnoEditor } from './editor/polotno-editor'
 import { HiddenStages } from './editor/hidden-stages'
 import { TabStrip } from './editor/tab-strip'
 import { tabs } from './editor/tabs-model'
-import { openViaDialog, requestCloseTab, saveTab, saveTabAs } from './editor/document'
-import { restoreDrafts } from './editor/session'
+import { createDesign, openViaDialog, requestCloseTab, saveTab, saveTabAs } from './editor/document'
+import { restoreSession } from './editor/session'
 
 const App = observer(function App(): React.JSX.Element {
   useEffect(() => {
-    void restoreDrafts().then((restored) => {
-      if (restored === 0 && tabs.tabs.length === 0) tabs.newTab()
+    void restoreSession().then(() => {
       // Tell main the doc:openPath listener below is live (flushes OS opens).
       void window.desktop.invoke('app:rendererReady')
     })
     const offMenu = window.desktop.on('menu:action', ({ action }) => {
       switch (action) {
         case 'newTab':
-          tabs.newTab()
+          void createDesign()
           break
         case 'closeTab':
           if (tabs.activeDocId) void requestCloseTab(tabs.activeDocId)

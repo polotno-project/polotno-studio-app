@@ -4,8 +4,16 @@ import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import type { InvokeApi } from '../shared/ipc-contract'
 import { documents } from './documents'
-import { listDrafts, writeDraft, removeDraft } from './drafts'
 import { watchDocument, unwatchDocument } from './watcher'
+import {
+  listLibrary,
+  createLibraryDesign,
+  renameLibraryDesign,
+  duplicateLibraryDesign,
+  deleteLibraryDesign,
+  writePreview
+} from './library'
+import { persistSession, loadSession } from './session-store'
 import { listRecent, addRecent } from './recent'
 import { markRendererReady } from './open-files'
 import { getMcpStatus, restartMcpServer } from './mcp/launcher'
@@ -42,16 +50,19 @@ export function registerIpcHandlers(): void {
       watchDocument(docId)
       void addRecent(filePath)
     }
+    persistSession()
   })
   handle('doc:setFilePath', (_event, { docId, filePath }) => {
     documents.setFilePath(docId, filePath)
     watchDocument(docId)
     void addRecent(filePath)
+    persistSession()
   })
   handle('doc:setDirty', (_event, { docId, dirty }) => documents.setDirty(docId, dirty))
   handle('doc:close', (_event, { docId }) => {
     unwatchDocument(docId)
     documents.close(docId)
+    persistSession()
   })
 
   handle('file:openDialog', (event) => showOpenDesignDialog(windowOf(event)))
@@ -64,20 +75,33 @@ export function registerIpcHandlers(): void {
     showSaveAsDialog(windowOf(event), suggestedName)
   )
 
-  handle('draft:list', () => listDrafts())
-  handle('draft:write', (_event, { docId, content }) => writeDraft(docId, content))
-  handle('draft:remove', (_event, { docId }) => removeDraft(docId))
+  handle('library:list', () => listLibrary())
+  handle('library:create', async (_event, { name, content }) => ({
+    filePath: await createLibraryDesign(name, content)
+  }))
+  handle('library:rename', async (_event, { filePath, name }) => ({
+    filePath: await renameLibraryDesign(filePath, name)
+  }))
+  handle('library:duplicate', async (_event, { filePath }) => ({
+    filePath: await duplicateLibraryDesign(filePath)
+  }))
+  handle('library:delete', (_event, { filePath }) => deleteLibraryDesign(filePath))
+  handle('design:writePreview', (_event, { docId, dataUrl }) => {
+    const entry = documents.get(docId)
+    if (entry?.filePath) void writePreview(entry.filePath, dataUrl)
+  })
+  handle('session:list', async () => ({ filePaths: await loadSession() }))
 
-  handle('dialog:confirmCloseUntitled', async (event, { name }) => {
+  handle('dialog:confirm', async (event, { message, detail, confirmLabel }) => {
     const { response } = await dialog.showMessageBox(windowOf(event), {
       type: 'warning',
-      message: `Save "${name}" before closing?`,
-      detail: 'The design has not been saved to a file yet.',
-      buttons: ['Save…', "Don't Save", 'Cancel'],
-      defaultId: 0,
-      cancelId: 2
+      message,
+      detail,
+      buttons: [confirmLabel, 'Cancel'],
+      defaultId: 1,
+      cancelId: 1
     })
-    return (['save', 'discard', 'cancel'] as const)[response]
+    return response === 0
   })
 
   handle('dialog:externalChange', async (event, { name }) => {

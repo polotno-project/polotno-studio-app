@@ -9,9 +9,29 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer
 }
 
-// Open a design file from disk into a tab. Project files keep their path (a
-// tab saves back to it); PDF/AI/SVG are imports — the tab starts untitled so
-// saving never overwrites the source with Polotno JSON.
+// Create a design: the tab appears immediately and the design materializes as
+// a real file in the library folder (Documents/Polotno) right away — every
+// design has a file from birth, autosave keeps it fresh.
+export async function createDesign(
+  options: { json?: unknown; name?: string; activate?: boolean } = {}
+): Promise<DesignTab> {
+  const tab = tabs.newTab({
+    json: options.json,
+    name: options.name ?? 'Untitled',
+    activate: options.activate ?? true
+  })
+  const { filePath } = await window.desktop.invoke('library:create', {
+    name: tab.name,
+    content: designSnapshot(tab.store)
+  })
+  tabs.setFilePath(tab.docId, filePath)
+  tab.baseline = designSnapshot(tab.store)
+  return tab
+}
+
+// Open a design file from disk into a tab. Design files keep their path (the
+// tab saves back to it); PDF/AI/SVG are imports — they become a new library
+// design so saving never overwrites the source.
 export async function openPath(filePath: string): Promise<void> {
   const existing = tabs.getByPath(filePath)
   if (existing) {
@@ -30,13 +50,13 @@ export async function openPath(filePath: string): Promise<void> {
       case 'pdf': {
         const { base64 } = await window.desktop.invoke('file:readBase64', { filePath })
         const json = await parsePdfBuffer(base64ToArrayBuffer(base64))
-        tabs.newTab({ json, name: nameFromPath(filePath) })
+        await createDesign({ json, name: nameFromPath(filePath) })
         break
       }
       case 'svg': {
         const { content } = await window.desktop.invoke('file:read', { filePath })
         const json = await parseSvgText(content)
-        tabs.newTab({ json, name: nameFromPath(filePath) })
+        await createDesign({ json, name: nameFromPath(filePath) })
         break
       }
       default:
@@ -89,37 +109,17 @@ export async function saveTabAs(docId: string): Promise<boolean> {
   })
   tab.baseline = content
   tabs.setDirty(tab.docId, false)
-  if (tab.hasDraft) {
-    await window.desktop.invoke('draft:remove', { docId: tab.docId })
-    tab.hasDraft = false
-  }
   return true
 }
 
-// Close a tab safely. File-backed tabs flush silently (consistent with
-// autosave-to-file); untitled tabs with content prompt Save / Don't Save /
-// Cancel through a native dialog.
+// Close a tab: flush unsaved changes to its file, then close. No prompt —
+// every design has a file, and deletion happens in My designs.
 export async function requestCloseTab(docId: string): Promise<void> {
   const tab = tabs.get(docId)
   if (!tab) return
   const dirty = serializeTab(tab) !== tab.baseline || tab.dirty
-
-  if (tab.filePath) {
-    if (dirty) await saveTab(docId)
-    tabs.closeTab(docId)
-    return
-  }
-
-  if (dirty || tab.hasDraft) {
-    const choice = await window.desktop.invoke('dialog:confirmCloseUntitled', { name: tab.name })
-    if (choice === 'cancel') return
-    if (choice === 'save') {
-      const saved = await saveTabAs(docId)
-      if (!saved) return
-    }
-  }
-  if (tab.hasDraft) {
-    await window.desktop.invoke('draft:remove', { docId: tab.docId })
-  }
+  if (dirty && tab.filePath) await saveTab(docId)
   tabs.closeTab(docId)
+  // The editor always shows a design; an empty tab strip gets a fresh one.
+  if (tabs.tabs.length === 0) await createDesign()
 }

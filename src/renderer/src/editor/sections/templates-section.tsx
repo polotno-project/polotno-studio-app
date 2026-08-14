@@ -1,93 +1,168 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { observer } from 'mobx-react-lite'
 import {
   SectionTab,
   TemplatesSection as StockTemplatesSection,
   type Section
 } from 'polotno/side-panel'
-import { LayoutTemplate, FileClock } from 'lucide-react'
+import { LayoutTemplate, MoreHorizontal, Plus } from 'lucide-react'
+import { toast } from 'sonner'
+import { Button } from 'polotno/primitives/button'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem
+} from 'polotno/primitives/dropdown-menu'
+import { Input } from 'polotno/primitives/input'
+import type { LibraryEntry } from '../../../../shared/ipc-contract'
 import type { DesignStore } from '../store'
-import { tabs, type DesignTab } from '../tabs-model'
-import { openPath } from '../document'
+import { tabs } from '../tabs-model'
+import { openPath, createDesign } from '../document'
 import { SegmentedTabs } from './segmented-tabs'
 
-// One card per open tab, thumbnail rendered from its live store.
-const OpenDesignCard = observer(function OpenDesignCard({
-  tab
+const DesignCard = observer(function DesignCard({
+  entry,
+  onChanged
 }: {
-  tab: DesignTab
+  entry: LibraryEntry
+  onChanged: () => void
 }): React.JSX.Element {
-  const [preview, setPreview] = useState<string | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    void tab.store
-      .toDataURL({ pixelRatio: 200 / tab.store.width, mimeType: 'image/jpeg', quality: 0.7 })
-      .then((url: string) => {
-        if (!cancelled) setPreview(url)
+  const [renaming, setRenaming] = useState(false)
+  const [draftName, setDraftName] = useState(entry.name)
+  const openTab = tabs.getByPath(entry.filePath)
+  const isActive = openTab?.docId === tabs.activeDocId
+
+  const finishRename = async (): Promise<void> => {
+    setRenaming(false)
+    const name = draftName.trim()
+    if (!name || name === entry.name) return
+    try {
+      const { filePath } = await window.desktop.invoke('library:rename', {
+        filePath: entry.filePath,
+        name
       })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
+      if (openTab) tabs.setFilePath(openTab.docId, filePath)
+      onChanged()
+    } catch (error) {
+      console.error('Rename failed', error)
+      toast.error('Could not rename the design.')
     }
-  }, [tab])
-  const isActive = tab.docId === tabs.activeDocId
+  }
+
+  const duplicate = async (): Promise<void> => {
+    await window.desktop.invoke('library:duplicate', { filePath: entry.filePath })
+    onChanged()
+  }
+
+  const remove = async (): Promise<void> => {
+    const confirmed = await window.desktop.invoke('dialog:confirm', {
+      message: `Move "${entry.name}" to the trash?`,
+      detail: 'You can restore it from the system trash.',
+      confirmLabel: 'Move to Trash'
+    })
+    if (!confirmed) return
+    // Close first so autosave cannot resurrect the file after deletion.
+    if (openTab) tabs.closeTab(openTab.docId)
+    await window.desktop.invoke('library:delete', { filePath: entry.filePath })
+    if (tabs.tabs.length === 0) await createDesign()
+    onChanged()
+  }
+
   return (
-    <button
-      onClick={() => tabs.activate(tab.docId)}
+    <div
       className={
-        'flex flex-col gap-1 overflow-hidden rounded-md border text-left transition-colors ' +
+        'group relative flex flex-col overflow-hidden rounded-md border text-left transition-colors ' +
         (isActive
           ? 'border-blue-500'
           : 'border-neutral-200 hover:border-neutral-400 dark:border-neutral-700 dark:hover:border-neutral-500')
       }
     >
-      <div className="flex aspect-square w-full items-center justify-center bg-neutral-50 dark:bg-neutral-900">
-        {preview ? (
-          <img src={preview} alt={tab.name} className="max-h-full max-w-full object-contain" />
+      <button
+        onClick={() => void openPath(entry.filePath)}
+        className="flex aspect-square w-full items-center justify-center bg-neutral-50 dark:bg-neutral-900"
+      >
+        {entry.preview ? (
+          <img src={entry.preview} alt={entry.name} className="max-h-full max-w-full object-contain" />
         ) : (
           <LayoutTemplate className="size-6 text-neutral-300" />
         )}
+      </button>
+      <div className="flex items-center gap-1 px-2 py-1.5">
+        {renaming ? (
+          <Input
+            autoFocus
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            onBlur={() => void finishRename()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void finishRename()
+              if (e.key === 'Escape') setRenaming(false)
+            }}
+            className="h-6 flex-1 px-1 text-xs"
+          />
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-xs font-medium">
+            {entry.name}
+            {openTab && <span className="ml-1 text-[10px] text-blue-500">open</span>}
+          </span>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button className="shrink-0 rounded-sm p-0.5 opacity-0 group-hover:opacity-70 hover:bg-neutral-200 hover:!opacity-100 dark:hover:bg-neutral-700">
+                <MoreHorizontal className="size-3.5" />
+              </button>
+            }
+          />
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onSelect={() => {
+                setDraftName(entry.name)
+                setRenaming(true)
+              }}
+            >
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void duplicate()}>Duplicate</DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onSelect={() => void remove()}>
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      <span className="truncate px-2 pb-1.5 text-xs font-medium">{tab.name}</span>
-    </button>
+    </div>
   )
 })
 
 const MyDesignsPanel = observer(function MyDesignsPanel(): React.JSX.Element {
-  const [recent, setRecent] = useState<{ filePath: string; name: string }[]>([])
-  useEffect(() => {
-    void window.desktop.invoke('recent:list').then(setRecent)
+  const [entries, setEntries] = useState<LibraryEntry[]>([])
+  const refresh = useCallback(() => {
+    void window.desktop.invoke('library:list').then(setEntries)
   }, [])
-  const openPaths = new Set(tabs.tabs.map((tab) => tab.filePath).filter(Boolean))
-  const closedRecent = recent.filter((entry) => !openPaths.has(entry.filePath))
+  useEffect(refresh, [refresh])
+
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto">
-      <div>
-        <p className="mb-2 text-xs font-semibold text-neutral-500 uppercase">Open</p>
-        <div className="grid grid-cols-2 gap-2">
-          {tabs.tabs.map((tab) => (
-            <OpenDesignCard key={tab.docId} tab={tab} />
-          ))}
-        </div>
+    <div className="flex h-full flex-col gap-2">
+      <Button
+        size="sm"
+        onClick={() => {
+          void createDesign().then(refresh)
+        }}
+      >
+        <Plus className="size-3.5" />
+        New design
+      </Button>
+      <div className="grid flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto pb-2">
+        {entries.map((entry) => (
+          <DesignCard key={entry.filePath} entry={entry} onChanged={refresh} />
+        ))}
+        {entries.length === 0 && (
+          <p className="col-span-2 pt-6 text-center text-xs text-neutral-400">
+            Designs you create are saved here (Documents/Polotno).
+          </p>
+        )}
       </div>
-      {closedRecent.length > 0 && (
-        <div>
-          <p className="mb-2 text-xs font-semibold text-neutral-500 uppercase">Recent files</p>
-          <div className="flex flex-col">
-            {closedRecent.map((entry) => (
-              <button
-                key={entry.filePath}
-                onClick={() => void openPath(entry.filePath)}
-                title={entry.filePath}
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              >
-                <FileClock className="size-4 shrink-0 text-neutral-400" />
-                <span className="truncate">{entry.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 })

@@ -48,8 +48,8 @@ export function createEditorWindow(options: { hidden?: boolean } = {}): BrowserW
   })
 
   // Autosave-by-flush instead of a quit prompt: before the window closes, the
-  // renderer saves every file-backed tab and drafts every untitled one. The
-  // timeout keeps a hung renderer from blocking quit.
+  // renderer saves every tab to its file. The timeout keeps a hung renderer
+  // from blocking quit.
   let flushed = false
   editorWindow.on('close', (event) => {
     if (flushed || !editorWindow) return

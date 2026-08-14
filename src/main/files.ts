@@ -12,7 +12,7 @@ const OPENABLE_FILE_FILTERS = [
 ]
 
 const SAVE_FILE_FILTERS = [
-  { name: 'Polotno Design', extensions: ['polotno', 'json'] },
+  { name: 'Polotno Design', extensions: ['json', 'polotno'] },
   { name: 'All Files', extensions: ['*'] }
 ]
 
@@ -69,7 +69,7 @@ export async function showSaveAsDialog(
   suggestedName: string
 ): Promise<{ filePath: string } | null> {
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
-    defaultPath: suggestedName.endsWith('.polotno') ? suggestedName : `${suggestedName}.polotno`,
+    defaultPath: /\.(json|polotno)$/.test(suggestedName) ? suggestedName : `${suggestedName}.json`,
     filters: SAVE_FILE_FILTERS
   })
   if (canceled || !filePath) return null

@@ -10,6 +10,14 @@ export interface OpenedFile {
   content: string
 }
 
+export interface LibraryEntry {
+  filePath: string
+  name: string
+  modifiedAt: number
+  // Small JPEG data URL, or null when no thumbnail exists yet.
+  preview: string | null
+}
+
 // Promise-based renderer -> main calls (ipcRenderer.invoke).
 export interface InvokeApi {
   'doc:register': (p: { docId: DocId; filePath: string | null }) => void
@@ -24,10 +32,16 @@ export interface InvokeApi {
   'recent:list': () => RecentEntry[]
   // Renderer announces its doc:openPath listener is live; main flushes queued opens.
   'app:rendererReady': () => void
-  'draft:list': () => { docId: string; content: string }[]
-  'draft:write': (p: { docId: DocId; content: string }) => void
-  'draft:remove': (p: { docId: DocId }) => void
-  'dialog:confirmCloseUntitled': (p: { name: string }) => 'save' | 'discard' | 'cancel'
+  'library:list': () => LibraryEntry[]
+  'library:create': (p: { name: string; content: string }) => { filePath: string }
+  'library:rename': (p: { filePath: string; name: string }) => { filePath: string }
+  'library:duplicate': (p: { filePath: string }) => { filePath: string }
+  'library:delete': (p: { filePath: string }) => void
+  // Thumbnail sidecar for the doc's file (shown in My designs).
+  'design:writePreview': (p: { docId: DocId; dataUrl: string }) => void
+  // Files that were open when the app last closed.
+  'session:list': () => { filePaths: string[] }
+  'dialog:confirm': (p: { message: string; detail?: string; confirmLabel: string }) => boolean
   'dialog:externalChange': (p: { name: string }) => 'reload' | 'keep'
   'mcp:getStatus': () => { running: boolean; url: string | null; token: string }
   'mcp:regenerateToken': () => { token: string }

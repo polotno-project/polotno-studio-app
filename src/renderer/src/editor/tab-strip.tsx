@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite'
 import { Plus, X } from 'lucide-react'
 import { tabs } from './tabs-model'
-import { requestCloseTab } from './document'
+import { createDesign, requestCloseTab } from './document'
 import { ExportMenu } from './export-menu'
 import { ConnectPanel } from './connect-panel'
 
@@ -56,7 +56,7 @@ export const TabStrip = observer(function TabStrip(): React.JSX.Element {
         })}
         <button
           aria-label="New design"
-          onClick={() => tabs.newTab()}
+          onClick={() => void createDesign()}
           className="flex size-7 shrink-0 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-200/70 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
         >
           <Plus className="size-4" />

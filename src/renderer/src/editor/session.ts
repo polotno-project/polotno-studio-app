@@ -1,24 +1,33 @@
 import { toast } from 'sonner'
 import { tabs, designSnapshot, type DesignTab } from './tabs-model'
-import { saveTab } from './document'
+import { saveTab, openPath, createDesign } from './document'
 
 // Ported pattern from studio-automation editor-session.tsx: a 400 ms dirty
-// recompute on store change, and a 1 s coalesced autosave. File-backed tabs
-// autosave to their real file; untitled tabs autosave to a draft.
+// recompute on store change, and a 1 s coalesced autosave straight to the
+// design's file, plus a thumbnail sidecar for the My designs panel.
 
 const DIRTY_DEBOUNCE_MS = 400
 const AUTOSAVE_DEBOUNCE_MS = 1000
+const PREVIEW_WIDTH = 240
+
+async function writePreview(tab: DesignTab): Promise<void> {
+  try {
+    const dataUrl = await tab.store.toDataURL({
+      pixelRatio: PREVIEW_WIDTH / tab.store.width,
+      mimeType: 'image/jpeg',
+      quality: 0.7
+    })
+    await window.desktop.invoke('design:writePreview', { docId: tab.docId, dataUrl })
+  } catch {
+    // thumbnails are best-effort
+  }
+}
 
 async function autosave(tab: DesignTab): Promise<void> {
   if (!tabs.get(tab.docId)) return // tab was closed meanwhile
-  if (tab.filePath) {
-    await saveTab(tab.docId)
-    return
-  }
-  const content = designSnapshot(tab.store)
-  if (content === tab.baseline && !tab.dirty) return
-  await window.desktop.invoke('draft:write', { docId: tab.docId, content })
-  tab.hasDraft = true
+  if (!tab.filePath) return // file still materializing (createDesign in flight)
+  await saveTab(tab.docId)
+  void writePreview(tab)
 }
 
 // A programmatic load settles asynchronously (assets, font normalization).
@@ -31,6 +40,7 @@ function settleAfterLoad(tab: DesignTab): void {
       tab.baseline = designSnapshot(tab.store)
       tab.loading = false
       tabs.setDirty(tab.docId, false)
+      void writePreview(tab)
     })
 }
 
@@ -86,8 +96,8 @@ window.desktop.on('app:flushRequest', () => {
   void (async () => {
     for (const tab of [...tabs.tabs]) {
       try {
-        if (designSnapshot(tab.store) !== tab.baseline || tab.dirty) {
-          await autosave(tab)
+        if (tab.filePath && (designSnapshot(tab.store) !== tab.baseline || tab.dirty)) {
+          await saveTab(tab.docId)
         }
       } catch (error) {
         console.error('Flush failed for tab', tab.name, error)
@@ -97,28 +107,17 @@ window.desktop.on('app:flushRequest', () => {
   })()
 })
 
-// Reopen drafts from the previous session as untitled tabs. The draft is
-// re-keyed to the new tab's docId; the old file is removed only after the
-// new one is safely written.
-let draftsRestored = false
+let sessionRestored = false
 
-export async function restoreDrafts(): Promise<number> {
-  // React StrictMode double-invokes effects; drafts must restore only once.
-  if (draftsRestored) return 0
-  draftsRestored = true
-  const drafts = await window.desktop.invoke('draft:list')
-  let restored = 0
-  for (const draft of drafts) {
-    try {
-      const json = JSON.parse(draft.content)
-      const tab = tabs.newTab({ json, activate: restored === 0 })
-      await window.desktop.invoke('draft:write', { docId: tab.docId, content: draft.content })
-      tab.hasDraft = true
-      await window.desktop.invoke('draft:remove', { docId: draft.docId })
-      restored++
-    } catch (error) {
-      console.error('Failed to restore draft', draft.docId, error)
-    }
+// Reopen the files that were open when the app last closed; a fresh install
+// (or empty session) starts with one new library design.
+export async function restoreSession(): Promise<void> {
+  // React StrictMode double-invokes effects; restore only once.
+  if (sessionRestored) return
+  sessionRestored = true
+  const { filePaths } = await window.desktop.invoke('session:list')
+  for (const filePath of filePaths) {
+    await openPath(filePath)
   }
-  return restored
+  if (tabs.tabs.length === 0) await createDesign()
 }

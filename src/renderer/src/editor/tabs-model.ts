@@ -10,8 +10,6 @@ export interface DesignTab {
   dirty: boolean
   // Serialized design at last load/save; dirty = snapshot differs from it.
   baseline: string
-  // True while an untitled tab has an autosaved draft file on disk.
-  hasDraft: boolean
   // True while a programmatic load settles (loadJSON + async asset loading).
   // Change events during a load must not mark the tab dirty (studio's
   // loadingRef pattern) — otherwise autosave overwrites external edits.
@@ -72,7 +70,6 @@ class TabsModel {
       name: name ?? (filePath ? nameFromPath(filePath) : 'Untitled'),
       dirty: false,
       baseline: '',
-      hasDraft: false,
       loading: Boolean(json)
     }
     if (json) {
@@ -119,8 +116,6 @@ class TabsModel {
       }
     })
     void window.desktop.invoke('doc:close', { docId })
-    // The editor always shows a design; an empty tab strip gets a fresh one.
-    if (this.tabs.length === 0) this.newTab()
   }
 }
 
