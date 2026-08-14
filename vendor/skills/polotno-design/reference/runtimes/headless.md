@@ -9,8 +9,8 @@ the terminal against `design.json` files.
 cd scripts && npm install && cd ..
 ```
 
-Rendering and asset search need a Polotno key. The scripts fall back to a
-public demo key (rate-limited, fine for iterating). For real use:
+Rendering and asset search need a Polotno key. The scripts bundle a shared
+one (rate-limited, fine for iterating). For real use set your own:
 
 ```bash
 export POLOTNO_API_KEY=...   # https://polotno.com/cabinet

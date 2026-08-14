@@ -28,14 +28,12 @@
  *   - photo: 3–5 plain words. "latte art coffee cup", NOT a long mood sentence.
  *   - icon:  1–2 nouns. "leaf", "phone". NOT "delicate botanical vine".
  *
- * Key resolution: POLOTNO_API_KEY env, else the public demo key (rate-limited,
- * fine for the loop — set your own key for production).
+ * Key resolution: POLOTNO_API_KEY env, else the bundled key (see key.js).
  */
 const fs = require('fs');
 const https = require('https');
 
-const DEMO_KEY = 'nFA5H9elEytDyPyvKL7T';
-const KEY = process.env.POLOTNO_API_KEY || DEMO_KEY;
+const { KEY } = require('./key');
 const API = 'https://api.polotno.com/api';
 const TOP_N = 6;
 

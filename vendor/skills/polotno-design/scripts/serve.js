@@ -12,7 +12,7 @@
  * (validate.js, render.js) — re-read the file before each of your writes,
  * the human may have saved changes since.
  *
- * Key resolution: POLOTNO_API_KEY env, else the public demo key.
+ * Key resolution: POLOTNO_API_KEY env, else the bundled key (see key.js).
  */
 const fs = require('fs');
 const http = require('http');
@@ -21,8 +21,7 @@ const crypto = require('crypto');
 
 const { execFileSync } = require('child_process');
 
-const DEMO_KEY = 'nFA5H9elEytDyPyvKL7T';
-const KEY = process.env.POLOTNO_API_KEY || DEMO_KEY;
+const { KEY } = require('./key');
 
 // The editor bundle is built locally from editor-app.js (no CDN at runtime).
 // Rebuild when missing or older than its source.

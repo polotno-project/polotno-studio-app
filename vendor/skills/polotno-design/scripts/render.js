@@ -18,12 +18,11 @@
  * use it while you iterate, then render --full once at the end. --full renders
  * at 1:1 canvas pixels, whatever the canvas size (print canvases are large).
  *
- * Key resolution: POLOTNO_API_KEY env, else the public demo key.
+ * Key resolution: POLOTNO_API_KEY env, else the bundled key (see key.js).
  */
 const fs = require('fs');
 
-const DEMO_KEY = 'nFA5H9elEytDyPyvKL7T';
-const KEY = process.env.POLOTNO_API_KEY || DEMO_KEY;
+const { KEY } = require('./key');
 const PREVIEW_EDGE = 512;
 
 async function loadPolotno() {
