@@ -26,9 +26,8 @@ function windowOf(event: Electron.IpcMainInvokeEvent): BrowserWindow {
 }
 
 export function registerIpcHandlers(): void {
-  handle('doc:register', (event, { filePath }) => {
-    const entry = documents.register(event.sender.id, filePath)
-    return { docId: entry.docId }
+  handle('doc:register', (event, { docId, filePath }) => {
+    documents.register(docId, event.sender.id, filePath)
   })
   handle('doc:setFilePath', (_event, { docId, filePath }) => documents.setFilePath(docId, filePath))
   handle('doc:setDirty', (_event, { docId, dirty }) => documents.setDirty(docId, dirty))

@@ -12,7 +12,7 @@ export interface OpenedFile {
 
 // Promise-based renderer -> main calls (ipcRenderer.invoke).
 export interface InvokeApi {
-  'doc:register': (p: { filePath: string | null }) => { docId: DocId }
+  'doc:register': (p: { docId: DocId; filePath: string | null }) => void
   'doc:setFilePath': (p: { docId: DocId; filePath: string }) => void
   'doc:setDirty': (p: { docId: DocId; dirty: boolean }) => void
   'doc:close': (p: { docId: DocId }) => void

@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import type { DocId } from '../shared/types'
 
 export interface DocumentEntry {
@@ -15,9 +14,9 @@ export interface DocumentEntry {
 class DocumentRegistry {
   private byId = new Map<DocId, DocumentEntry>()
 
-  register(wcId: number, filePath: string | null): DocumentEntry {
+  register(docId: DocId, wcId: number, filePath: string | null): DocumentEntry {
     const entry: DocumentEntry = {
-      docId: randomUUID(),
+      docId,
       wcId,
       filePath,
       dirty: false,
