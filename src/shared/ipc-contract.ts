@@ -22,6 +22,10 @@ export interface InvokeApi {
   'file:write': (p: { docId?: DocId; filePath: string; content: string }) => void
   'file:saveAsDialog': (p: { suggestedName: string }) => { filePath: string } | null
   'recent:list': () => RecentEntry[]
+  'draft:list': () => { docId: string; content: string }[]
+  'draft:write': (p: { docId: DocId; content: string }) => void
+  'draft:remove': (p: { docId: DocId }) => void
+  'dialog:confirmCloseUntitled': (p: { name: string }) => 'save' | 'discard' | 'cancel'
 }
 
 export type MenuAction =
@@ -38,10 +42,13 @@ export interface MainEvents {
   'menu:action': { action: MenuAction }
   'doc:externalChange': { docId: DocId }
   'doc:openPath': { filePath: string }
+  // The window is closing: save everything, then answer with app:flushDone.
+  'app:flushRequest': Record<string, never>
   'bridge:request': BridgeRequest
 }
 
 // Fire-and-forget renderer -> main messages (ipcRenderer.send).
 export interface RendererEvents {
+  'app:flushDone': Record<string, never>
   'bridge:response': BridgeResponse
 }

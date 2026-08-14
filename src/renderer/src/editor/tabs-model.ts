@@ -8,6 +8,14 @@ export interface DesignTab {
   filePath: string | null
   name: string
   dirty: boolean
+  // Serialized design at last load/save; dirty = snapshot differs from it.
+  baseline: string
+  // True while an untitled tab has an autosaved draft file on disk.
+  hasDraft: boolean
+}
+
+export function designSnapshot(store: DesignStore): string {
+  return JSON.stringify(store.toJSON())
 }
 
 export function nameFromPath(filePath: string): string {
@@ -21,9 +29,15 @@ export function nameFromPath(filePath: string): string {
 class TabsModel {
   tabs: DesignTab[] = []
   activeDocId: DocId | null = null
+  private createListeners: ((tab: DesignTab) => void)[] = []
 
   constructor() {
-    makeAutoObservable(this, {}, { autoBind: true })
+    makeAutoObservable(this, { addCreateListener: false }, { autoBind: true })
+  }
+
+  // session.ts subscribes to attach dirty-tracking/autosave to every new tab.
+  addCreateListener(listener: (tab: DesignTab) => void): void {
+    this.createListeners.push(listener)
   }
 
   get active(): DesignTab | null {
@@ -52,15 +66,22 @@ class TabsModel {
       store: createDesignStore(),
       filePath,
       name: name ?? (filePath ? nameFromPath(filePath) : 'Untitled'),
-      dirty: false
+      dirty: false,
+      baseline: '',
+      hasDraft: false
     }
     if (json) {
       tab.store.loadJSON(json)
     }
+    tab.baseline = designSnapshot(tab.store)
     this.tabs.push(tab)
-    if (activate || this.tabs.length === 1) this.activeDocId = tab.docId
-    void window.desktop.invoke('doc:register', { docId: tab.docId, filePath })
-    return tab
+    // mobx wraps the pushed object in an observable proxy; hand out that proxy,
+    // not the raw object, so later mutations (baseline, hasDraft) are seen.
+    const observableTab = this.tabs[this.tabs.length - 1]
+    if (activate || this.tabs.length === 1) this.activeDocId = observableTab.docId
+    void window.desktop.invoke('doc:register', { docId: observableTab.docId, filePath })
+    for (const listener of this.createListeners) listener(observableTab)
+    return observableTab
   }
 
   activate(docId: DocId): void {

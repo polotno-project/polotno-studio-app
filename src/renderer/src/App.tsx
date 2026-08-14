@@ -4,18 +4,21 @@ import { Toaster } from 'sonner'
 import { PolotnoEditor } from './editor/polotno-editor'
 import { TabStrip } from './editor/tab-strip'
 import { tabs } from './editor/tabs-model'
-import { openViaDialog, saveTab, saveTabAs } from './editor/document'
+import { openViaDialog, requestCloseTab, saveTab, saveTabAs } from './editor/document'
+import { restoreDrafts } from './editor/session'
 
 const App = observer(function App(): React.JSX.Element {
   useEffect(() => {
-    if (tabs.tabs.length === 0) tabs.newTab()
+    void restoreDrafts().then((restored) => {
+      if (restored === 0 && tabs.tabs.length === 0) tabs.newTab()
+    })
     const offMenu = window.desktop.on('menu:action', ({ action }) => {
       switch (action) {
         case 'newTab':
           tabs.newTab()
           break
         case 'closeTab':
-          if (tabs.activeDocId) tabs.closeTab(tabs.activeDocId)
+          if (tabs.activeDocId) void requestCloseTab(tabs.activeDocId)
           break
         case 'openFile':
           void openViaDialog()

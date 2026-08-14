@@ -1,5 +1,5 @@
 import { toast } from 'sonner'
-import { tabs, nameFromPath, type DesignTab } from './tabs-model'
+import { tabs, nameFromPath, designSnapshot, type DesignTab } from './tabs-model'
 import { kindFromPath, parseProjectText, parsePdfBuffer, parseSvgText } from './import-design'
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -57,18 +57,20 @@ export async function openViaDialog(): Promise<void> {
 }
 
 export function serializeTab(tab: DesignTab): string {
-  return JSON.stringify(tab.store.toJSON())
+  return designSnapshot(tab.store)
 }
 
 export async function saveTab(docId: string): Promise<boolean> {
   const tab = tabs.get(docId)
   if (!tab) return false
   if (!tab.filePath) return saveTabAs(docId)
+  const content = serializeTab(tab)
   await window.desktop.invoke('file:write', {
     docId: tab.docId,
     filePath: tab.filePath,
-    content: serializeTab(tab)
+    content
   })
+  tab.baseline = content
   tabs.setDirty(tab.docId, false)
   return true
 }
@@ -79,11 +81,45 @@ export async function saveTabAs(docId: string): Promise<boolean> {
   const result = await window.desktop.invoke('file:saveAsDialog', { suggestedName: tab.name })
   if (!result) return false
   tabs.setFilePath(tab.docId, result.filePath)
+  const content = serializeTab(tab)
   await window.desktop.invoke('file:write', {
     docId: tab.docId,
     filePath: result.filePath,
-    content: serializeTab(tab)
+    content
   })
+  tab.baseline = content
   tabs.setDirty(tab.docId, false)
+  if (tab.hasDraft) {
+    await window.desktop.invoke('draft:remove', { docId: tab.docId })
+    tab.hasDraft = false
+  }
   return true
+}
+
+// Close a tab safely. File-backed tabs flush silently (consistent with
+// autosave-to-file); untitled tabs with content prompt Save / Don't Save /
+// Cancel through a native dialog.
+export async function requestCloseTab(docId: string): Promise<void> {
+  const tab = tabs.get(docId)
+  if (!tab) return
+  const dirty = serializeTab(tab) !== tab.baseline || tab.dirty
+
+  if (tab.filePath) {
+    if (dirty) await saveTab(docId)
+    tabs.closeTab(docId)
+    return
+  }
+
+  if (dirty || tab.hasDraft) {
+    const choice = await window.desktop.invoke('dialog:confirmCloseUntitled', { name: tab.name })
+    if (choice === 'cancel') return
+    if (choice === 'save') {
+      const saved = await saveTabAs(docId)
+      if (!saved) return
+    }
+  }
+  if (tab.hasDraft) {
+    await window.desktop.invoke('draft:remove', { docId: tab.docId })
+  }
+  tabs.closeTab(docId)
 }

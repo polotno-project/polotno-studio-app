@@ -1,4 +1,4 @@
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -32,6 +32,26 @@ export function createEditorWindow(): BrowserWindow {
   editorWindow.on('ready-to-show', () => editorWindow?.show())
   editorWindow.on('closed', () => {
     editorWindow = null
+  })
+
+  // Autosave-by-flush instead of a quit prompt: before the window closes, the
+  // renderer saves every file-backed tab and drafts every untitled one. The
+  // timeout keeps a hung renderer from blocking quit.
+  let flushed = false
+  editorWindow.on('close', (event) => {
+    if (flushed || !editorWindow) return
+    event.preventDefault()
+    const win = editorWindow
+    const done = (): void => {
+      if (flushed) return
+      flushed = true
+      clearTimeout(timer)
+      ipcMain.removeListener('app:flushDone', done)
+      win.close()
+    }
+    const timer = setTimeout(done, 3000)
+    ipcMain.once('app:flushDone', done)
+    win.webContents.send('app:flushRequest', {})
   })
 
   editorWindow.webContents.setWindowOpenHandler((details) => {

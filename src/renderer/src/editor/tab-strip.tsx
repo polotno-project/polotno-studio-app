@@ -1,6 +1,7 @@
 import { observer } from 'mobx-react-lite'
 import { Plus, X } from 'lucide-react'
 import { tabs } from './tabs-model'
+import { requestCloseTab } from './document'
 
 export const TabStrip = observer(function TabStrip(): React.JSX.Element {
   return (
@@ -26,7 +27,7 @@ export const TabStrip = observer(function TabStrip(): React.JSX.Element {
               aria-label={`Close ${tab.name}`}
               onClick={(e) => {
                 e.stopPropagation()
-                tabs.closeTab(tab.docId)
+                void requestCloseTab(tab.docId)
               }}
               className="invisible -mr-1 shrink-0 rounded p-0.5 group-hover:visible hover:bg-neutral-300 dark:hover:bg-neutral-700"
             >

@@ -1,6 +1,7 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, dialog, BrowserWindow } from 'electron'
 import type { InvokeApi } from '../shared/ipc-contract'
 import { documents } from './documents'
+import { listDrafts, writeDraft, removeDraft } from './drafts'
 import {
   readDesignFile,
   readDesignFileBase64,
@@ -43,6 +44,22 @@ export function registerIpcHandlers(): void {
   handle('file:saveAsDialog', (event, { suggestedName }) =>
     showSaveAsDialog(windowOf(event), suggestedName)
   )
+
+  handle('draft:list', () => listDrafts())
+  handle('draft:write', (_event, { docId, content }) => writeDraft(docId, content))
+  handle('draft:remove', (_event, { docId }) => removeDraft(docId))
+
+  handle('dialog:confirmCloseUntitled', async (event, { name }) => {
+    const { response } = await dialog.showMessageBox(windowOf(event), {
+      type: 'warning',
+      message: `Save "${name}" before closing?`,
+      detail: 'The design has not been saved to a file yet.',
+      buttons: ['Save…', "Don't Save", 'Cancel'],
+      defaultId: 0,
+      cancelId: 2
+    })
+    return (['save', 'discard', 'cancel'] as const)[response]
+  })
 
   // Populated by the recent-files step (stage 1 step 10).
   handle('recent:list', () => [])
