@@ -8,7 +8,8 @@ browser while you keep working on the file:
 node scripts/serve.js design.json
 ```
 
-It prints a `http://127.0.0.1:<port>` URL — give it to the user. The page
+The first run builds the editor bundle locally (~10s); then it prints a
+`http://localhost:<port>` URL — give it to the user. The page
 is a full Polotno editor bound to `design.json`: it reloads when you change
 the file, and the human's edits save back into the same file. This runtime
 speaks the same verbs as `commands.md` — file-side, over your existing

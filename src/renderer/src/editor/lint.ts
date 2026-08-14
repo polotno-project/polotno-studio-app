@@ -13,6 +13,9 @@ export interface LintFinding {
     | 'overlapping-text'
     | 'missing-font'
     | 'broken-asset'
+    | 'placeholder-residue'
+    | 'letter-spacing'
+    | 'covered-element'
   severity: 'error' | 'warning'
   message: string
   suggestion?: string
@@ -21,16 +24,19 @@ export interface LintFinding {
 interface ElementJson {
   id: string
   type: string
+  subType?: string
   x: number
   y: number
   width: number
   height: number
   rotation?: number
+  opacity?: number
   text?: string
   fontSize?: number
   fontFamily?: string
   fill?: string
   lineHeight?: number
+  letterSpacing?: number
   src?: string
   visible?: boolean
 }
@@ -182,6 +188,43 @@ export async function lintDesign(store: DesignStore, onlyPageId?: string): Promi
         }
       }
 
+      if (typeof el.src === 'string' && /\$\{(photo|icon):/.test(el.src)) {
+        findings.push({
+          pageId: page.id,
+          elementId: el.id,
+          rule: 'placeholder-residue',
+          severity: 'error',
+          message: `Unresolved asset placeholder in src: ${el.src}`,
+          suggestion: 'Replace the placeholder with a real asset URL.'
+        })
+      }
+
+      // Fully hidden behind a later opaque cover — invisible in any render,
+      // only the JSON knows it is there.
+      const stack = children
+      const index = stack.indexOf(el)
+      const covered = stack.slice(index + 1).some((above) => {
+        if (!['figure', 'image'].includes(above.type)) return false
+        if ((above.opacity ?? 1) < 0.98 || above.rotation) return false
+        if (above.type === 'figure' && above.subType && above.subType !== 'rect') return false
+        return (
+          above.x <= el.x &&
+          above.y <= el.y &&
+          above.x + above.width >= el.x + el.width &&
+          above.y + above.height >= el.y + el.height
+        )
+      })
+      if (covered) {
+        findings.push({
+          pageId: page.id,
+          elementId: el.id,
+          rule: 'covered-element',
+          severity: 'warning',
+          message: `Element ${el.id} (${el.type}) is completely hidden behind a later opaque element.`,
+          suggestion: 'Remove it or fix the z-order.'
+        })
+      }
+
       if ((el.type === 'image' || el.type === 'video' || el.type === 'svg') && el.src) {
         if (!(await probeImage(el.src)) && el.type !== 'video') {
           findings.push({
@@ -196,14 +239,39 @@ export async function lintDesign(store: DesignStore, onlyPageId?: string): Promi
       }
     }
 
+    // Canvas-relative floor: a print canvas (A4@300dpi = 3508px tall) makes
+    // any absolute px threshold meaningless.
+    const minFontSize = Math.max(10, pageHeight / 90)
+
     for (const el of texts) {
-      if ((el.fontSize ?? 12) < 10) {
+      if ((el.fontSize ?? 12) < minFontSize) {
         findings.push({
           pageId: page.id,
           elementId: el.id,
           rule: 'tiny-text',
           severity: 'warning',
-          message: `Text is ${el.fontSize}px — likely unreadable at export size.`
+          message: `Text is ${el.fontSize}px — below ${Math.round(minFontSize)}px (1/90 of page height), likely unreadable at output size.`
+        })
+      }
+
+      if (/lorem ipsum/i.test(el.text ?? '')) {
+        findings.push({
+          pageId: page.id,
+          elementId: el.id,
+          rule: 'placeholder-residue',
+          severity: 'error',
+          message: 'Placeholder text ("lorem ipsum") left in the design.'
+        })
+      }
+
+      if (typeof el.letterSpacing === 'number' && Math.abs(el.letterSpacing) > 2) {
+        findings.push({
+          pageId: page.id,
+          elementId: el.id,
+          rule: 'letter-spacing',
+          severity: 'error',
+          message: `letterSpacing is ${el.letterSpacing} — it is a multiple of fontSize (0.3–0.5 reads as wide); this value looks like px or %.`,
+          suggestion: 'Use values between -0.1 and 1.'
         })
       }
 

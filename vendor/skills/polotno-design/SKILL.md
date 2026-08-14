@@ -93,11 +93,12 @@ through step 5, then iterate only the strongest.
    *Done when:* no `${photo:…}` / `${icon:…}` placeholders remain.
 5. **Render and LOOK** (`render`). Actually view the pixels.
    *Done when:* you have viewed the render, not just the JSON.
-6. **Critique against the rubric and fix.** Score the render against every
-   item in `reference/rubric.md`; list which pass and which fail; fix and
-   return to step 3.
-   *Done when:* every **critical** rubric item passes, or you have
-   completed 3 looks — whichever comes first. State the final list.
+6. **Critique against the rubric and fix.** Score the render on every axis
+   in `reference/rubric.md` and write its scorecard; fix the worst axis
+   first and return to step 3.
+   *Done when:* every applicable axis scores 8+, or you have completed
+   3 looks — whichever comes first. State the final scorecard including
+   its closing brief line.
 7. **Export** (`export`) the final output and report the design + files.
    For PDF/print, follow `reference/print-pdf.md`.
 

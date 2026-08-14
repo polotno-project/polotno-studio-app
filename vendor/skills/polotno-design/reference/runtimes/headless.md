@@ -21,7 +21,7 @@ export POLOTNO_API_KEY=...   # https://polotno.com/cabinet
 | Verb | How |
 |---|---|
 | create/read/patch design | edit `design.json` directly |
-| `lint` (structural) | `node scripts/validate.js design.json` — repairs what it can, reports the rest |
+| `lint` | `node scripts/lint.js design.json` (JSON checks: placeholders, fonts, bounds, coverage, print) + `node scripts/validate.js design.json` (schema repair) |
 | `render` (preview) | `node scripts/render.js design.json preview.png` (~512px) |
 | `export` | `node scripts/render.js design.json out.png --full` · `out.pdf --pdf` · `--page <id>` |
 | assets | `node scripts/resolve-assets.js search photo "…"` — look, pick, paste the url. Icons: `search icon "…"` then `get icon <id>` → paste the data URL. `resolve` mode auto-picks for unattended runs |
