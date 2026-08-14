@@ -42,6 +42,8 @@ export function regenerateMcpToken(): string {
 
 export interface McpDiscovery {
   url: string
+  /** Base for the plain-HTTP routes: `{httpUrl}/health`, `{httpUrl}/call/<verb>`. */
+  httpUrl: string
   token: string
   pid: number
   appVersion: string
@@ -51,6 +53,7 @@ export interface McpDiscovery {
 export async function writeDiscoveryFile(url: string, token: string): Promise<void> {
   const discovery: McpDiscovery = {
     url,
+    httpUrl: `${url.replace(/\/mcp$/, '')}/api`,
     token,
     pid: process.pid,
     appVersion: app.getVersion(),

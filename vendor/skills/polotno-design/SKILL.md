@@ -1,110 +1,123 @@
 ---
 name: polotno-design
 description: >-
-  Generate, render, and bulk-produce Polotno designs from a brief. Use when the
-  user wants to create a design, poster, flyer, social post, ad, invitation, menu,
-  or marketing image from a description; render Polotno JSON to PNG/PDF; or
-  bulk-generate design variants from data (a CSV or list). Works two ways: live
-  through the Polotno desktop app's MCP tools when connected, or headless from
-  the terminal. For building an editor UI, use the polotno-sdk skill instead.
+  Generate, render, and bulk-produce Polotno designs from a brief. Use when
+  the user wants to create a design, poster, flyer, social post, ad,
+  invitation, menu, or marketing image; render Polotno JSON to PNG/PDF
+  (including print-ready PDF); import a PDF/PSD/SVG into an editable design;
+  or bulk-generate variants from data. Works against whichever Polotno
+  runtime is available — the desktop app (live, human co-edits), a
+  skill-served local editor, or fully headless — picked by the runtime
+  ladder inside. For building an editor UI, use the polotno-sdk skill.
 ---
 
 # Polotno design generation
 
-Produce shippable Polotno designs from a text brief. The output is a
-Polotno JSON design plus a rendered PNG/PDF.
+Produce shippable Polotno designs from a text brief: a Polotno JSON design
+plus rendered output. The core is a closed loop: start from an
+**archetype** (a composition skeleton, never a blank canvas), render it,
+**look** at the render with your own eyes, and critique it against a fixed
+**rubric** until it passes. Looking is the whole point — generating without
+seeing produces competent-but-soulless output. **You are not done until you
+have looked at a render and it passes the rubric.**
 
-**Which path?** If the Polotno app's MCP tools are available (`create_design`,
-`add_element`, `render_page`, …), work live in the app the human is watching:
-read `reference/mcp-tools.md` and follow it — the design rules and rubric below
-still apply, the scripts do not. Otherwise continue here with the headless
-workflow.
+## Step 0 — pick your runtime (first match wins)
 
-The core idea is a closed loop: start from an **archetype** (a composition skeleton,
-never a blank canvas), render it, **look** at the render with your own eyes, and
-critique it against a fixed **rubric** until it passes. Looking is the whole point —
-generating-without-seeing produces competent-but-soulless output. **You are not done
-until you have looked at a render and it passes the rubric.**
+Probe in order; read ONLY the matching file in `reference/runtimes/`. The
+tier is dynamic — probe at the start of a task, re-probe only when a call
+fails or the user asks to switch. An explicit user preference beats the
+ladder ("do it headless" wins even with the app running).
 
-## Setup (once per project)
+1. **Polotno desktop app, MCP** — tools named `create_design`,
+   `render_page`, `lint_design` are in your tool list →
+   `runtimes/local-app.md`. The human co-edits live.
+2. **Polotno desktop app, HTTP** — you have a terminal and the app's
+   discovery file exists (paths in `local-app.md`) and its health URL
+   answers → same file, HTTP transport. Dead health check = the app is
+   closed; fall through (and mention the user can open the app).
+3. **Local editor server** — `scripts/serve.js` exists, `node` works, and
+   a human is present to open a browser → start it, then
+   `runtimes/local-server.md`.
+4. **Studio bridge** — reserved, not yet available
+   (`runtimes/studio-bridge.md`). Fall through.
+5. **Headless** — terminal + node (or the Cloud Render API when Chromium
+   can't run) → `runtimes/headless.md`. Bulk/unattended jobs may pick this
+   tier deliberately even when a higher one is available.
+6. **No terminal at all** — you can't run the loop. Author the JSON
+   (steps 1–3 below), give it to the user with polotno.com/studio import
+   instructions, and say plainly it was not visually verified.
 
-Helper scripts live in `scripts/`. Install their deps:
+## One vocabulary
 
-```bash
-cd scripts && npm install && cd ..
-```
+Every runtime speaks the same verbs — `create_design`, `list_designs`,
+`get_design_json`, `patch_design_json`, `add_element`, `update_element`,
+`remove_element`, `move_element`, `set_page`, `set_design_size`, `render`,
+`export`, `lint`, `save` — defined once in `reference/commands.md`. Your
+runtime file only maps verbs to a transport. Never invent a verb; never
+guess a transport.
 
-Rendering and asset search need a Polotno key. The scripts fall back to a public
-demo key (rate-limited, fine for iterating). For production set your own:
+## Design core (all runtimes)
 
-```bash
-export POLOTNO_API_KEY=...   # https://polotno.com/cabinet
-```
-
-If you **cannot** run a terminal or **cannot** view images, you can't run the loop.
-Do steps 1–4, render once, and tell the user plainly that the design was not
-visually verified — never claim it looks good when you never saw it.
+`reference/archetypes.md` (skeletons + tokens), `reference/design-format.md`
+(JSON cheat sheet), `reference/rubric.md` (the bar every render must pass).
+Before promising print output or file import, read `reference/print-pdf.md`
+/ `reference/import.md` — they contain hard capability limits.
 
 ## Workflow A — generate from a brief
 
-Work on one file, `design.json`. Default mode is **standard** (iterate to a passing
-rubric, cap 3 looks). For **quick**, do one look and one fix. For **best**, generate
-3 candidates through step 5, then iterate only the strongest.
+Default mode is **standard** (iterate to a passing rubric, cap 3 looks).
+For **quick**, do one look and one fix. For **best**, generate 3 candidates
+through step 5, then iterate only the strongest.
 
-1. **Frame the brief and choose tokens.** Read `reference/archetypes.md`. Pick the
-   canvas size, one archetype, and explicit design tokens (palette of 2–4 colors,
-   type scale, ≤2 fonts, margin + spacing unit). Write the tokens down.
+1. **Frame the brief.** The design-defining inputs are: purpose/topic,
+   format/size, style direction, brand constraints (colors/fonts/logo), and
+   the actual text content. If **two or more** are neither stated nor
+   safely inferable, ask ONE round of questions — concrete options plus an
+   explicit "you decide" — before authoring. Otherwise build now and report
+   afterward which ones you chose yourself. Never a second round;
+   bulk/unattended runs never ask. Then read `reference/archetypes.md`,
+   pick the canvas size, one archetype, and explicit design tokens
+   (palette of 2–4 colors, type scale, ≤2 fonts, margin + spacing unit).
    *Done when:* archetype named and every token has a concrete value.
-
-2. **Author minimal Polotno JSON** into `design.json`, filling the archetype's zones
-   with the brief's content and your tokens. Reference images/icons you don't have
-   as `${photo:3-5 words}` / `${icon:1-2 nouns}`. See `reference/design-format.md`.
-   *Done when:* `design.json` covers the archetype's zones with real content.
-
-3. **Validate and repair:** `node scripts/validate.js design.json`. Read the report;
-   if `valid` is false, fix each `errors[]` entry and re-run.
-   *Done when:* the report shows `valid: true`.
-
-4. **Resolve assets.** For each placeholder, search and *look* before choosing:
-   `node scripts/resolve-assets.js search photo "latte art coffee cup"`. Pick the
-   best-fitting `url` from the candidates and paste it into the element's `src`.
-   (For bulk or unattended runs, `resolve-assets.js resolve design.json` auto-picks
-   the first hit.) Re-run step 3 after editing.
+2. **Author minimal Polotno JSON**, filling the archetype's zones with the
+   brief's content and your tokens. Reference images/icons you don't have
+   as `${photo:3-5 words}` / `${icon:1-2 nouns}`. See
+   `reference/design-format.md`.
+   *Done when:* every archetype zone has real content.
+3. **Validate and lint** (your runtime's `lint` verb). Fix each reported
+   error and re-run.
+   *Done when:* the report is clean.
+4. **Resolve assets.** For each placeholder, search and *look* before
+   choosing (asset search per your runtime file; auto-pick only for
+   unattended runs).
    *Done when:* no `${photo:…}` / `${icon:…}` placeholders remain.
-
-5. **Render a preview and LOOK:** `node scripts/render.js design.json preview.png`,
-   then open/Read `preview.png`. Actually view it.
-   *Done when:* you have viewed the rendered pixels (not just the JSON).
-
-6. **Critique against the rubric and fix.** Score `preview.png` against every item
-   in `reference/rubric.md`; list which pass and which fail. Edit `design.json` to
-   fix the fails, then return to step 3.
-   *Done when:* every **critical** rubric item passes, or you have completed 3 looks
-   — whichever comes first. State the final pass/fail list.
-
-7. **Export final output:** `node scripts/render.js design.json out.png --full`
-   (or `out.pdf --pdf`). Report the design.json and the rendered file.
+5. **Render and LOOK** (`render`). Actually view the pixels.
+   *Done when:* you have viewed the render, not just the JSON.
+6. **Critique against the rubric and fix.** Score the render against every
+   item in `reference/rubric.md`; list which pass and which fail; fix and
+   return to step 3.
+   *Done when:* every **critical** rubric item passes, or you have
+   completed 3 looks — whichever comes first. State the final list.
+7. **Export** (`export`) the final output and report the design + files.
+   For PDF/print, follow `reference/print-pdf.md`.
 
 ## Workflow B — bulk variants from data
 
 Use a design that already passed Workflow A as the template.
 
-1. **Mark slots.** In the template, tag each element that varies across variants with
-   `custom: { slot: "<name>" }` (e.g. `headline`, `hero`, `price`). Fixed brand
-   elements get no slot.
-   *Done when:* every element that varies has a slot name; fixed elements have none.
-2. **Map data to slots.** Take the user's CSV/list; each row is one variant. Confirm
-   each column maps to a slot name.
-   *Done when:* every column is mapped to a slot or explicitly set aside.
-3. **Generate + render each variant.** For every row, copy the template, set each
-   slotted element's content (`text`, or `src` via `resolve-assets.js`) from the row,
-   run `validate.js`, then `render.js … --full` to a per-row output file.
-   *Done when:* every row has a rendered output file.
-4. **Spot-check by looking.** View the first variant and one random later variant
-   against the rubric before declaring the batch done. Report any rows that dropped
-   elements during validation/asset resolution — never report a clean batch silently.
+1. **Mark slots.** Tag each element that varies with
+   `custom: { slot: "<name>" }` (e.g. `headline`, `hero`, `price`). Fixed
+   brand elements get no slot.
+2. **Map data to slots.** Each CSV/list row is one variant; confirm every
+   column maps to a slot or is set aside.
+3. **Generate each variant** — one design per row with slotted content
+   filled from the row (your runtime file's Bulk section says how), then
+   `lint` and `render` each.
+4. **Spot-check by looking.** View the first variant and one random later
+   one against the rubric. Report any rows that dropped elements — never
+   report a clean batch silently.
 
 ## Scope
 
-This skill generates and renders designs headlessly. It does **not** build editor
-UIs, wire up React/MobX, or customize side panels — that is the `polotno-sdk` skill.
+This skill produces designs. It does **not** build editor UIs, wire up
+React/MobX, or answer SDK API questions — that is the `polotno-sdk` skill.

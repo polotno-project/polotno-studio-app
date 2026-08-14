@@ -22,7 +22,11 @@ fill defaults — omit anything you don't need to set.
 }
 ```
 - Keep `fonts: []` — Polotno auto-loads Google fonts from each element's `fontFamily`.
-- `dpi` (default 72) matters for print: A4 at 300dpi = 2480×3508.
+- `dpi` (default 72) matters for print: author at final pixel size — A4 at
+  300dpi = 2480×3508. The export-time `dpi` option only stamps physical-size
+  metadata; it does not add pixels.
+- For print with bleed, set `bleed` (px) on each page and keep must-not-crop
+  content inside a safe margin. Full print guidance: `print-pdf.md`.
 
 ## Page
 
@@ -43,8 +47,9 @@ before text.
 ## Element types
 
 - **text** — `text`, `fontSize`, `fontFamily`, `fontWeight`, `fontStyle`, `fill`,
-  `align` (left/center/right), `lineHeight`, `letterSpacing` (% of fontSize: 0 normal,
-  ~1 subtle; not pixels). Width must hold the text (validate.js will widen/shrink).
+  `align` (left/center/right), `lineHeight`, `letterSpacing` (a multiple of
+  fontSize, not px or %: 0 normal, 0.05–0.1 subtle, 0.3–0.5 wide caps-spacing).
+  Width must hold the text (validate.js will widen/shrink).
 - **figure** — `subType` (`rect`, `circle`, `star`, `triangle`, `line`, `diamond`,
   `hexagon`, `blob1`…), `fill`, `stroke`, `strokeWidth`, `cornerRadius`. Use figures
   for backgrounds, color blocks, scrims, dividers, accents — prefer them over photos

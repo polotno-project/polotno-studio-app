@@ -4,8 +4,10 @@ import express from 'express'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
-import { registerTools } from './tools'
+import { z } from 'zod'
+import { registerTools, resolveTool } from './tools'
 import { registerResources } from './resources'
+import { registerPrompts } from './prompts'
 import { announceListening } from './bridge-client'
 
 // The MCP server for the Polotno desktop app. Runs as an Electron
@@ -25,8 +27,8 @@ live designs they see — every edit shows up on their canvas immediately and
 shares their undo stack.
 
 Before your first design, read the resource polotno://skill/SKILL.md (and
-polotno://skill/reference/mcp-tools.md) — it teaches the document model,
-composition archetypes, and the quality rubric.
+polotno://skill/reference/runtimes/local-app.md) — it teaches the document
+model, composition archetypes, and the quality rubric.
 
 Workflow:
 1. list_designs / create_design (new designs appear as background tabs).
@@ -40,6 +42,13 @@ Workflow:
 Coordinates: origin top-left, +y down, sizes in px. Later elements in a page
 render on top. Keep designs visually clean: align to margins, limit fonts.`
 
+// Truncated instructions silently drop rules; keep this string pointer-shaped.
+// scripts/build-mcp-server.mjs enforces the same budget at build time.
+if (INSTRUCTIONS.length > 4096) {
+  console.error(`INSTRUCTIONS is ${INSTRUCTIONS.length} chars — budget is 4096`)
+  process.exit(1)
+}
+
 function createServer(): McpServer {
   const server = new McpServer(
     { name: 'polotno', version: process.env.POLOTNO_APP_VERSION ?? '0.0.0' },
@@ -47,17 +56,23 @@ function createServer(): McpServer {
   )
   registerTools(server)
   registerResources(server)
+  registerPrompts(server)
   return server
 }
 
 const app = express()
 app.use(express.json({ limit: '100mb' }))
 
-// Auth + anti-rebinding: loopback host only, no cross-origin browser callers,
-// per-install Bearer token compared in constant time.
-app.use('/mcp', (req, res, next) => {
+const isLoopbackHost = (req: express.Request): boolean => {
   const host = (req.headers.host ?? '').replace(/:\d+$/, '')
-  if (!['127.0.0.1', 'localhost'].includes(host)) {
+  return ['127.0.0.1', 'localhost'].includes(host)
+}
+
+// Auth + anti-rebinding: loopback host only, no cross-origin browser callers,
+// per-install Bearer token compared in constant time. Shared by /mcp and the
+// plain-HTTP /api/call routes.
+const secure: express.RequestHandler = (req, res, next) => {
+  if (!isLoopbackHost(req)) {
     res.status(403).end()
     return
   }
@@ -79,6 +94,54 @@ app.use('/mcp', (req, res, next) => {
     return
   }
   next()
+}
+
+app.use('/mcp', secure)
+app.use('/api/call', secure)
+
+// Tier-detection probe for the polotno-design skill: no token needed, it
+// only confirms the app is alive (loopback callers only).
+app.get('/api/health', (req, res) => {
+  if (!isLoopbackHost(req)) {
+    res.status(403).end()
+    return
+  }
+  res.json({ app: 'polotno', version: process.env.POLOTNO_APP_VERSION ?? '0.0.0', protocol: 1 })
+})
+
+// Plain-HTTP front door: same tools as MCP, same args, for agents that can
+// curl but not speak MCP. Accepts canonical skill verbs (render, lint, …) as
+// aliases for the tool names.
+app.post('/api/call/:verb', (req, res) => {
+  void (async () => {
+    const tool = resolveTool(req.params.verb)
+    if (!tool) {
+      res.status(404).json({ error: `unknown_tool: ${req.params.verb}` })
+      return
+    }
+    const parsed = z.object(tool.schema).safeParse(req.body ?? {})
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid_args', issues: parsed.error.issues.slice(0, 5) })
+      return
+    }
+    const result = await tool.handler(parsed.data as Record<string, never>)
+    if (result.kind === 'image') {
+      const [meta, data] = result.dataUrl.split(',')
+      const mimeType = /data:([^;]+)/.exec(meta)?.[1] ?? 'image/png'
+      if ((req.headers.accept ?? '').includes('image/')) {
+        res.type(mimeType).send(Buffer.from(data, 'base64'))
+      } else {
+        res.json({ dataUrl: result.dataUrl })
+      }
+      return
+    }
+    res.json(result.value)
+  })().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error)
+    res.status(message.startsWith('rev_conflict') || message.startsWith('invalid_') ? 409 : 500).json({
+      error: message
+    })
+  })
 })
 
 app.get('/', (_req, res) => {

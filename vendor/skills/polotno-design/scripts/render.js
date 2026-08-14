@@ -4,12 +4,19 @@
  *
  * Usage:
  *   node render.js <design.json> <out.png>            # preview (default, ~512px)
- *   node render.js <design.json> <out.png> --full     # full resolution
+ *   node render.js <design.json> <out.png> --full     # full resolution (1:1)
  *   node render.js <design.json> <out.pdf> --pdf      # all pages to PDF
  *   node render.js <design.json> <out.png> --page <id>
  *
+ * PDF print options (raster PDF — see reference/print-pdf.md):
+ *   --dpi <n>          physical-size metadata (default 72)
+ *   --unit <u>         pt | mm | cm | in
+ *   --bleed            include page bleed (design pages must set `bleed`)
+ *   --crop-marks [px]  crop marks (default size 20)
+ *
  * Preview mode caps the long edge near 512px so each loop iteration is fast —
- * use it while you iterate, then render --full once at the end.
+ * use it while you iterate, then render --full once at the end. --full renders
+ * at 1:1 canvas pixels, whatever the canvas size (print canvases are large).
  *
  * Key resolution: POLOTNO_API_KEY env, else the public demo key.
  */
@@ -18,11 +25,11 @@ const fs = require('fs');
 const DEMO_KEY = 'nFA5H9elEytDyPyvKL7T';
 const KEY = process.env.POLOTNO_API_KEY || DEMO_KEY;
 const PREVIEW_EDGE = 512;
-const FULL_MAX_EDGE = 1500;
 
-function loadPolotno() {
+async function loadPolotno() {
   try {
-    return require('polotno-node').createInstance;
+    // dynamic import: works for both polotno-node v2 (CJS) and v3 (ESM)
+    return (await import('polotno-node')).createInstance;
   } catch (e) {
     console.error('polotno-node is not installed. Run: npm install (in this scripts/ folder)');
     process.exit(2);
@@ -30,13 +37,11 @@ function loadPolotno() {
 }
 
 function pixelRatioFor(design, full) {
+  if (full) return 1;
   const w = design.width || design.pages?.[0]?.width || 1080;
   const h = design.height || design.pages?.[0]?.height || 1080;
-  const maxEdge = Math.max(w, h);
-  const target = full ? FULL_MAX_EDGE : PREVIEW_EDGE;
-  // never upscale past 1x for full; for preview, scale down to the target edge
-  const ratio = target / maxEdge;
-  return full ? Math.min(1, Math.max(ratio, 0.1)) : Math.min(1, Math.max(ratio, 0.05));
+  const ratio = PREVIEW_EDGE / Math.max(w, h);
+  return Math.min(1, Math.max(ratio, 0.05));
 }
 
 async function main() {
@@ -49,16 +54,29 @@ async function main() {
   }
   const full = args.includes('--full');
   const pdf = args.includes('--pdf') || output.toLowerCase().endsWith('.pdf');
-  const pageIdx = args.indexOf('--page');
-  const pageId = pageIdx !== -1 ? args[pageIdx + 1] : undefined;
+  const argValue = (name) => {
+    const i = args.indexOf(name);
+    return i !== -1 ? args[i + 1] : undefined;
+  };
+  const pageId = argValue('--page');
 
   const design = JSON.parse(fs.readFileSync(input, 'utf8'));
-  const createInstance = loadPolotno();
+  const createInstance = await loadPolotno();
   const instance = await createInstance({ key: KEY });
   try {
     let base64;
     if (pdf) {
-      base64 = await instance.jsonToPDFBase64(design, { skipFontError: true });
+      const pdfAttrs = { skipFontError: true };
+      if (argValue('--dpi')) pdfAttrs.dpi = Number(argValue('--dpi'));
+      if (argValue('--unit')) pdfAttrs.unit = argValue('--unit');
+      if (args.includes('--bleed')) pdfAttrs.includeBleed = true;
+      const cropIdx = args.indexOf('--crop-marks');
+      if (cropIdx !== -1) {
+        const size = Number(args[cropIdx + 1]);
+        pdfAttrs.cropMarkSize = Number.isFinite(size) ? size : 20;
+      }
+      if (pageId) pdfAttrs.pageIds = [pageId];
+      base64 = await instance.jsonToPDFBase64(design, pdfAttrs);
     } else {
       const attrs = { mimeType: output.toLowerCase().endsWith('.jpg') || output.toLowerCase().endsWith('.jpeg') ? 'image/jpeg' : 'image/png', pixelRatio: pixelRatioFor(design, full), skipFontError: true };
       if (pageId) attrs.pageId = pageId;
