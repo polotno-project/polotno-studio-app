@@ -142,6 +142,18 @@ export function ConnectPanel(): React.JSX.Element {
             </Button>
             <CopyRow label="Copy Claude Code command" value={claudeCodeCommand(status)} />
             <CopyRow label="Copy config JSON (any MCP client)" value={rawConfig(status)} />
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start"
+              onClick={() => {
+                void window.desktop.invoke('mcp:installSkill').then(({ path }) => {
+                  toast.success(`Design skill installed to ${path}`)
+                })
+              }}
+            >
+              Install design skill for Claude Code
+            </Button>
             <Separator />
             <Button
               variant="ghost"

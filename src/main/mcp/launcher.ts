@@ -87,7 +87,10 @@ export function startMcpServer(): void {
       ...process.env,
       POLOTNO_MCP_TOKEN: token,
       POLOTNO_MCP_PORT: process.env.POLOTNO_MCP_PORT ?? '41414',
-      POLOTNO_APP_VERSION: app.getVersion()
+      POLOTNO_APP_VERSION: app.getVersion(),
+      POLOTNO_SKILLS_DIR: is.dev
+        ? join(app.getAppPath(), 'vendor/skills/polotno-design')
+        : join(process.resourcesPath, 'skills/polotno-design')
     }
   })
 

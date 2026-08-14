@@ -17,6 +17,8 @@ extraResources:
     to: mcp-server.cjs
   - from: out/Polotno.mcpb
     to: Polotno.mcpb
+  - from: vendor/skills
+    to: skills
 fileAssociations:
   - ext: polotno
     name: Polotno Design

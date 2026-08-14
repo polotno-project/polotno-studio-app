@@ -113,6 +113,16 @@ export function registerIpcHandlers(): void {
     await fs.copyFile(source, filePath)
     return { filePath }
   })
+  handle('mcp:installSkill', async () => {
+    const source = is.dev
+      ? join(app.getAppPath(), 'vendor/skills/polotno-design')
+      : join(process.resourcesPath, 'skills/polotno-design')
+    const target = join(app.getPath('home'), '.claude/skills/polotno-design')
+    await fs.rm(target, { recursive: true, force: true })
+    await fs.mkdir(target, { recursive: true })
+    await fs.cp(source, target, { recursive: true })
+    return { path: target }
+  })
   handle('shell:openExternal', (_event, { url }) => {
     if (!/^(https?|cursor|vscode):/.test(url)) throw new Error(`Refusing to open ${url}`)
     void shell.openExternal(url)

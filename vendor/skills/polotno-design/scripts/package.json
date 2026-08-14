@@ -1,0 +1,10 @@
+{
+  "name": "polotno-design-scripts",
+  "private": true,
+  "description": "Helper scripts for the polotno-design skill: validate, resolve-assets, render.",
+  "dependencies": {
+    "@polotno/schema": "^0.1.4",
+    "axios": "^1.7.0",
+    "polotno-node": "^2.0.0"
+  }
+}

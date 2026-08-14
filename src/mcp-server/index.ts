@@ -5,6 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import { registerTools } from './tools'
+import { registerResources } from './resources'
 import { announceListening } from './bridge-client'
 
 // The MCP server for the Polotno desktop app. Runs as an Electron
@@ -22,6 +23,10 @@ if (!TOKEN) {
 const INSTRUCTIONS = `Polotno is a local design editor the human is using right now. You edit the same
 live designs they see — every edit shows up on their canvas immediately and
 shares their undo stack.
+
+Before your first design, read the resource polotno://skill/SKILL.md (and
+polotno://skill/reference/mcp-tools.md) — it teaches the document model,
+composition archetypes, and the quality rubric.
 
 Workflow:
 1. list_designs / create_design (new designs appear as background tabs).
@@ -41,6 +46,7 @@ function createServer(): McpServer {
     { instructions: INSTRUCTIONS }
   )
   registerTools(server)
+  registerResources(server)
   return server
 }
 

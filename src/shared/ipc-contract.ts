@@ -32,6 +32,7 @@ export interface InvokeApi {
   'mcp:getStatus': () => { running: boolean; url: string | null; token: string }
   'mcp:regenerateToken': () => { token: string }
   'mcp:saveMcpb': () => { filePath: string } | null
+  'mcp:installSkill': () => { path: string }
   'shell:openExternal': (p: { url: string }) => void
 }
 
