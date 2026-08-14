@@ -4,13 +4,11 @@ import { setAnimationsEnabled } from 'polotno/config'
 import App from './App'
 import { loadSystemLocaleTranslations } from './editor/i18n'
 import { installThemeSync } from './editor/theme'
-import { installOfflineFonts } from './editor/offline-fonts'
 import './editor/bridge'
 import './index.css'
 
 setAnimationsEnabled(true)
 installThemeSync()
-installOfflineFonts()
 loadSystemLocaleTranslations()
 
 // Console/driver handle, same spirit as studio's `window.store`.

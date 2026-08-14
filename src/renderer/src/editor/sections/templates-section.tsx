@@ -1,89 +1,15 @@
 import { useEffect, useState } from 'react'
 import { observer } from 'mobx-react-lite'
-import { SectionTab, TemplatesSection as StockTemplatesSection, type Section } from 'polotno/side-panel'
-import { ImagesGrid } from 'polotno/side-panel/images-grid'
+import {
+  SectionTab,
+  TemplatesSection as StockTemplatesSection,
+  type Section
+} from 'polotno/side-panel'
 import { LayoutTemplate, FileClock } from 'lucide-react'
-import { toast } from 'sonner'
 import type { DesignStore } from '../store'
 import { tabs, type DesignTab } from '../tabs-model'
 import { openPath } from '../document'
 import { SegmentedTabs } from './segmented-tabs'
-
-interface TemplateEntry {
-  name: string
-  preview: string
-  load: () => Promise<{ default: unknown }>
-}
-
-// Offline fallback pack: JSON is code-split into the bundle (fetch of local
-// files is blocked on file:// pages); previews are plain static images.
-const BUNDLED_TEMPLATES: TemplateEntry[] = [
-  {
-    name: 'Welcome',
-    preview: './templates/welcome.jpg',
-    load: () => import('../../templates/welcome.json')
-  },
-  {
-    name: 'Social Media Post',
-    preview: './templates/social-media-post.jpg',
-    load: () => import('../../templates/social-media-post.json')
-  },
-  {
-    name: 'Basic Poster',
-    preview: './templates/basic-poster.jpg',
-    load: () => import('../../templates/basic-poster.json')
-  },
-  {
-    name: 'Animated Video',
-    preview: './templates/animated-video.jpg',
-    load: () => import('../../templates/animated-video.json')
-  }
-]
-
-const BundledTemplatesGrid = observer(function BundledTemplatesGrid({
-  store
-}: {
-  store: DesignStore
-}): React.JSX.Element {
-  return (
-    <ImagesGrid<TemplateEntry>
-      images={BUNDLED_TEMPLATES}
-      getPreview={(item) => item.preview}
-      getAlt={(item) => item.name}
-      rowsNumber={2}
-      isLoading={false}
-      onSelect={async (item) => {
-        try {
-          const { default: json } = await item.load()
-          store.loadJSON(json)
-          const tab = tabs.tabs.find((t) => t.store === store)
-          if (tab && tab.name === 'Untitled') tab.name = item.name
-        } catch (error) {
-          console.error('Failed to load template', item.name, error)
-          toast.error(`Could not load the "${item.name}" template.`)
-        }
-      }}
-    />
-  )
-})
-
-// Library tab: Polotno's stock cloud templates when online, the bundled pack
-// offline.
-function LibraryPanel({ store }: { store: DesignStore }): React.JSX.Element {
-  const [online, setOnline] = useState(navigator.onLine)
-  useEffect(() => {
-    const goOnline = (): void => setOnline(true)
-    const goOffline = (): void => setOnline(false)
-    window.addEventListener('online', goOnline)
-    window.addEventListener('offline', goOffline)
-    return () => {
-      window.removeEventListener('online', goOnline)
-      window.removeEventListener('offline', goOffline)
-    }
-  }, [])
-  const StockPanel = StockTemplatesSection.Panel as React.ComponentType<{ store: DesignStore }>
-  return online ? <StockPanel store={store} /> : <BundledTemplatesGrid store={store} />
-}
 
 // One card per open tab, thumbnail rendered from its live store.
 const OpenDesignCard = observer(function OpenDesignCard({
@@ -166,6 +92,8 @@ const MyDesignsPanel = observer(function MyDesignsPanel(): React.JSX.Element {
   )
 })
 
+const StockPanel = StockTemplatesSection.Panel as React.ComponentType<{ store: DesignStore }>
+
 const Panel = observer(function Panel({ store }: { store: DesignStore }): React.JSX.Element {
   const [tab, setTab] = useState<'stock' | 'mine'>('stock')
   return (
@@ -179,15 +107,15 @@ const Panel = observer(function Panel({ store }: { store: DesignStore }): React.
         ]}
       />
       <div className="min-h-0 flex-1">
-        {tab === 'mine' ? <MyDesignsPanel /> : <LibraryPanel store={store} />}
+        {tab === 'mine' ? <MyDesignsPanel /> : <StockPanel store={store} />}
       </div>
     </div>
   )
 })
 
 // Replaces polotno's default `templates` section: same slot name, custom Tab,
-// and a Panel that tabs between the template library and the user's designs
-// (mirrors the new studio's MyTemplatesSection).
+// and a Panel that tabs between the Polotno template library and the user's
+// designs (mirrors the new studio's MyTemplatesSection).
 export const TemplatesSection: Section = {
   name: 'templates',
   Tab: ((props: { onClick: () => void; active: boolean }) => (

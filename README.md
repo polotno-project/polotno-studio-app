@@ -1,7 +1,8 @@
 # Polotno App
 
-Free desktop design editor for Mac, Windows, and Linux. Offline-first. Designs
-are local JSON files. No accounts, no cloud.
+Free desktop design editor for Mac, Windows, and Linux. Local-first: designs
+are local JSON files, no accounts. Stock media, templates, and Google Fonts
+load from the network; a true offline mode is planned for later.
 
 The app has a built-in MCP server. Any AI agent (Claude, Cursor, Codex, …) can
 create, edit, see, and export designs while you edit the same designs in the

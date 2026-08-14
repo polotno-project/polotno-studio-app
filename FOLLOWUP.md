@@ -72,3 +72,7 @@ Linux AppImage stays unsigned by design.
   not open (sidecar previews, like the studio).
 - Consider an upload/assets section (`setUploadFunc` with data URLs is
   wired conceptually but no UI section exists yet).
+- True offline mode (much later, by decision): re-enable the bundled
+  font/template fallbacks. The assets stay in the repo
+  (`scripts/fetch-fonts.mjs`, `src/renderer/public/fonts`,
+  `src/renderer/src/templates`); the removed wiring is in git history.

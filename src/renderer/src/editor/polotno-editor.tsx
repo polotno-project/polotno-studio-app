@@ -16,17 +16,13 @@ import type { DesignStore } from './store'
 import { designFileKind, parseDesignFile } from './import-design'
 import { tabs, nameFromPath } from './tabs-model'
 import { TemplatesSection } from './sections/templates-section'
-import { withNetworkGate } from './sections/network-gate'
 
-// Bundled Templates section replaces the api.polotno.com one; the stock upload
-// section needs an upload backend, so it is out for now. Network-dependent
-// stock sections stay, gated with an offline notice.
-const NETWORK_SECTIONS = ['photos', 'elements', 'videos']
+// Our Templates section replaces the stock one (same slot) to add the
+// "My designs" tab; the stock upload section needs an upload backend, so it
+// is out for now.
 const SECTIONS = [
   TemplatesSection,
-  ...DEFAULT_SECTIONS.filter((section) => !['templates', 'upload'].includes(section.name)).map(
-    (section) => (NETWORK_SECTIONS.includes(section.name) ? withNetworkGate(section) : section)
-  )
+  ...DEFAULT_SECTIONS.filter((section) => !['templates', 'upload'].includes(section.name))
 ] as Section[]
 
 export const PolotnoEditor = observer(function PolotnoEditor({
