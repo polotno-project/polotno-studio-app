@@ -9,6 +9,9 @@ export interface DocumentEntry {
   // SHA-1 of the last content we wrote to disk; lets the file watcher tell
   // our own saves apart from external edits (stage 1 step 9).
   lastWrittenHash: string | null
+  // Monotonic revision, bumped by every mutating bridge command. Reads return
+  // it; patch_design_json checks it for optimistic concurrency.
+  rev: number
 }
 
 class DocumentRegistry {
@@ -20,7 +23,8 @@ class DocumentRegistry {
       wcId,
       filePath,
       dirty: false,
-      lastWrittenHash: null
+      lastWrittenHash: null,
+      rev: 0
     }
     this.byId.set(entry.docId, entry)
     return entry

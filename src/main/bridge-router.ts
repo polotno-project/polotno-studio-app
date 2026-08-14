@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { ipcMain, webContents } from 'electron'
 import type { BridgeResponse } from '../shared/bridge-protocol'
-import type { DesignCommand, CommandResult } from '../shared/commands'
+import { MUTATING_COMMANDS, type DesignCommand, type CommandResult } from '../shared/commands'
 import type { DocId } from '../shared/types'
 import { documents } from './documents'
 
@@ -58,7 +58,11 @@ export function execCommand(
     })
 
   const prev = queues.get(docId) ?? Promise.resolve<CommandResult>({ ok: true })
-  const next = prev.then(run, run)
+  const next = prev.then(run, run).then((result) => {
+    const entry = documents.get(docId)
+    if (entry && result.ok && MUTATING_COMMANDS.has(command.type)) entry.rev++
+    return entry && result.ok ? { ...result, rev: entry.rev } : result
+  })
   queues.set(docId, next)
   return next
 }
