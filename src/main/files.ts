@@ -6,7 +6,12 @@ import type { OpenedFile } from '../shared/ipc-contract'
 import { documents } from './documents'
 import type { DocId } from '../shared/types'
 
-const DESIGN_FILE_FILTERS = [
+const OPENABLE_FILE_FILTERS = [
+  { name: 'Designs', extensions: ['polotno', 'json', 'pdf', 'ai', 'svg'] },
+  { name: 'All Files', extensions: ['*'] }
+]
+
+const SAVE_FILE_FILTERS = [
   { name: 'Polotno Design', extensions: ['polotno', 'json'] },
   { name: 'All Files', extensions: ['*'] }
 ]
@@ -41,13 +46,22 @@ export async function writeDesignFile(
   }
 }
 
-export async function showOpenDesignDialog(win: BrowserWindow): Promise<OpenedFile[] | null> {
+export async function readDesignFileBase64(
+  filePath: string
+): Promise<{ filePath: string; base64: string }> {
+  const buffer = await fs.readFile(filePath)
+  return { filePath, base64: buffer.toString('base64') }
+}
+
+export async function showOpenDesignDialog(
+  win: BrowserWindow
+): Promise<{ filePaths: string[] } | null> {
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
     properties: ['openFile', 'multiSelections'],
-    filters: DESIGN_FILE_FILTERS
+    filters: OPENABLE_FILE_FILTERS
   })
   if (canceled || filePaths.length === 0) return null
-  return Promise.all(filePaths.map(readDesignFile))
+  return { filePaths }
 }
 
 export async function showSaveAsDialog(
@@ -56,7 +70,7 @@ export async function showSaveAsDialog(
 ): Promise<{ filePath: string } | null> {
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     defaultPath: suggestedName.endsWith('.polotno') ? suggestedName : `${suggestedName}.polotno`,
-    filters: DESIGN_FILE_FILTERS
+    filters: SAVE_FILE_FILTERS
   })
   if (canceled || !filePath) return null
   return { filePath }

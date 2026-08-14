@@ -3,6 +3,7 @@ import type { InvokeApi } from '../shared/ipc-contract'
 import { documents } from './documents'
 import {
   readDesignFile,
+  readDesignFileBase64,
   writeDesignFile,
   showOpenDesignDialog,
   showSaveAsDialog
@@ -35,6 +36,7 @@ export function registerIpcHandlers(): void {
 
   handle('file:openDialog', (event) => showOpenDesignDialog(windowOf(event)))
   handle('file:read', (_event, { filePath }) => readDesignFile(filePath))
+  handle('file:readBase64', (_event, { filePath }) => readDesignFileBase64(filePath))
   handle('file:write', (_event, { docId, filePath, content }) =>
     writeDesignFile(filePath, content, docId)
   )

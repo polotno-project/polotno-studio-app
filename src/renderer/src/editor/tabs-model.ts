@@ -10,9 +10,9 @@ export interface DesignTab {
   dirty: boolean
 }
 
-function nameFromPath(filePath: string): string {
+export function nameFromPath(filePath: string): string {
   const base = filePath.split(/[\\/]/).pop() ?? filePath
-  return base.replace(/\.(polotno|json)$/i, '')
+  return base.replace(/\.(polotno|json|pdf|ai|svg)$/i, '')
 }
 
 // One live Polotno store per open tab. Stores stay alive across tab switches
@@ -38,13 +38,20 @@ class TabsModel {
     return this.tabs.find((tab) => tab.filePath === filePath)
   }
 
-  newTab(options: { filePath?: string | null; json?: unknown; activate?: boolean } = {}): DesignTab {
-    const { filePath = null, json, activate = true } = options
+  newTab(
+    options: {
+      filePath?: string | null
+      json?: unknown
+      name?: string
+      activate?: boolean
+    } = {}
+  ): DesignTab {
+    const { filePath = null, json, name, activate = true } = options
     const tab: DesignTab = {
       docId: crypto.randomUUID(),
       store: createDesignStore(),
       filePath,
-      name: filePath ? nameFromPath(filePath) : 'Untitled',
+      name: name ?? (filePath ? nameFromPath(filePath) : 'Untitled'),
       dirty: false
     }
     if (json) {

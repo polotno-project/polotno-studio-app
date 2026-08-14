@@ -16,8 +16,9 @@ export interface InvokeApi {
   'doc:setFilePath': (p: { docId: DocId; filePath: string }) => void
   'doc:setDirty': (p: { docId: DocId; dirty: boolean }) => void
   'doc:close': (p: { docId: DocId }) => void
-  'file:openDialog': () => OpenedFile[] | null
+  'file:openDialog': () => { filePaths: string[] } | null
   'file:read': (p: { filePath: string }) => OpenedFile
+  'file:readBase64': (p: { filePath: string }) => { filePath: string; base64: string }
   'file:write': (p: { docId?: DocId; filePath: string; content: string }) => void
   'file:saveAsDialog': (p: { suggestedName: string }) => { filePath: string } | null
   'recent:list': () => RecentEntry[]
@@ -36,7 +37,7 @@ export type MenuAction =
 export interface MainEvents {
   'menu:action': { action: MenuAction }
   'doc:externalChange': { docId: DocId }
-  'doc:openPath': OpenedFile
+  'doc:openPath': { filePath: string }
   'bridge:request': BridgeRequest
 }
 

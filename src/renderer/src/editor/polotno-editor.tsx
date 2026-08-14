@@ -7,10 +7,14 @@ import { PagesTimeline } from 'polotno/pages-timeline'
 import { DEFAULT_SECTIONS, SidePanel, type Section } from 'polotno/side-panel'
 import { Toolbar } from 'polotno/toolbar/toolbar'
 import { ZoomButtons } from 'polotno/toolbar/zoom-buttons'
+import { selectImage } from 'polotno/side-panel/select-image'
+import { toast } from 'sonner'
 
 import 'polotno/ui.css'
 
 import type { DesignStore } from './store'
+import { designFileKind, parseDesignFile } from './import-design'
+import { tabs, nameFromPath } from './tabs-model'
 
 // The bundled Templates section replaces the network one in a later step;
 // the stock upload section needs an upload backend, so it is out for now.
@@ -27,14 +31,46 @@ export const PolotnoEditor = observer(function PolotnoEditor({
     if (e.dataTransfer.types.includes('Files')) e.preventDefault()
   }, [])
 
-  // File drops are wired to the import pipeline in the file-IO step.
-  const onGlobalDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-    const dt = e.dataTransfer
-    // Skip in-app element drags (side panel -> canvas): those carry items but
-    // no OS files. Only intercept real file drops.
-    if (dt.files.length === 0 || dt.files.length !== dt.items.length) return
-    e.preventDefault()
-  }, [])
+  const onGlobalDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      const dt = e.dataTransfer
+      // Skip in-app element drags (side panel -> canvas): those carry items but
+      // no OS files. Only intercept real file drops.
+      if (dt.files.length === 0 || dt.files.length !== dt.items.length) return
+      e.preventDefault()
+      const files = Array.from(dt.files)
+
+      // A single dropped design file (.json/.polotno/.pdf/.ai/.svg) opens as a
+      // new tab; anything else image-like is placed into the current design.
+      if (files.length === 1 && designFileKind(files[0]) !== null) {
+        const file = files[0]
+        void parseDesignFile(file)
+          .then((json) => {
+            if (!json) return
+            // Dropped Files expose no filesystem path in a sandboxed renderer,
+            // so the tab opens untitled; Save As re-binds it to a path.
+            tabs.newTab({ json, name: nameFromPath(file.name) })
+          })
+          .catch((error) => {
+            console.error('Failed to import dropped file', error)
+            toast.error(`Could not import ${file.name} — not a valid design file.`)
+          })
+        return
+      }
+
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) continue
+        const reader = new FileReader()
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            void selectImage({ src: reader.result, store })
+          }
+        }
+        reader.readAsDataURL(file)
+      }
+    },
+    [store]
+  )
 
   return (
     <div className="h-full w-full" onDragOver={onGlobalDragOver} onDrop={onGlobalDrop}>
