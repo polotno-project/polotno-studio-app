@@ -2,6 +2,7 @@ import { observer } from 'mobx-react-lite'
 import { Plus, X } from 'lucide-react'
 import { tabs } from './tabs-model'
 import { requestCloseTab } from './document'
+import { ExportMenu } from './export-menu'
 
 export const TabStrip = observer(function TabStrip(): React.JSX.Element {
   return (
@@ -43,6 +44,7 @@ export const TabStrip = observer(function TabStrip(): React.JSX.Element {
       >
         <Plus className="size-4" />
       </button>
+      <ExportMenu />
     </div>
   )
 })

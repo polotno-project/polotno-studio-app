@@ -31,6 +31,9 @@ const App = observer(function App(): React.JSX.Element {
         case 'saveAs':
           if (tabs.activeDocId) void saveTabAs(tabs.activeDocId)
           break
+        case 'export':
+          void import('./editor/export-menu').then(({ runExport }) => runExport('png'))
+          break
       }
     })
     const offOpen = window.desktop.on('doc:openPath', ({ filePath }) => {
