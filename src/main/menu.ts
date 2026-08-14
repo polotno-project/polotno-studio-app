@@ -25,6 +25,14 @@ export function installAppMenu(): void {
           accelerator: 'CmdOrCtrl+O',
           click: () => sendMenuAction('openFile')
         },
+        ...(isMac
+          ? [
+              {
+                role: 'recentDocuments' as const,
+                submenu: [{ role: 'clearRecentDocuments' as const }]
+              }
+            ]
+          : []),
         { type: 'separator' },
         {
           label: 'Save',

@@ -22,6 +22,8 @@ export interface InvokeApi {
   'file:write': (p: { docId?: DocId; filePath: string; content: string }) => void
   'file:saveAsDialog': (p: { suggestedName: string }) => { filePath: string } | null
   'recent:list': () => RecentEntry[]
+  // Renderer announces its doc:openPath listener is live; main flushes queued opens.
+  'app:rendererReady': () => void
   'draft:list': () => { docId: string; content: string }[]
   'draft:write': (p: { docId: DocId; content: string }) => void
   'draft:remove': (p: { docId: DocId }) => void

@@ -11,6 +11,8 @@ const App = observer(function App(): React.JSX.Element {
   useEffect(() => {
     void restoreDrafts().then((restored) => {
       if (restored === 0 && tabs.tabs.length === 0) tabs.newTab()
+      // Tell main the doc:openPath listener below is live (flushes OS opens).
+      void window.desktop.invoke('app:rendererReady')
     })
     const offMenu = window.desktop.on('menu:action', ({ action }) => {
       switch (action) {

@@ -3,6 +3,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createEditorWindow } from './window'
 import { installAppMenu } from './menu'
 import { registerIpcHandlers } from './ipc'
+import { collectOpenablePaths, requestOpenPath } from './open-files'
 
 // Headless CLI subcommands (stage 3) branch before any window or lock exists,
 // so the GUI path and the CLI path never fight.
@@ -15,11 +16,20 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
 } else if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  // macOS delivers double-clicked files via open-file (possibly before ready).
+  app.on('open-file', (event, filePath) => {
+    event.preventDefault()
+    requestOpenPath(filePath)
+  })
+
+  app.on('second-instance', (_event, argv) => {
     const win = BrowserWindow.getAllWindows()[0]
     if (win) {
       if (win.isMinimized()) win.restore()
       win.focus()
+    }
+    for (const filePath of collectOpenablePaths(argv.slice(1))) {
+      requestOpenPath(filePath)
     }
   })
 
@@ -30,6 +40,13 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
     registerIpcHandlers()
     installAppMenu()
     createEditorWindow()
+
+    // Windows/Linux: files arrive as launch arguments.
+    if (process.platform !== 'darwin') {
+      for (const filePath of collectOpenablePaths(cliArgs)) {
+        requestOpenPath(filePath)
+      }
+    }
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createEditorWindow()

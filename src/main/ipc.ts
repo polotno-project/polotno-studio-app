@@ -3,6 +3,8 @@ import type { InvokeApi } from '../shared/ipc-contract'
 import { documents } from './documents'
 import { listDrafts, writeDraft, removeDraft } from './drafts'
 import { watchDocument, unwatchDocument } from './watcher'
+import { listRecent, addRecent } from './recent'
+import { markRendererReady } from './open-files'
 import {
   readDesignFile,
   readDesignFileBase64,
@@ -31,11 +33,15 @@ function windowOf(event: Electron.IpcMainInvokeEvent): BrowserWindow {
 export function registerIpcHandlers(): void {
   handle('doc:register', (event, { docId, filePath }) => {
     documents.register(docId, event.sender.id, filePath)
-    if (filePath) watchDocument(docId)
+    if (filePath) {
+      watchDocument(docId)
+      void addRecent(filePath)
+    }
   })
   handle('doc:setFilePath', (_event, { docId, filePath }) => {
     documents.setFilePath(docId, filePath)
     watchDocument(docId)
+    void addRecent(filePath)
   })
   handle('doc:setDirty', (_event, { docId, dirty }) => documents.setDirty(docId, dirty))
   handle('doc:close', (_event, { docId }) => {
@@ -81,6 +87,6 @@ export function registerIpcHandlers(): void {
     return response === 0 ? 'reload' : 'keep'
   })
 
-  // Populated by the recent-files step (stage 1 step 10).
-  handle('recent:list', () => [])
+  handle('recent:list', () => listRecent())
+  handle('app:rendererReady', () => markRendererReady())
 }
