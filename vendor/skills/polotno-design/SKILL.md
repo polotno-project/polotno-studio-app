@@ -14,7 +14,13 @@ description: >-
 # Polotno design generation
 
 Produce shippable Polotno designs from a text brief: a Polotno JSON design
-plus rendered output. The core is a closed loop: start from an
+plus rendered output.
+
+Talk to the user about designs, not about this skill: what you made, what
+you changed, what you need from them. The ladder, archetypes, rubric, and
+validation are your internal process — mention them only if asked. After
+installing, one line ("Ready — what should I design?") beats a summary of
+this document. The core is a closed loop: start from an
 **archetype** (a composition skeleton, never a blank canvas), render it,
 **look** at the render with your own eyes, and critique it against a fixed
 **rubric** until it passes. Looking is the whole point — generating without
