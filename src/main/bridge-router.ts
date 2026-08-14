@@ -1,14 +1,21 @@
 import { randomUUID } from 'node:crypto'
-import { ipcMain, webContents } from 'electron'
+import { ipcMain, webContents, type WebContents } from 'electron'
 import type { BridgeResponse } from '../shared/bridge-protocol'
-import { MUTATING_COMMANDS, type DesignCommand, type CommandResult } from '../shared/commands'
+import {
+  MUTATING_COMMANDS,
+  type AppCommand,
+  type BridgeCommand,
+  type CommandResult,
+  type DesignCommand
+} from '../shared/commands'
 import type { DocId } from '../shared/types'
 import { documents } from './documents'
+import { getEditorWindow } from './window'
 
 // Main is a pure message router: it correlates responses by id and routes by
-// docId, never interpreting commands. Stage 2's MCP utilityProcess calls
-// execCommand for every agent edit; a per-design FIFO queue keeps multi-step
-// agent edits from interleaving.
+// docId, never interpreting commands. The MCP utilityProcess calls
+// execCommand/execAppCommand for every agent operation; a per-design FIFO
+// queue keeps multi-step agent edits from interleaving.
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
@@ -25,37 +32,45 @@ export function initBridgeRouter(): void {
   })
 }
 
+function sendRequest(
+  wc: WebContents,
+  docId: DocId,
+  command: BridgeCommand,
+  timeoutMs: number
+): Promise<CommandResult> {
+  return new Promise((resolve) => {
+    const id = randomUUID()
+    const timer = setTimeout(() => {
+      pending.delete(id)
+      resolve({ ok: false, error: { code: 'timeout', message: `Command ${command.type} timed out` } })
+    }, timeoutMs)
+    pending.set(id, { resolve, timer })
+    wc.send('bridge:request', { id, docId, command })
+  })
+}
+
 export function execCommand(
   docId: DocId,
   command: DesignCommand,
   timeoutMs = DEFAULT_TIMEOUT_MS
 ): Promise<CommandResult> {
-  const run = (): Promise<CommandResult> =>
-    new Promise((resolve) => {
-      const entry = documents.get(docId)
-      if (!entry) {
-        resolve({ ok: false, error: { code: 'document_not_found', message: `No document ${docId}` } })
-        return
-      }
-      const wc = webContents.fromId(entry.wcId)
-      if (!wc || wc.isDestroyed()) {
-        resolve({
-          ok: false,
-          error: { code: 'document_not_found', message: 'The hosting window is gone' }
-        })
-        return
-      }
-      const id = randomUUID()
-      const timer = setTimeout(() => {
-        pending.delete(id)
-        resolve({
-          ok: false,
-          error: { code: 'timeout', message: `Command ${command.type} timed out` }
-        })
-      }, timeoutMs)
-      pending.set(id, { resolve, timer })
-      wc.send('bridge:request', { id, docId, command })
-    })
+  const run = (): Promise<CommandResult> => {
+    const entry = documents.get(docId)
+    if (!entry) {
+      return Promise.resolve({
+        ok: false,
+        error: { code: 'document_not_found', message: `No document ${docId}` }
+      })
+    }
+    const wc = webContents.fromId(entry.wcId)
+    if (!wc || wc.isDestroyed()) {
+      return Promise.resolve({
+        ok: false,
+        error: { code: 'document_not_found', message: 'The hosting window is gone' }
+      })
+    }
+    return sendRequest(wc, docId, command, timeoutMs)
+  }
 
   const prev = queues.get(docId) ?? Promise.resolve<CommandResult>({ ok: true })
   const next = prev.then(run, run).then((result) => {
@@ -65,4 +80,19 @@ export function execCommand(
   })
   queues.set(docId, next)
   return next
+}
+
+// Tab-level operations target the editor window itself (docId '').
+export function execAppCommand(
+  command: AppCommand,
+  timeoutMs = DEFAULT_TIMEOUT_MS
+): Promise<CommandResult> {
+  const win = getEditorWindow()
+  if (!win || win.isDestroyed()) {
+    return Promise.resolve({
+      ok: false,
+      error: { code: 'document_not_found', message: 'The editor window is not open' }
+    })
+  }
+  return sendRequest(win.webContents, '', command, timeoutMs)
 }

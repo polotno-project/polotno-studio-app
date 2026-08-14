@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { observer } from 'mobx-react-lite'
 import { Toaster } from 'sonner'
 import { PolotnoEditor } from './editor/polotno-editor'
+import { HiddenStages } from './editor/hidden-stages'
 import { TabStrip } from './editor/tab-strip'
 import { tabs } from './editor/tabs-model'
 import { openViaDialog, requestCloseTab, saveTab, saveTabAs } from './editor/document'
@@ -54,6 +55,7 @@ const App = observer(function App(): React.JSX.Element {
             lives in the tab and survives the remount. */}
         {active && <PolotnoEditor key={active.docId} store={active.store} />}
       </div>
+      <HiddenStages />
       <Toaster richColors position="bottom-right" />
     </div>
   )

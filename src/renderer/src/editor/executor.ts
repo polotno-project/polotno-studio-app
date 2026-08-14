@@ -127,6 +127,7 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
 
     case 'render': {
       await store.waitLoading()
+      await document.fonts.ready
       const page = pageOf(store, command.pageId)
       const maxSide = command.maxSide ?? 1024
       const fromMax = maxSide / Math.max(store.width, store.height)
@@ -140,11 +141,39 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
     }
 
     case 'lint': {
-      // Implemented with the lint module (stage 2); command exists so the tool
-      // surface is stable.
       const { lintDesign } = await import('./lint')
       await store.waitLoading()
       return lintDesign(store, command.pageId)
+    }
+
+    case 'export': {
+      await store.waitLoading()
+      await document.fonts.ready
+      if (command.format === 'pdf') {
+        const { jsonToPDFBlob } = await import('@polotno/pdf-export/browser')
+        const json = store.toJSON() as unknown as Parameters<typeof jsonToPDFBlob>[0]
+        const blob = await jsonToPDFBlob(json, {})
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = () => reject(reader.error)
+          reader.readAsDataURL(blob)
+        })
+        return { pages: [{ dataUrl }] }
+      }
+      const pageIds = command.pageId
+        ? [pageOf(store, command.pageId).id]
+        : store.pages.map((page) => page.id)
+      const pages: { pageId: string; dataUrl: string }[] = []
+      for (const pageId of pageIds) {
+        const dataUrl = await store.toDataURL({
+          pageId,
+          pixelRatio: command.pixelRatio ?? 2,
+          mimeType: `image/${command.format}`
+        })
+        pages.push({ pageId, dataUrl })
+      }
+      return { pages }
     }
 
     default:

@@ -36,6 +36,25 @@ export type DesignCommand =
       mimeType?: 'image/png' | 'image/jpeg'
     }
   | { type: 'lint'; pageId?: string }
+  | { type: 'export'; format: 'png' | 'jpeg' | 'pdf'; pixelRatio?: number; pageId?: string }
+
+// App-level commands target the editor window itself (docId: '') — tab
+// management for agents.
+export type AppCommand =
+  | {
+      type: 'create_tab'
+      name?: string
+      width?: number
+      height?: number
+      json?: unknown
+      activate?: boolean
+    }
+  | { type: 'activate_tab'; docId: string }
+  | { type: 'open_path'; filePath: string }
+  | { type: 'list_tabs' }
+  | { type: 'save_tab'; docId: string; filePath?: string }
+
+export type BridgeCommand = DesignCommand | AppCommand
 
 // Commands that change the document (drive the per-design rev counter).
 export const MUTATING_COMMANDS: ReadonlySet<DesignCommand['type']> = new Set([

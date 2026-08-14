@@ -1,7 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
 import { observer } from 'mobx-react-lite'
 import { Download } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button } from 'polotno/primitives/button'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem
+} from 'polotno/primitives/dropdown-menu'
 import { tabs } from './tabs-model'
 import {
   exportImages,
@@ -76,43 +82,25 @@ export async function runExport(format: ExportFormat): Promise<void> {
 }
 
 export const ExportMenu = observer(function ExportMenu(): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return undefined
-    const onDown = (e: MouseEvent): void => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
-    }
-    window.addEventListener('mousedown', onDown)
-    return () => window.removeEventListener('mousedown', onDown)
-  }, [open])
-
   return (
-    <div ref={rootRef} className="relative ml-auto self-center">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="mr-1 flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
-      >
-        <Download className="size-3.5" />
-        Export
-      </button>
-      {open && (
-        <div className="absolute right-1 z-50 mt-1 w-44 rounded-md border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+    <div className="ml-auto mr-1 self-center">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button size="sm">
+              <Download className="size-3.5" />
+              Export
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="end">
           {FORMATS.map(({ format, label }) => (
-            <button
-              key={format}
-              onClick={() => {
-                setOpen(false)
-                void runExport(format)
-              }}
-              className="block w-full px-3 py-1.5 text-left text-xs text-neutral-800 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
-            >
+            <DropdownMenuItem key={format} onSelect={() => void runExport(format)}>
               {label}
-            </button>
+            </DropdownMenuItem>
           ))}
-        </div>
-      )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 })

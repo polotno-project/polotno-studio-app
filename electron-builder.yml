@@ -12,6 +12,9 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+extraResources:
+  - from: out/mcp-server.cjs
+    to: mcp-server.cjs
 fileAssociations:
   - ext: polotno
     name: Polotno Design
