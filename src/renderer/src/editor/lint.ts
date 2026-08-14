@@ -208,7 +208,9 @@ export async function lintDesign(store: DesignStore, onlyPageId?: string): Promi
       }
 
       const measured = measuredTextHeight(el)
-      if (measured > el.height * 1.05 + 2) {
+      // height <= 1 means the element has not rendered yet (auto-height) —
+      // there is nothing to overflow.
+      if (el.height > 1 && measured > el.height * 1.05 + 2) {
         findings.push({
           pageId: page.id,
           elementId: el.id,

@@ -6,15 +6,15 @@ import { registerIpcHandlers } from './ipc'
 import { collectOpenablePaths, requestOpenPath } from './open-files'
 import { initBridgeRouter } from './bridge-router'
 import { startMcpServer, stopMcpServer } from './mcp/launcher'
+import { runCli } from './cli'
 
 // Headless CLI subcommands (stage 3) branch before any window or lock exists,
 // so the GUI path and the CLI path never fight.
 const cliArgs = process.argv.slice(app.isPackaged ? 1 : 2)
-const CLI_COMMANDS = new Set(['render', 'export', 'lint'])
+const CLI_COMMANDS = new Set(['render', 'lint'])
 
 if (CLI_COMMANDS.has(cliArgs[0])) {
-  console.error(`polotno ${cliArgs[0]}: the headless CLI is not implemented yet`)
-  app.exit(2)
+  runCli(cliArgs)
 } else if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {

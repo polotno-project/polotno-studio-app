@@ -9,9 +9,9 @@ export function getEditorWindow(): BrowserWindow | null {
   return editorWindow
 }
 
-export function createEditorWindow(): BrowserWindow {
+export function createEditorWindow(options: { hidden?: boolean } = {}): BrowserWindow {
   if (editorWindow && !editorWindow.isDestroyed()) {
-    editorWindow.focus()
+    if (!options.hidden) editorWindow.focus()
     return editorWindow
   }
 
@@ -31,7 +31,9 @@ export function createEditorWindow(): BrowserWindow {
 
   // POLOTNO_SHOW_INACTIVE: automated test runs show the window without
   // activating the app, so launches don't steal the user's focus.
+  // hidden: the headless CLI never shows the window at all.
   editorWindow.on('ready-to-show', () => {
+    if (options.hidden) return
     if (process.env.POLOTNO_SHOW_INACTIVE) editorWindow?.showInactive()
     else editorWindow?.show()
   })
