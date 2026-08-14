@@ -13,19 +13,17 @@ place — each item is an account, credential, or publish step only you can do.
 
 ## 2. GitHub repository
 
-- Done: private `polotno-project/polotno-studio-app`, code pushed, CI green
-  on all 3 OSes, `v1.0.0` draft release built with all installers.
-- Before real users: make the repo (or at least releases) public —
-  electron-updater cannot read a private repo's releases without an embedded
-  token, so auto-update only works once releases are public.
+- Done: public `polotno-project/polotno-studio-app`, code pushed, CI green
+  on all 3 OSes, `v0.1.0` release published with all installers — the
+  auto-updater can see it.
 
 ## 3. Code signing secrets (GitHub repo secrets)
 
 macOS:
 
-- `CSC_LINK` (Developer ID .p12, base64) and `CSC_KEY_PASSWORD`
-- `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
-- Then set `mac.notarize: true` in `electron-builder.yml`.
+- Done: `CSC_LINK`/`CSC_KEY_PASSWORD` and `APPLE_ID`/
+  `APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID` secrets set,
+  `mac.notarize: true` — CI builds are signed and notarized.
 
 Windows (Azure Trusted Signing):
 
@@ -37,18 +35,16 @@ Linux AppImage stays unsigned by design.
 
 ## 4. First release rehearsal
 
-- The `v1.0.0` draft exists (mac universal dmg+zip, win setup.exe, linux
-  AppImage, blockmaps, updater manifests). Publishing the draft is the
-  go-live gate.
-- After publishing: install on all three OSes, then tag `v1.0.1` and confirm
-  the installed app auto-updates (differential download in the updater log).
-- With signing secrets in place, verify `spctl -a -v Polotno.app` on macOS.
+- Done: `v0.1.0` published (mac universal dmg+zip signed+notarized, win
+  setup.exe, linux AppImage, blockmaps, updater manifests); `spctl` verified
+  on macOS.
+- Remaining: install `v0.1.0`, then tag `v0.1.1` and confirm the installed
+  app auto-updates (differential download in the updater log).
 
 ## 5. Skills repo
 
-- `polotno-ai-rules` has an unpushed local commit (`9d99923`,
-  "polotno-design: add live MCP path for the Polotno desktop app").
-  Review, push, or PR it.
+- Done: `polotno-ai-rules` commit `9d99923` ("polotno-design: add live MCP
+  path for the Polotno desktop app") is pushed to origin.
 - If the skill changes after that, bump `SKILL_COMMIT` in
   `scripts/sync-skills.mjs`, re-run it, and commit `vendor/skills`.
 
