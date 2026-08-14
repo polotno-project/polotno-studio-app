@@ -22,7 +22,16 @@ jobs:
         env:
           VITE_POLOTNO_KEY: ${{ secrets.VITE_POLOTNO_KEY }}
       - name: Package and upload to draft release
-        run: npx electron-builder --publish always
+        shell: bash
+        # Missing repo secrets arrive as empty strings; electron-builder treats
+        # a set-but-empty CSC_LINK as a certificate path. Unset empties so
+        # unsigned builds work until the real secrets exist.
+        run: |
+          for v in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID \
+                   AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET; do
+            if [ -z "${!v}" ]; then unset "$v"; fi
+          done
+          npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # macOS signing + notarization (set these repo secrets to enable;
