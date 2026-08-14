@@ -13,11 +13,11 @@ place — each item is an account, credential, or publish step only you can do.
 
 ## 2. GitHub repository
 
-- Create `polotno-project/polotno-studio-app` (or another name — then update
-  `publish.owner` / `publish.repo` in `electron-builder.yml`).
-- Add the remote and push `master`.
-- CI starts working on push: `build.yml` runs on PRs, `release.yml` on `v*`
-  tags.
+- Done: private `polotno-project/polotno-studio-app`, code pushed, CI green
+  on all 3 OSes, `v1.0.0` draft release built with all installers.
+- Before real users: make the repo (or at least releases) public —
+  electron-updater cannot read a private repo's releases without an embedded
+  token, so auto-update only works once releases are public.
 
 ## 3. Code signing secrets (GitHub repo secrets)
 
@@ -37,11 +37,12 @@ Linux AppImage stays unsigned by design.
 
 ## 4. First release rehearsal
 
-- Tag `v1.0.0`, let CI build, publish the draft release.
-- Install the app from that release on all three OSes.
-- Tag `v1.0.1`, publish, and confirm the installed app auto-updates (check
-  the updater log for a differential download).
-- Verify `spctl -a -v Polotno.app` passes on macOS.
+- The `v1.0.0` draft exists (mac universal dmg+zip, win setup.exe, linux
+  AppImage, blockmaps, updater manifests). Publishing the draft is the
+  go-live gate.
+- After publishing: install on all three OSes, then tag `v1.0.1` and confirm
+  the installed app auto-updates (differential download in the updater log).
+- With signing secrets in place, verify `spctl -a -v Polotno.app` on macOS.
 
 ## 5. Skills repo
 
