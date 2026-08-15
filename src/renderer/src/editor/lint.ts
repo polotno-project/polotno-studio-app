@@ -131,10 +131,35 @@ function probeImage(src: string): Promise<boolean> {
   })
 }
 
+// Only these report a broken source; a video that fails to load is not a
+// design problem, so videos are never probed.
+function isProbeable(el: ElementJson): boolean {
+  return el.type === 'image' || el.type === 'svg'
+}
+
+// Probe every distinct asset once, in parallel, before any rule runs. Probing
+// inside the element loop was serial: each unreachable asset costs up to 5 s,
+// so a design with seven of them outran the 30 s bridge timeout and agents got
+// `{code: 'timeout'}` instead of findings (the CLI passes 120 s and survived).
+async function probeAssets(pages: PageJson[]): Promise<Map<string, boolean>> {
+  const srcs = new Set<string>()
+  for (const page of pages) {
+    for (const el of page.children) {
+      if (el.visible === false || !isProbeable(el)) continue
+      if (el.src) srcs.add(el.src)
+    }
+  }
+  const probed = await Promise.all(
+    [...srcs].map(async (src) => [src, await probeImage(src)] as const)
+  )
+  return new Map(probed)
+}
+
 export async function lintDesign(store: DesignStore, onlyPageId?: string): Promise<LintFinding[]> {
   const json = store.toJSON() as unknown as { width: number; height: number; pages: PageJson[] }
   const findings: LintFinding[] = []
   const pages = json.pages.filter((page) => !onlyPageId || page.id === onlyPageId)
+  const reachable = await probeAssets(pages)
 
   for (const page of pages) {
     const pageWidth = typeof page.width === 'number' ? page.width : json.width
@@ -225,17 +250,15 @@ export async function lintDesign(store: DesignStore, onlyPageId?: string): Promi
         })
       }
 
-      if ((el.type === 'image' || el.type === 'video' || el.type === 'svg') && el.src) {
-        if (!(await probeImage(el.src)) && el.type !== 'video') {
-          findings.push({
-            pageId: page.id,
-            elementId: el.id,
-            rule: 'broken-asset',
-            severity: 'error',
-            message: `The ${el.type} source failed to load.`,
-            suggestion: 'Replace the src URL with a working asset.'
-          })
-        }
+      if (el.src && isProbeable(el) && reachable.get(el.src) === false) {
+        findings.push({
+          pageId: page.id,
+          elementId: el.id,
+          rule: 'broken-asset',
+          severity: 'error',
+          message: `The ${el.type} source failed to load.`,
+          suggestion: 'Replace the src URL with a working asset.'
+        })
       }
     }
 
