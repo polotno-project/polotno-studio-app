@@ -6,6 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { isJSONRPCRequest, type JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
 
 function discoveryPath(): string {
   if (process.platform === 'darwin') {
@@ -40,8 +41,29 @@ async function main(): Promise<void> {
     requestInit: { headers: { Authorization: `Bearer ${discovery.token}` } }
   })
 
-  stdio.onmessage = (message) => void http.send(message)
-  http.onmessage = (message) => void stdio.send(message)
+  // Both send() calls return a promise that rejects when the hop fails, and
+  // `void` does not catch a rejection — an unhandled one kills the whole proxy.
+  // The app closing mid-session is enough to trigger it, so every hop reports
+  // its own failure instead.
+  stdio.onmessage = (message: JSONRPCMessage) => {
+    http.send(message).catch((error: Error) => {
+      console.error('Sending to the Polotno app failed:', error.message)
+      // Answer the pending call, or the client waits for its own timeout.
+      if (!isJSONRPCRequest(message)) return
+      stdio
+        .send({
+          jsonrpc: '2.0',
+          id: message.id,
+          error: { code: -32001, message: `The Polotno app did not answer: ${error.message}` }
+        })
+        .catch(() => undefined)
+    })
+  }
+  http.onmessage = (message: JSONRPCMessage) => {
+    stdio.send(message).catch((error: Error) => {
+      console.error('Answering the client failed:', error.message)
+    })
+  }
   stdio.onclose = () => process.exit(0)
   http.onclose = () => process.exit(0)
   http.onerror = (error) => {
