@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { promises as fs } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { RecentEntry } from '../shared/types'
+import { keepExisting } from './files'
 
 // Own list (powers Open Recent on all platforms and a future welcome screen)
 // plus the native integration (macOS Open Recent menu role, Windows jump list)
@@ -15,7 +16,10 @@ function recentPath(): string {
 export async function listRecent(): Promise<RecentEntry[]> {
   try {
     const parsed = JSON.parse(await fs.readFile(recentPath(), 'utf8'))
-    return Array.isArray(parsed) ? parsed : []
+    if (!Array.isArray(parsed)) return []
+    // Never offer a design that is no longer there — picking it could only fail.
+    const alive = new Set(await keepExisting(parsed.map((entry) => entry.filePath)))
+    return parsed.filter((entry) => alive.has(entry.filePath))
   } catch {
     return []
   }

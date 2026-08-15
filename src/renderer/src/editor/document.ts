@@ -60,7 +60,9 @@ export async function openPath(filePath: string): Promise<void> {
     }
   } catch (error) {
     console.error('Failed to open', filePath, error)
-    toast.error(`Could not open ${nameFromPath(filePath)} — the file is not a valid design.`)
+    // Two causes reach here — unreadable, and readable but not a design. Do
+    // not name one of them; the console line above has the real reason.
+    toast.error(`Could not open ${nameFromPath(filePath)}.`)
   }
 }
 

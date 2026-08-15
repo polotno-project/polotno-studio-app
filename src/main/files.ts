@@ -20,6 +20,21 @@ export function contentHash(content: string): string {
   return createHash('sha1').update(content).digest('hex')
 }
 
+// The session and the recent list remember paths, and a design can be deleted
+// or moved between launches. Drop the entries that no longer resolve, so a
+// stale path never reaches the renderer as a failed open.
+export async function keepExisting(filePaths: string[]): Promise<string[]> {
+  const checks = await Promise.all(
+    filePaths.map((filePath) =>
+      fs
+        .access(filePath)
+        .then(() => true)
+        .catch(() => false)
+    )
+  )
+  return filePaths.filter((_, index) => checks[index])
+}
+
 export async function readDesignFile(filePath: string): Promise<OpenedFile> {
   const content = await fs.readFile(filePath, 'utf8')
   return { filePath, content }
