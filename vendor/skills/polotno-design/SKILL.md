@@ -41,9 +41,11 @@ ladder ("do it headless" wins even with the app running).
    discovery file exists (paths in `local-app.md`) and its health URL
    answers → same file, HTTP transport. Dead health check = the app is
    closed; fall through (and mention the user can open the app).
-3. **Local editor server** — `scripts/serve.js` exists, `node` works, and
-   a human is present to open a browser → start it, then
-   `runtimes/local-server.md`.
+3. **Local editor server** — `scripts/serve.js` exists, `node` works, a
+   human is present to open a browser, AND their browser can reach this
+   machine (running in a cloud/remote sandbox? only if your environment
+   can expose a local port at a public URL — see `local-server.md`) →
+   start it, then `runtimes/local-server.md`.
 4. **Studio bridge** — reserved, not yet available
    (`runtimes/studio-bridge.md`). Fall through.
 5. **Headless** — terminal + node (or the Cloud Render API when Chromium

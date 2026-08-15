@@ -21,6 +21,18 @@ scripts:
 | `render`, `export` | `node scripts/render.js …` (see `headless.md`) |
 | `lint` | `node scripts/validate.js design.json` |
 
+## Remote / cloud sandboxes
+
+`localhost` here means *this machine* — if you run in a cloud sandbox, the
+human's browser cannot reach it. In that case:
+
+1. If your environment can expose a local port at a public URL (port
+   forwarding, preview URLs), serve on that port and give the user the
+   public URL instead.
+2. Otherwise this runtime is unavailable — fall through to `headless.md`,
+   and at the end hand the user the design JSON with one line: "import it
+   at polotno.com/studio to edit."
+
 Rules of the road:
 
 - **Re-read before you write.** The human may have saved changes from the
