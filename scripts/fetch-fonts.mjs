@@ -2,7 +2,8 @@
 // @fontsource packages into the renderer's public assets and emits
 // src/renderer/src/fonts-manifest.json in the Polotno FONT[] shape.
 // Run after changing FAMILIES: node scripts/fetch-fonts.mjs
-// Both outputs are committed, so builds never need this script or the network.
+// Neither output is committed — nothing loads them while offline mode is off.
+// This script is the restore path, not dead code: docs/adr/0001.
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'

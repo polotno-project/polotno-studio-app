@@ -2,7 +2,9 @@
 // app (hidden window) — the same store renders the previews that will render
 // the designs. Run after adding/changing templates:
 //   npm run build && node scripts/build-template-previews.mjs
-// Output (src/renderer/public/templates/*.jpg) is committed.
+// Output (src/renderer/public/templates/*.jpg) is not committed — nothing
+// loads it while offline mode is off. This script is the restore path, not
+// dead code: docs/adr/0001.
 import { _electron as electron } from 'playwright-core'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
