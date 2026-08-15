@@ -11,6 +11,11 @@ bug.
 | Screen/office PDF (raster pages is fine) | polotno-node (`render.js --pdf`) |
 | Vector PDF (selectable text), print-ready: CMYK, PDF/X, spot colors | `@polotno/pdf-export` |
 | No local Chromium / server-side batch | Cloud Render API |
+| Either kind, from a design the human has open | Polotno desktop app (`runtimes/local-app.md`) |
+
+The desktop app gives both kinds under two format names — `pdf` is vector,
+`pdf-flat` is raster — but none of the print options below. For CMYK, PDF/X,
+bleed or crop marks, use `@polotno/pdf-export` or the Cloud Render API.
 
 ## Raster PDF — polotno-node (`render.js --pdf`)
 

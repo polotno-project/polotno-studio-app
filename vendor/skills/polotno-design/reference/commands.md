@@ -58,10 +58,12 @@ path. "Page" and "element" ids come from the design JSON itself.
 - **`lint`** — machine checks on the design: text overflow, out-of-bounds,
   low contrast, tiny text, overlapping text, broken assets, missing fonts.
   Fix every `error`, weigh each `warning`, then re-render.
-- **`export`** — write the final file. Args: `format` (`png`, `jpeg`,
-  `pdf`), optional page ids, format options. For print PDF (dpi, bleed,
-  crop marks, CMYK, PDF/X) read `print-pdf.md` first — capabilities differ
-  by runtime and package, and overpromising print features is a bug.
+- **`export`** — write the final file. Args: `format`, optional page ids,
+  format options. Every runtime accepts `png` and `jpeg`. PDF is where
+  runtimes differ: some give vector pages, some give raster pages, and some
+  give both under two different format names. Read `print-pdf.md` before you
+  promise any PDF property, and your runtime file for the exact format names
+  it takes. Overpromising print features is a bug.
 
 ## Typed verbs vs JSON patch
 

@@ -54,6 +54,31 @@ App extras beyond the shared verbs: `open_design` (focus a design's tab —
 the only call that changes what the human is looking at), `add_page` /
 `remove_page` / `move_page`, `get_design_info`.
 
+## Export formats
+
+`export_design` takes exactly four format names. There is no default — always
+send one:
+
+| `format` | Result |
+|---|---|
+| `png` | Lossless raster. Use it unless you have a reason not to. |
+| `jpeg` | Smaller raster, no transparency. |
+| `pdf` | **Vector** — text stays selectable and every font is embedded. |
+| `pdf-flat` | **Raster** — each page is an image inside a PDF. |
+
+Both PDF names produce a `.pdf` file, so choose by what the human needs, not
+by the extension. `pdf` is the better answer for print and for anything the
+human may want to select or search text in. Its cost: it must embed every
+font, so a font that cannot load **fails the export** with a clear message —
+retry that design as `pdf-flat`, which rasterizes and therefore never fails
+on a font, at the price of selectable text.
+
+`pixelRatio` scales `png`, `jpeg` and `pdf-flat`. A vector PDF has no pixels
+to scale, so `pixelRatio` is ignored there.
+
+The app has no CMYK, PDF/X, bleed or crop-mark options — do not promise them
+here. `print-pdf.md` lists the runtimes that do.
+
 ## Recipes
 
 **Create a set** (e.g. "5 Instagram posts"): one `create_design` per post so
