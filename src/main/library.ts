@@ -6,8 +6,8 @@ import type { LibraryEntry } from '../shared/ipc-contract'
 import { writeDesignFile } from './files'
 
 // The design library: a visible folder (~/Documents/Polotno) that "My designs"
-// lists and every new design materializes into. Thumbnails are sidecar JPEGs
-// in userData/previews, keyed by a hash of the file path.
+// lists and every design materializes into once it has content. Thumbnails are
+// sidecar JPEGs in userData/previews, keyed by a hash of the file path.
 
 export function libraryDir(): string {
   return join(app.getPath('documents'), 'Polotno')

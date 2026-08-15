@@ -23,6 +23,9 @@ interface PersistenceState {
   loading: boolean
   dirtyTimer?: ReturnType<typeof setTimeout>
   saveTimer?: ReturnType<typeof setTimeout>
+  // The in-flight library:create, so two overlapping saves cannot make two
+  // library files for one design.
+  materializing?: Promise<void>
 }
 
 // Keyed by docId rather than held on DesignTab: none of it is rendered, so
@@ -101,6 +104,26 @@ export function isDirty(tab: DesignTab): boolean {
   return designSnapshot(tab.store) !== state.baseline || tab.dirty
 }
 
+// Give the design a real file in the library folder (Documents/Polotno).
+// A design materializes when it has something worth keeping — the first save,
+// or an explicit import — never just because a tab was opened. A blank tab the
+// user never touched leaves nothing behind, so closing and reopening tabs
+// cannot fill "My designs" with empty designs.
+export function materialize(tab: DesignTab): Promise<void> {
+  const state = states.get(tab.docId)
+  if (!state || tab.filePath) return Promise.resolve()
+  state.materializing ??= window.desktop
+    .invoke('library:create', { name: tab.name, content: designSnapshot(tab.store) })
+    .then(({ filePath }) => {
+      tabs.setFilePath(tab.docId, filePath)
+    })
+    .catch((error) => {
+      state.materializing = undefined // let the next save try again
+      throw error
+    })
+  return state.materializing
+}
+
 async function writeTo(tab: DesignTab, filePath: string): Promise<boolean> {
   const content = designSnapshot(tab.store)
   await window.desktop.invoke('file:write', { docId: tab.docId, filePath, content })
@@ -110,10 +133,14 @@ async function writeTo(tab: DesignTab, filePath: string): Promise<boolean> {
   return true
 }
 
+// Saving never asks the user where: every design belongs to the library, so a
+// design with no file yet gets one here. Save As stays an explicit menu action
+// for writing a copy somewhere else.
 export async function save(docId: DocId): Promise<boolean> {
   const tab = tabs.get(docId)
   if (!tab) return false
-  if (!tab.filePath) return saveAs(docId)
+  await materialize(tab)
+  if (!tab.filePath) return false // no longer tracked
   return writeTo(tab, tab.filePath)
 }
 
@@ -126,17 +153,21 @@ export async function saveAs(docId: DocId): Promise<boolean> {
   return writeTo(tab, result.filePath)
 }
 
+// The caller is a timer, so nothing is waiting to catch this.
 async function autosave(tab: DesignTab): Promise<void> {
   if (!states.has(tab.docId)) return // detached meanwhile
-  if (!tab.filePath) return // file still materializing (createDesign in flight)
-  await save(tab.docId)
-  void writePreview(tab)
+  try {
+    await save(tab.docId)
+    await writePreview(tab)
+  } catch (error) {
+    console.error('Autosave failed for tab', tab.name, error)
+  }
 }
 
 async function flushAll(): Promise<void> {
   for (const tab of [...tabs.tabs]) {
     try {
-      if (tab.filePath && isDirty(tab)) await save(tab.docId)
+      if (isDirty(tab)) await save(tab.docId)
     } catch (error) {
       console.error('Flush failed for tab', tab.name, error)
     }

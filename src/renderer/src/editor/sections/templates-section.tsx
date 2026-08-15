@@ -18,7 +18,7 @@ import { Input } from 'polotno/primitives/input'
 import type { LibraryEntry } from '../../../../shared/ipc-contract'
 import type { DesignStore } from '../store'
 import { tabs } from '../tabs-model'
-import { openPath, createDesign } from '../document'
+import { openPath } from '../document'
 import { SegmentedTabs } from './segmented-tabs'
 
 const DesignCard = observer(function DesignCard({
@@ -65,7 +65,7 @@ const DesignCard = observer(function DesignCard({
     // Close first so autosave cannot resurrect the file after deletion.
     if (openTab) tabs.closeTab(openTab.docId)
     await window.desktop.invoke('library:delete', { filePath: entry.filePath })
-    if (tabs.tabs.length === 0) await createDesign()
+    if (tabs.tabs.length === 0) tabs.newTab()
     onChanged()
   }
 
@@ -144,12 +144,9 @@ const MyDesignsPanel = observer(function MyDesignsPanel(): React.JSX.Element {
 
   return (
     <div className="flex h-full flex-col gap-2">
-      <Button
-        size="sm"
-        onClick={() => {
-          void createDesign().then(refresh)
-        }}
-      >
+      {/* The new design is a blank tab, not a library file yet — it joins the
+          list below as soon as the user puts something in it. */}
+      <Button size="sm" onClick={() => tabs.newTab()}>
         <Plus className="size-3.5" />
         New design
       </Button>

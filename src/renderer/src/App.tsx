@@ -5,7 +5,7 @@ import { PolotnoEditor } from './editor/polotno-editor'
 import { HiddenStages } from './editor/hidden-stages'
 import { TabStrip } from './editor/tab-strip'
 import { tabs } from './editor/tabs-model'
-import { createDesign, openViaDialog, requestCloseTab, restoreSession } from './editor/document'
+import { openViaDialog, requestCloseTab, restoreSession } from './editor/document'
 import { initPersistence, save, saveAs } from './editor/persistence'
 
 const App = observer(function App(): React.JSX.Element {
@@ -20,7 +20,7 @@ const App = observer(function App(): React.JSX.Element {
     const offMenu = window.desktop.on('menu:action', ({ action }) => {
       switch (action) {
         case 'newTab':
-          void createDesign()
+          tabs.newTab()
           break
         case 'closeTab':
           if (tabs.activeDocId) void requestCloseTab(tabs.activeDocId)

@@ -1,7 +1,7 @@
 import { toast } from 'sonner'
-import { tabs, nameFromPath, designSnapshot, type DesignTab } from './tabs-model'
+import { tabs, nameFromPath, type DesignTab } from './tabs-model'
 import { kindFromPath, parseProjectText, parsePdfBuffer, parseSvgText } from './import-design'
-import { isDirty, save } from './persistence'
+import { isDirty, materialize, save } from './persistence'
 
 // A design's lifecycle in the editor: created, opened, closed, restored.
 // When any of it reaches disk is persistence.ts's business, not this module's.
@@ -13,22 +13,15 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer
 }
 
-// Create a design: the tab appears immediately and the design materializes as
-// a real file in the library folder (Documents/Polotno) right away — every
-// design has a file from birth, autosave keeps it fresh.
-export async function createDesign(
-  options: { json?: unknown; name?: string; activate?: boolean } = {}
-): Promise<DesignTab> {
-  const tab = tabs.newTab({
-    json: options.json,
-    name: options.name ?? 'Untitled',
-    activate: options.activate ?? true
-  })
-  const { filePath } = await window.desktop.invoke('library:create', {
-    name: tab.name,
-    content: designSnapshot(tab.store)
-  })
-  tabs.setFilePath(tab.docId, filePath)
+// Bring a design in from somewhere that is not a design file: a PDF, an SVG,
+// or a file dropped on the window. The import is an intentional creation, so
+// it becomes a library design right away — saving never touches the source,
+// and the import survives even if the user closes the tab without editing.
+// A plain new tab is not an import: it stays fileless until it has content
+// (see materialize in persistence.ts).
+export async function importDesign(json: unknown, name: string): Promise<DesignTab> {
+  const tab = tabs.newTab({ json, name })
+  await materialize(tab)
   return tab
 }
 
@@ -53,13 +46,13 @@ export async function openPath(filePath: string): Promise<void> {
       case 'pdf': {
         const { base64 } = await window.desktop.invoke('file:readBase64', { filePath })
         const json = await parsePdfBuffer(base64ToArrayBuffer(base64))
-        await createDesign({ json, name: nameFromPath(filePath) })
+        await importDesign(json, nameFromPath(filePath))
         break
       }
       case 'svg': {
         const { content } = await window.desktop.invoke('file:read', { filePath })
         const json = await parseSvgText(content)
-        await createDesign({ json, name: nameFromPath(filePath) })
+        await importDesign(json, nameFromPath(filePath))
         break
       }
       default:
@@ -79,21 +72,23 @@ export async function openViaDialog(): Promise<void> {
   }
 }
 
-// Close a tab: flush unsaved changes to its file, then close. No prompt —
-// every design has a file, and deletion happens in My designs.
+// Close a tab: keep whatever the user made, then close. No prompt — a design
+// with content is already in the library, and deletion happens in My designs.
 export async function requestCloseTab(docId: string): Promise<void> {
   const tab = tabs.get(docId)
   if (!tab) return
-  if (tab.filePath && isDirty(tab)) await save(docId)
+  if (isDirty(tab)) await save(docId)
   tabs.closeTab(docId)
   // The editor always shows a design; an empty tab strip gets a fresh one.
-  if (tabs.tabs.length === 0) await createDesign()
+  // It stays fileless until the user draws in it, so closing the last tab
+  // again and again leaves no trail of empty designs.
+  if (tabs.tabs.length === 0) tabs.newTab()
 }
 
 let sessionRestored = false
 
 // Reopen the files that were open when the app last closed; a fresh install
-// (or empty session) starts with one new library design.
+// (or empty session) starts with one blank design.
 export async function restoreSession(): Promise<void> {
   // React StrictMode double-invokes effects; restore only once.
   if (sessionRestored) return
@@ -102,5 +97,5 @@ export async function restoreSession(): Promise<void> {
   for (const filePath of filePaths) {
     await openPath(filePath)
   }
-  if (tabs.tabs.length === 0) await createDesign()
+  if (tabs.tabs.length === 0) tabs.newTab()
 }

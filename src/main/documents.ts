@@ -1,8 +1,8 @@
 import type { DocId } from '../shared/types'
 
 // Dirty state is deliberately absent: the renderer owns it (persistence.ts),
-// and main never needs it — every design has a file and app:flushRequest saves
-// them all on close.
+// and main never needs it — app:flushRequest saves every open design on close,
+// giving a design with no file yet one of its own.
 export interface DocumentEntry {
   docId: DocId
   // webContents id of the renderer hosting this document's live store.

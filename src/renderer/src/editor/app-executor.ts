@@ -1,6 +1,6 @@
 import type { AppCommand } from '../../../shared/commands'
 import { tabs } from './tabs-model'
-import { openPath, createDesign } from './document'
+import { openPath } from './document'
 import { save } from './persistence'
 import { CommandError } from './executor'
 
@@ -8,7 +8,10 @@ import { CommandError } from './executor'
 export async function executeAppCommand(command: AppCommand): Promise<unknown> {
   switch (command.type) {
     case 'create_tab': {
-      const tab = await createDesign({
+      // No library file yet: the design gets one on its first save, so an
+      // agent that only reads or renders leaves nothing behind (the CLI
+      // `render` command loads every input this way).
+      const tab = tabs.newTab({
         json: command.json,
         name: command.name,
         activate: command.activate ?? false

@@ -14,7 +14,8 @@ import 'polotno/ui.css'
 
 import type { DesignStore } from './store'
 import { designFileKind, parseDesignFile } from './import-design'
-import { tabs, nameFromPath } from './tabs-model'
+import { nameFromPath } from './tabs-model'
+import { importDesign } from './document'
 import { TemplatesSection } from './sections/templates-section'
 
 // Our Templates section replaces the stock one (same slot) to add the
@@ -50,8 +51,9 @@ export const PolotnoEditor = observer(function PolotnoEditor({
           .then((json) => {
             if (!json) return
             // Dropped Files expose no filesystem path in a sandboxed renderer,
-            // so the tab opens untitled; Save As re-binds it to a path.
-            tabs.newTab({ json, name: nameFromPath(file.name) })
+            // so the drop becomes a new library design rather than a tab bound
+            // to the file the user dropped.
+            void importDesign(json, nameFromPath(file.name))
           })
           .catch((error) => {
             console.error('Failed to import dropped file', error)
