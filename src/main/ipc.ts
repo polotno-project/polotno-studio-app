@@ -58,7 +58,6 @@ export function registerIpcHandlers(): void {
     void addRecent(filePath)
     persistSession()
   })
-  handle('doc:setDirty', (_event, { docId, dirty }) => documents.setDirty(docId, dirty))
   handle('doc:close', (_event, { docId }) => {
     unwatchDocument(docId)
     documents.close(docId)

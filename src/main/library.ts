@@ -2,6 +2,7 @@ import { app, shell } from 'electron'
 import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import { basename, join } from 'node:path'
+import type { LibraryEntry } from '../shared/ipc-contract'
 import { writeDesignFile } from './files'
 
 // The design library: a visible folder (~/Documents/Polotno) that "My designs"
@@ -25,14 +26,6 @@ function previewsDir(): string {
 function previewPath(filePath: string): string {
   const key = createHash('sha1').update(filePath).digest('hex')
   return join(previewsDir(), `${key}.jpg`)
-}
-
-export interface LibraryEntry {
-  filePath: string
-  name: string
-  modifiedAt: number
-  // Small JPEG as a data URL (kept tiny; file:// images are blocked in dev).
-  preview: string | null
 }
 
 export async function listLibrary(): Promise<LibraryEntry[]> {

@@ -5,11 +5,14 @@ import { PolotnoEditor } from './editor/polotno-editor'
 import { HiddenStages } from './editor/hidden-stages'
 import { TabStrip } from './editor/tab-strip'
 import { tabs } from './editor/tabs-model'
-import { createDesign, openViaDialog, requestCloseTab, saveTab, saveTabAs } from './editor/document'
-import { restoreSession } from './editor/session'
+import { createDesign, openViaDialog, requestCloseTab, restoreSession } from './editor/document'
+import { initPersistence, save, saveAs } from './editor/persistence'
 
 const App = observer(function App(): React.JSX.Element {
   useEffect(() => {
+    // Explicit: dirty-tracking and autosave must not depend on some other
+    // module happening to import persistence.ts.
+    initPersistence()
     void restoreSession().then(() => {
       // Tell main the doc:openPath listener below is live (flushes OS opens).
       void window.desktop.invoke('app:rendererReady')
@@ -26,10 +29,10 @@ const App = observer(function App(): React.JSX.Element {
           void openViaDialog()
           break
         case 'save':
-          if (tabs.activeDocId) void saveTab(tabs.activeDocId)
+          if (tabs.activeDocId) void save(tabs.activeDocId)
           break
         case 'saveAs':
-          if (tabs.activeDocId) void saveTabAs(tabs.activeDocId)
+          if (tabs.activeDocId) void saveAs(tabs.activeDocId)
           break
         case 'export':
           void import('./editor/export-menu').then(({ runExport }) => runExport('png'))

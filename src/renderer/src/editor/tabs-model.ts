@@ -2,18 +2,15 @@ import { makeAutoObservable, runInAction } from 'mobx'
 import type { DocId } from '../../../shared/types'
 import { createDesignStore, type DesignStore } from './store'
 
+// Every field here is rendered by the UI. Anything about the design's
+// relationship to its file (baseline, load settling, autosave timers) is
+// private to persistence.ts.
 export interface DesignTab {
   docId: DocId
   store: DesignStore
   filePath: string | null
   name: string
   dirty: boolean
-  // Serialized design at last load/save; dirty = snapshot differs from it.
-  baseline: string
-  // True while a programmatic load settles (loadJSON + async asset loading).
-  // Change events during a load must not mark the tab dirty (studio's
-  // loadingRef pattern) — otherwise autosave overwrites external edits.
-  loading: boolean
 }
 
 export function designSnapshot(store: DesignStore): string {
@@ -32,14 +29,24 @@ class TabsModel {
   tabs: DesignTab[] = []
   activeDocId: DocId | null = null
   private createListeners: ((tab: DesignTab) => void)[] = []
+  private closeListeners: ((docId: DocId) => void)[] = []
 
   constructor() {
-    makeAutoObservable(this, { addCreateListener: false }, { autoBind: true })
+    makeAutoObservable(
+      this,
+      { addCreateListener: false, addCloseListener: false },
+      { autoBind: true }
+    )
   }
 
-  // session.ts subscribes to attach dirty-tracking/autosave to every new tab.
+  // persistence.ts subscribes to both, so a tab picks up dirty-tracking and
+  // autosave wherever it was created, and drops them wherever it was closed.
   addCreateListener(listener: (tab: DesignTab) => void): void {
     this.createListeners.push(listener)
+  }
+
+  addCloseListener(listener: (docId: DocId) => void): void {
+    this.closeListeners.push(listener)
   }
 
   get active(): DesignTab | null {
@@ -68,14 +75,11 @@ class TabsModel {
       store: createDesignStore(),
       filePath,
       name: name ?? (filePath ? nameFromPath(filePath) : 'Untitled'),
-      dirty: false,
-      baseline: '',
-      loading: Boolean(json)
+      dirty: false
     }
     if (json) {
       tab.store.loadJSON(json)
     }
-    tab.baseline = designSnapshot(tab.store)
     this.tabs.push(tab)
     // mobx wraps the pushed object in an observable proxy; hand out that proxy,
     // not the raw object, so later mutations (baseline, hasDraft) are seen.
@@ -102,12 +106,14 @@ class TabsModel {
     const tab = this.get(docId)
     if (!tab || tab.dirty === dirty) return
     tab.dirty = dirty
-    void window.desktop.invoke('doc:setDirty', { docId, dirty })
   }
 
   closeTab(docId: DocId): void {
     const index = this.tabs.findIndex((tab) => tab.docId === docId)
     if (index === -1) return
+    // Before the tab leaves the list, so pending autosaves are cancelled while
+    // the tab is still resolvable.
+    for (const listener of this.closeListeners) listener(docId)
     runInAction(() => {
       this.tabs.splice(index, 1)
       if (this.activeDocId === docId) {

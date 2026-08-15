@@ -22,7 +22,6 @@ export interface LibraryEntry {
 export interface InvokeApi {
   'doc:register': (p: { docId: DocId; filePath: string | null }) => void
   'doc:setFilePath': (p: { docId: DocId; filePath: string }) => void
-  'doc:setDirty': (p: { docId: DocId; dirty: boolean }) => void
   'doc:close': (p: { docId: DocId }) => void
   'file:openDialog': () => { filePaths: string[] } | null
   'file:read': (p: { filePath: string }) => OpenedFile

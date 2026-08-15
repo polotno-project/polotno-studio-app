@@ -1,6 +1,10 @@
 import { toast } from 'sonner'
 import { tabs, nameFromPath, designSnapshot, type DesignTab } from './tabs-model'
 import { kindFromPath, parseProjectText, parsePdfBuffer, parseSvgText } from './import-design'
+import { isDirty, save } from './persistence'
+
+// A design's lifecycle in the editor: created, opened, closed, restored.
+// When any of it reaches disk is persistence.ts's business, not this module's.
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const binary = atob(base64)
@@ -25,7 +29,6 @@ export async function createDesign(
     content: designSnapshot(tab.store)
   })
   tabs.setFilePath(tab.docId, filePath)
-  tab.baseline = designSnapshot(tab.store)
   return tab
 }
 
@@ -76,50 +79,28 @@ export async function openViaDialog(): Promise<void> {
   }
 }
 
-export function serializeTab(tab: DesignTab): string {
-  return designSnapshot(tab.store)
-}
-
-export async function saveTab(docId: string): Promise<boolean> {
-  const tab = tabs.get(docId)
-  if (!tab) return false
-  if (!tab.filePath) return saveTabAs(docId)
-  const content = serializeTab(tab)
-  await window.desktop.invoke('file:write', {
-    docId: tab.docId,
-    filePath: tab.filePath,
-    content
-  })
-  tab.baseline = content
-  tabs.setDirty(tab.docId, false)
-  return true
-}
-
-export async function saveTabAs(docId: string): Promise<boolean> {
-  const tab = tabs.get(docId)
-  if (!tab) return false
-  const result = await window.desktop.invoke('file:saveAsDialog', { suggestedName: tab.name })
-  if (!result) return false
-  tabs.setFilePath(tab.docId, result.filePath)
-  const content = serializeTab(tab)
-  await window.desktop.invoke('file:write', {
-    docId: tab.docId,
-    filePath: result.filePath,
-    content
-  })
-  tab.baseline = content
-  tabs.setDirty(tab.docId, false)
-  return true
-}
-
 // Close a tab: flush unsaved changes to its file, then close. No prompt —
 // every design has a file, and deletion happens in My designs.
 export async function requestCloseTab(docId: string): Promise<void> {
   const tab = tabs.get(docId)
   if (!tab) return
-  const dirty = serializeTab(tab) !== tab.baseline || tab.dirty
-  if (dirty && tab.filePath) await saveTab(docId)
+  if (tab.filePath && isDirty(tab)) await save(docId)
   tabs.closeTab(docId)
   // The editor always shows a design; an empty tab strip gets a fresh one.
+  if (tabs.tabs.length === 0) await createDesign()
+}
+
+let sessionRestored = false
+
+// Reopen the files that were open when the app last closed; a fresh install
+// (or empty session) starts with one new library design.
+export async function restoreSession(): Promise<void> {
+  // React StrictMode double-invokes effects; restore only once.
+  if (sessionRestored) return
+  sessionRestored = true
+  const { filePaths } = await window.desktop.invoke('session:list')
+  for (const filePath of filePaths) {
+    await openPath(filePath)
+  }
   if (tabs.tabs.length === 0) await createDesign()
 }

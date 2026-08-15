@@ -5,10 +5,3 @@ export interface RecentEntry {
   name: string
   openedAt: number
 }
-
-export interface DesignMeta {
-  docId: DocId
-  filePath: string | null
-  name: string
-  dirty: boolean
-}

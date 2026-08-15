@@ -1,6 +1,7 @@
 import type { AppCommand } from '../../../shared/commands'
 import { tabs } from './tabs-model'
-import { openPath, saveTab, createDesign } from './document'
+import { openPath, createDesign } from './document'
+import { save } from './persistence'
 import { CommandError } from './executor'
 
 // Tab-level operations for agents (bridge requests with docId '').
@@ -50,7 +51,7 @@ export async function executeAppCommand(command: AppCommand): Promise<unknown> {
       const tab = tabs.get(command.docId)
       if (!tab) throw new CommandError('invalid_command', `No open tab ${command.docId}`)
       if (command.filePath) tabs.setFilePath(command.docId, command.filePath)
-      await saveTab(command.docId)
+      await save(command.docId)
       return { filePath: tab.filePath }
     }
 
