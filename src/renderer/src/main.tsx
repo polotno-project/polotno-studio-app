@@ -11,6 +11,13 @@ setAnimationsEnabled(true)
 installThemeSync()
 loadSystemLocaleTranslations()
 
+// Flattened PDF export ('pdf-flat') runs through jsPDF, which polotno
+// otherwise pulls from a CDN with a <script> tag that has no error handler —
+// on file:// the load never settles and the export hangs until it times out.
+// This hook keeps it bundled, so it works offline and in the headless CLI.
+;(window as unknown as { __polotnoLoadJspdf: () => Promise<unknown> }).__polotnoLoadJspdf = () =>
+  import('jspdf')
+
 // Console/driver handle, same spirit as studio's `window.store`.
 void import('./editor/tabs-model').then(({ tabs }) => {
   void import('./editor/document').then((document) => {

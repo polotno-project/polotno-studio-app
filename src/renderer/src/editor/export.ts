@@ -1,5 +1,6 @@
 import { downloadFile } from 'polotno/utils/download'
 import type { PDFExportOptions } from 'polotno/model/store'
+import type { ExportFormat } from '../../../shared/commands'
 import type { DesignStore } from './store'
 
 // Client-side export helpers, ported from studio-automation editor-export.ts.
@@ -7,7 +8,10 @@ import type { DesignStore } from './store'
 // opens the native save dialog, so these behave like Save As out of the box.
 
 export type RasterFormat = 'png' | 'jpeg'
-export type ExportFormat = RasterFormat | 'pdf' | 'pdf-vector' | 'svg' | 'html' | 'gif' | 'json' | 'mp4'
+
+// Everything the Export menu offers: the shared formats every caller can ask
+// for, plus the ones only a browser download can deliver.
+export type MenuFormat = ExportFormat | 'svg' | 'html' | 'gif' | 'json' | 'mp4'
 
 const CROP_MARK_SIZE = 20
 
@@ -66,6 +70,8 @@ export async function exportImages(
   await downloadFile(`data:application/zip;base64,${content}`, `${name}.zip`)
 }
 
+// Pages rasterized into a PDF: no selectable text, but it reproduces the
+// canvas exactly and never fails on a font.
 export async function exportFlatPdf(
   store: DesignStore,
   options: { quality?: number; pageSizeModifier?: number; cropMarksAndBleed?: boolean } = {}
@@ -83,7 +89,8 @@ export async function exportFlatPdf(
   await store.saveAsPDF(exportOptions)
 }
 
-// Non-flattened PDF: text and shapes stay selectable vectors.
+// The default PDF: text and shapes stay selectable vectors. Every font is
+// embedded, so one that cannot load throws — exportFlatPdf is the way out.
 export async function exportVectorPdf(
   store: DesignStore,
   options: { cropMarksAndBleed?: boolean } = {}

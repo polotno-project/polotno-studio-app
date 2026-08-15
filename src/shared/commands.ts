@@ -36,7 +36,26 @@ export type DesignCommand =
       mimeType?: 'image/png' | 'image/jpeg'
     }
   | { type: 'lint'; pageId?: string }
-  | { type: 'export'; format: 'png' | 'jpeg' | 'pdf'; pixelRatio?: number; pageId?: string }
+  | { type: 'export'; format: ExportFormat; pixelRatio?: number; pageId?: string }
+
+// The file formats every caller can ask for — the editor's Export menu, the
+// MCP tools, and the CLI all resolve `format` through this one union, so a
+// name means the same thing whoever asked.
+//
+// 'pdf' is vector: text stays selectable and fonts are embedded, so an
+// unloadable font fails the export. 'pdf-flat' rasterizes each page instead —
+// it always succeeds and reproduces the canvas exactly, at the cost of
+// selectable text. 'pixelRatio' applies to png, jpeg and pdf-flat; a vector
+// PDF has no pixels to scale.
+export type ExportFormat = 'png' | 'jpeg' | 'pdf' | 'pdf-flat'
+
+// One file extension per format, so the MCP tools and the CLI cannot drift.
+export const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
+  png: 'png',
+  jpeg: 'jpg',
+  pdf: 'pdf',
+  'pdf-flat': 'pdf'
+}
 
 // App-level commands target the editor window itself (docId: '') — tab
 // management for agents.

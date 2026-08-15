@@ -5,6 +5,7 @@ import { basename, extname, join, resolve } from 'node:path'
 import { createEditorWindow } from '../window'
 import { registerIpcHandlers } from '../ipc'
 import { initBridgeRouter, execAppCommand, execCommand } from '../bridge-router'
+import { EXPORT_EXTENSIONS, type ExportFormat } from '../../shared/commands'
 
 // Headless CLI: `polotno render a.json [b.json …] -o out.png|dir/` and
 // `polotno lint design.json [--json]`. Runs its own short-lived instance with
@@ -20,7 +21,7 @@ interface CliOptions {
   output: string | null
   page: number | null
   pixelRatio: number
-  format: 'png' | 'jpeg' | 'pdf' | null
+  format: ExportFormat | null
   json: boolean
 }
 
@@ -54,7 +55,13 @@ function parseArgs(args: string[]): CliOptions {
     if (arg === '-o' || arg === '--output') options.output = args[++i]
     else if (arg === '--page') options.page = Number(args[++i])
     else if (arg === '--pixel-ratio') options.pixelRatio = Number(args[++i])
-    else if (arg === '--format') options.format = args[++i] as CliOptions['format']
+    else if (arg === '--format') {
+      const value = args[++i]
+      if (!(value in EXPORT_EXTENSIONS)) {
+        fail(2, `Unknown --format: ${value} (use ${Object.keys(EXPORT_EXTENSIONS).join(', ')})`)
+      }
+      options.format = value as ExportFormat
+    }
     else if (arg === '--json') options.json = true
     else if (arg.startsWith('-')) fail(2, `Unknown option: ${arg}`)
     else options.inputs.push(arg)
@@ -73,7 +80,9 @@ async function waitForRenderer(timeoutMs = 30000): Promise<void> {
   }
 }
 
-function outputFormat(options: CliOptions): 'png' | 'jpeg' | 'pdf' {
+// An explicit --format wins; otherwise the output extension decides. A .pdf
+// target means the vector PDF — ask for --format pdf-flat to rasterize.
+function outputFormat(options: CliOptions): ExportFormat {
   if (options.format) return options.format
   const ext = options.output ? extname(options.output).toLowerCase() : ''
   if (ext === '.jpg' || ext === '.jpeg') return 'jpeg'
@@ -122,8 +131,10 @@ async function runRender(options: CliOptions): Promise<number> {
     if (!result.ok) fail(1, `${input}: ${result.error.code}: ${result.error.message}`)
     const { pages: rendered } = result.value as { pages: { dataUrl: string }[] }
 
+    // The CLI is a file transform, so the input file names the output —
+    // unlike the editor and the MCP tools, which name a design from its text.
     const stem = basename(input).replace(/\.(json|polotno)$/i, '')
-    const ext = format === 'jpeg' ? 'jpg' : format
+    const ext = EXPORT_EXTENSIONS[format]
     for (const [index, page] of rendered.entries()) {
       const suffix = rendered.length > 1 ? `-${index + 1}` : ''
       const target = outDir

@@ -44,9 +44,14 @@ The same binary renders and lints without a window:
 
 ```bash
 polotno render design.json -o out.png [--page 2] [--pixel-ratio 2]
-polotno render a.json b.json -o outdir/ [--format png|jpeg|pdf]
+polotno render a.json b.json -o outdir/ [--format png|jpeg|pdf|pdf-flat]
 polotno lint design.json [--json]
 ```
+
+`pdf` keeps text selectable and embeds every font, so a font that cannot load
+fails the export. `pdf-flat` rasterizes the pages instead: no selectable text,
+but it reproduces the canvas exactly and never fails on a font. The editor's
+Export menu and the `export_design` MCP tool use the same two names.
 
 Exit codes: 0 ok, 1 render failure, 2 bad arguments, 3 invalid design JSON,
 4 lint found errors.

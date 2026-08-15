@@ -4,7 +4,12 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { applyPatch, type Operation } from 'fast-json-patch'
 import { validateDesign } from '@polotno/schema'
 import { rpc } from './bridge-client'
-import type { CommandResult, DesignCommand } from '../shared/commands'
+import {
+  EXPORT_EXTENSIONS,
+  type CommandResult,
+  type DesignCommand,
+  type ExportFormat
+} from '../shared/commands'
 
 // The agent-facing tool surface, defined once as a transport-neutral registry:
 // MCP registration and the plain-HTTP dispatcher in index.ts both consume it.
@@ -300,23 +305,33 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'export_design',
     description:
-      'Export to files on disk (png/jpeg: one per page; pdf: single file). Returns paths. dir defaults to Downloads.',
+      'Export to files on disk (png/jpeg: one per page; pdf: single file). Returns paths. dir defaults to Downloads. Omit fileName and the design names itself from its own text.',
     schema: {
       designId,
-      format: z.enum(['png', 'jpeg', 'pdf']),
-      pageId: z.string().optional(),
-      pixelRatio: z.number().optional(),
+      format: z
+        .enum(['png', 'jpeg', 'pdf', 'pdf-flat'])
+        .describe(
+          'pdf keeps text selectable and must embed every font; pdf-flat rasterizes the pages and never fails on a font'
+        ),
+      pageId: z.string().optional().describe('Export one page instead of all of them'),
+      pixelRatio: z
+        .number()
+        .optional()
+        .describe('Scale for png, jpeg and pdf-flat; a vector pdf has no pixels to scale'),
       dir: z.string().optional().describe('Absolute directory to write into'),
       fileName: z.string().optional().describe('Base file name without extension')
     },
     handler: async ({ designId: id, format, pageId, pixelRatio, dir, fileName }: any) => {
       const { value } = await exec(id, { type: 'export', format, pageId, pixelRatio })
-      const { pages } = value as { pages: { pageId?: string; dataUrl: string }[] }
-      const base = fileName ?? 'design'
+      const { pages, suggestedName } = value as {
+        pages: { pageId?: string; dataUrl: string }[]
+        suggestedName: string
+      }
+      const base = fileName ?? suggestedName
       const paths: string[] = []
       for (const [index, page] of pages.entries()) {
         const suffix = pages.length > 1 ? `-${index + 1}` : ''
-        const ext = format === 'jpeg' ? 'jpg' : format
+        const ext = EXPORT_EXTENSIONS[format as ExportFormat]
         const { path } = await rpc('export.write', {
           fileName: `${base}${suffix}.${ext}`,
           base64: page.dataUrl.split(',')[1],

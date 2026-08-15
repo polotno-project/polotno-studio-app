@@ -30,6 +30,37 @@ function elementOf(store: DesignStore, elementId: string): NonNullable<ElementMo
   return element
 }
 
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}
+
+// jsonToPDFBlob renders the whole document — its RenderAttrs has no page
+// selection — so a single-page vector export filters the JSON first.
+async function vectorPdfDataUrl(store: DesignStore, pageId?: string): Promise<string> {
+  const { jsonToPDFBlob } = await import('@polotno/pdf-export/browser')
+  const json = store.toJSON() as unknown as { pages: { id: string }[] }
+  if (pageId) json.pages = json.pages.filter((page) => page.id === pageId)
+  try {
+    const blob = await jsonToPDFBlob(json as unknown as Parameters<typeof jsonToPDFBlob>[0], {})
+    return await blobToDataUrl(blob)
+  } catch (error) {
+    // A vector PDF embeds every font, so one that cannot load fails the whole
+    // export. Name the format that always works — an agent can act on this.
+    if ((error as { code?: string }).code === 'FONT_FAILED') {
+      throw new Error(
+        `${(error as Error).message} — a vector PDF must embed every font. ` +
+          'Retry with format "pdf-flat", which rasterizes the pages instead.'
+      )
+    }
+    throw error
+  }
+}
+
 // The ONE implementation of the DesignCommand vocabulary, executed against a
 // live store. Every MCP tool maps here; agent edits land on the shared undo
 // stack because they go through normal store APIs.
@@ -149,18 +180,23 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
     case 'export': {
       await store.waitLoading()
       await document.fonts.ready
-      if (command.format === 'pdf') {
-        const { jsonToPDFBlob } = await import('@polotno/pdf-export/browser')
-        const json = store.toJSON() as unknown as Parameters<typeof jsonToPDFBlob>[0]
-        const blob = await jsonToPDFBlob(json, {})
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.onerror = () => reject(reader.error)
-          reader.readAsDataURL(blob)
-        })
-        return { pages: [{ dataUrl }] }
+      const { getDesignFileName } = await import('./export')
+      const suggestedName = getDesignFileName(store)
+
+      // One PDF per call either way: flat honours pageId natively, vector
+      // gets a filtered document. Both respect the page the caller asked for.
+      if (command.format === 'pdf' || command.format === 'pdf-flat') {
+        const pageId = command.pageId ? pageOf(store, command.pageId).id : undefined
+        const dataUrl =
+          command.format === 'pdf-flat'
+            ? ((await store.toPDFDataURL({
+                pageId,
+                pixelRatio: command.pixelRatio
+              })) as string)
+            : await vectorPdfDataUrl(store, pageId)
+        return { pages: [{ dataUrl }], suggestedName }
       }
+
       const pageIds = command.pageId
         ? [pageOf(store, command.pageId).id]
         : store.pages.map((page) => page.id)
@@ -173,7 +209,7 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
         })
         pages.push({ pageId, dataUrl })
       }
-      return { pages }
+      return { pages, suggestedName }
     }
 
     default:

@@ -18,14 +18,14 @@ import {
   exportGIF,
   exportJSON,
   exportVideo,
-  type ExportFormat
+  type MenuFormat
 } from './export'
 
-const FORMATS: { format: ExportFormat; label: string }[] = [
+const FORMATS: { format: MenuFormat; label: string }[] = [
   { format: 'png', label: 'PNG image' },
   { format: 'jpeg', label: 'JPEG image' },
-  { format: 'pdf', label: 'PDF (flattened)' },
-  { format: 'pdf-vector', label: 'PDF (vector)' },
+  { format: 'pdf', label: 'PDF' },
+  { format: 'pdf-flat', label: 'PDF (flattened)' },
   { format: 'svg', label: 'SVG' },
   { format: 'html', label: 'HTML' },
   { format: 'gif', label: 'Animated GIF' },
@@ -33,7 +33,7 @@ const FORMATS: { format: ExportFormat; label: string }[] = [
   { format: 'json', label: 'JSON (design file)' }
 ]
 
-export async function runExport(format: ExportFormat): Promise<void> {
+export async function runExport(format: MenuFormat): Promise<void> {
   const tab = tabs.active
   if (!tab) return
   const store = tab.store
@@ -44,10 +44,10 @@ export async function runExport(format: ExportFormat): Promise<void> {
         await exportImages(store, format)
         break
       case 'pdf':
-        await exportFlatPdf(store)
-        break
-      case 'pdf-vector':
         await exportVectorPdf(store)
+        break
+      case 'pdf-flat':
+        await exportFlatPdf(store)
         break
       case 'svg':
         await exportSVG(store)
@@ -77,6 +77,12 @@ export async function runExport(format: ExportFormat): Promise<void> {
     }
   } catch (error) {
     console.error('Export failed', format, error)
+    // A vector PDF embeds every font, so one that cannot load fails the
+    // export. Point at the format that always works rather than a dead end.
+    if (format === 'pdf' && (error as { code?: string }).code === 'FONT_FAILED') {
+      toast.error('PDF export failed: a font could not be loaded. Try PDF (flattened).')
+      return
+    }
     toast.error(`Export failed (${format}).`)
   }
 }
