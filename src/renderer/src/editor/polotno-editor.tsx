@@ -18,11 +18,10 @@ import { tabs, nameFromPath } from './tabs-model'
 import { TemplatesSection } from './sections/templates-section'
 
 // Our Templates section replaces the stock one (same slot) to add the
-// "My designs" tab; the stock upload section needs an upload backend, so it
-// is out for now.
+// "My designs" tab. Every other stock section, upload included, stays.
 const SECTIONS = [
   TemplatesSection,
-  ...DEFAULT_SECTIONS.filter((section) => !['templates', 'upload'].includes(section.name))
+  ...DEFAULT_SECTIONS.filter((section) => section.name !== 'templates')
 ] as Section[]
 
 export const PolotnoEditor = observer(function PolotnoEditor({

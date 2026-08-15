@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { setAnimationsEnabled } from 'polotno/config'
+import { setAnimationsEnabled, setUploadFunc } from 'polotno/config'
+import { localFileToURL } from 'polotno/utils/file'
 import App from './App'
 import { loadSystemLocaleTranslations } from './editor/i18n'
 import { installThemeSync } from './editor/theme'
@@ -10,6 +11,13 @@ import './index.css'
 setAnimationsEnabled(true)
 installThemeSync()
 loadSystemLocaleTranslations()
+
+// A design is one self-contained file, so an uploaded asset becomes a data URL
+// inside it — the same thing a file drop on the canvas already does. This is
+// polotno's own default; setting it explicitly states the intent and silences
+// polotno's "not recommended for production" warning, which does not apply to
+// a local-first desktop app.
+setUploadFunc(localFileToURL)
 
 // Flattened PDF export ('pdf-flat') runs through jsPDF, which polotno
 // otherwise pulls from a CDN with a <script> tag that has no error handler —
