@@ -28,6 +28,10 @@ fileAssociations:
     role: Editor
 win:
   executableName: Polotno
+  # `polotno` CLI wrapper; build/installer.nsh puts resources\bin on the PATH.
+  extraResources:
+    - from: build/win/polotno.cmd
+      to: bin/polotno.cmd
   target:
     - target: nsis
       arch: [x64, arm64]

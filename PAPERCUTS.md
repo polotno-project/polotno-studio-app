@@ -1,0 +1,1 @@
+- 2026-09-25 [claude-opus-5-5] ad-hoc playwright script in scratchpad: bare 'playwright-core' import fails outside the repo (ESM resolves from the script's dir); import node_modules/playwright-core/index.mjs by absolute path

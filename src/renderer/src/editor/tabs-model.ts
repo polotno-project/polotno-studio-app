@@ -1,5 +1,6 @@
 import { makeAutoObservable, runInAction } from 'mobx'
 import type { DocId } from '../../../shared/types'
+import { samePath } from '../../../shared/paths'
 import { createDesignStore, type DesignStore } from './store'
 
 // Every field here is rendered by the UI. Anything about the design's
@@ -58,7 +59,9 @@ class TabsModel {
   }
 
   getByPath(filePath: string): DesignTab | undefined {
-    return this.tabs.find((tab) => tab.filePath === filePath)
+    return this.tabs.find(
+      (tab) => tab.filePath !== null && samePath(tab.filePath, filePath, window.desktop.platform)
+    )
   }
 
   newTab(

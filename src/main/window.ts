@@ -1,9 +1,20 @@
-import { BrowserWindow, ipcMain, shell } from 'electron'
+import { BrowserWindow, ipcMain, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
 let editorWindow: BrowserWindow | null = null
+
+// Windows draws its min/max/close buttons over the tab strip. A transparent
+// overlay lets the strip's own background show through; only the glyphs need
+// to follow the OS theme (the renderer follows it via prefers-color-scheme).
+function titleBarOverlay(): Electron.TitleBarOverlayOptions {
+  return {
+    height: 40,
+    color: '#00000000',
+    symbolColor: nativeTheme.shouldUseDarkColors ? '#e5e5e5' : '#404040'
+  }
+}
 
 export function getEditorWindow(): BrowserWindow | null {
   return editorWindow
@@ -25,7 +36,7 @@ export function createEditorWindow(options: { hidden?: boolean } = {}): BrowserW
     // native window controls (macOS traffic lights / Windows overlay).
     ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' as const } : {}),
     ...(process.platform === 'win32'
-      ? { titleBarStyle: 'hidden' as const, titleBarOverlay: { height: 40 } }
+      ? { titleBarStyle: 'hidden' as const, titleBarOverlay: titleBarOverlay() }
       : {}),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -43,6 +54,12 @@ export function createEditorWindow(options: { hidden?: boolean } = {}): BrowserW
     if (process.env.POLOTNO_SHOW_INACTIVE) editorWindow?.showInactive()
     else editorWindow?.show()
   })
+  if (process.platform === 'win32') {
+    const win = editorWindow
+    const syncOverlay = (): void => win.setTitleBarOverlay(titleBarOverlay())
+    nativeTheme.on('updated', syncOverlay)
+    win.on('closed', () => nativeTheme.removeListener('updated', syncOverlay))
+  }
   editorWindow.on('closed', () => {
     editorWindow = null
   })

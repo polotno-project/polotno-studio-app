@@ -40,6 +40,26 @@ export async function readDesignFile(filePath: string): Promise<OpenedFile> {
   return { filePath, content }
 }
 
+// On Windows, replacing a file fails while anything else has it open — our own
+// watcher, antivirus, the search indexer, a sync client. Those holds last
+// milliseconds, so retry briefly before giving up.
+const RENAME_RETRY_CODES = new Set(['EPERM', 'EBUSY', 'EACCES'])
+
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await fs.rename(from, to)
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? ''
+      if (process.platform !== 'win32' || !RENAME_RETRY_CODES.has(code) || attempt >= 10) {
+        throw error
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)))
+    }
+  }
+}
+
 // Atomic write: temp file in the same directory, then rename. Records the
 // content hash on the owning document so the watcher can ignore our own saves.
 export async function writeDesignFile(
@@ -54,7 +74,7 @@ export async function writeDesignFile(
   }
   try {
     await fs.writeFile(tmpPath, content, 'utf8')
-    await fs.rename(tmpPath, filePath)
+    await renameWithRetry(tmpPath, filePath)
   } catch (error) {
     await fs.rm(tmpPath, { force: true })
     throw error

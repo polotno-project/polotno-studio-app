@@ -1,11 +1,14 @@
 import { observer } from 'mobx-react-lite'
-import { Plus, X } from 'lucide-react'
+import { Menu, Plus, X } from 'lucide-react'
 import { tabs } from './tabs-model'
 import { requestCloseTab } from './document'
 import { ExportMenu } from './export-menu'
 import { ConnectPanel } from './connect-panel'
 
 const isMac = window.desktop.platform === 'darwin'
+// The hidden title bar also hides the Windows menu bar; this button opens the
+// same application menu as a popup.
+const hasMenuButton = window.desktop.platform === 'win32'
 
 // Doubles as the window title bar (frameless window): the empty area drags
 // the window; tabs and buttons opt out. On macOS the traffic lights sit in
@@ -14,10 +17,25 @@ export const TabStrip = observer(function TabStrip(): React.JSX.Element {
   return (
     <div
       className={
-        'app-drag flex h-10 shrink-0 items-center gap-1 border-b border-neutral-200 bg-neutral-100 pr-2 dark:border-neutral-800 dark:bg-neutral-900 ' +
+        'app-drag window-controls-inset flex h-10 shrink-0 items-center gap-1 border-b border-neutral-200 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 ' +
         (isMac ? 'pl-20' : 'pl-2')
       }
     >
+      {hasMenuButton && (
+        <button
+          aria-label="Menu"
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect()
+            void window.desktop.invoke('app:showMenu', {
+              x: Math.round(rect.left),
+              y: Math.round(rect.bottom)
+            })
+          }}
+          className="app-no-drag flex size-7 shrink-0 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-200/70 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
+        >
+          <Menu className="size-4" />
+        </button>
+      )}
       <div className="app-no-drag flex min-w-0 flex-1 items-center gap-1">
         {tabs.tabs.map((tab) => {
           const isActive = tab.docId === tabs.activeDocId

@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { promises as fs } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { RecentEntry } from '../shared/types'
+import { samePath } from '../shared/paths'
 import { keepExisting } from './files'
 
 // Own list (powers Open Recent on all platforms and a future welcome screen)
@@ -27,7 +28,9 @@ export async function listRecent(): Promise<RecentEntry[]> {
 
 export async function addRecent(filePath: string): Promise<void> {
   app.addRecentDocument(filePath)
-  const entries = (await listRecent()).filter((entry) => entry.filePath !== filePath)
+  const entries = (await listRecent()).filter(
+    (entry) => !samePath(entry.filePath, filePath, process.platform)
+  )
   entries.unshift({
     filePath,
     name: basename(filePath).replace(/\.(polotno|json)$/i, ''),
