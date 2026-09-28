@@ -18,7 +18,9 @@ Branch: nikigan/linux-testing
 - [x] Linux menu: burger button in the tab strip (copied from nikigan/windows c01e38d, shown on Windows and Linux), autoHideMenuBar on Linux. Deployed to VM; waiting for user's visual check (button, popup, Alt, Ctrl+O/S/E).
 - [x] Rebased onto origin/nikigan/windows (user's choice): picks up the GIF fix (922b598) and master's vector-PDF fix; menu commit shrank to hasMenuButton = !isMac + autoHideMenuBar. Backup ref: backup/linux-testing-pre-rebase.
 - [x] Manual GUI test on the VM via the Proxmox noVNC console: window, ☰ menu, dialogs, all 9 export formats pass (see docs 'Last run').
-- [ ] Remaining manual checks: shortcuts, drag-drop, clipboard, HiDPI, X11 session, second instance, auto-update
+- [x] Shortcuts verified via Proxmox sendkey (Ctrl+O/E/S/A); Alt doesn't reveal the hidden menu bar on Wayland
+- [x] Editor pass on the VM: photos, text edit, fonts, colours, shapes, move/delete, undo/redo, pages, timeline, layers, background, autosave
+- [ ] Remaining manual checks (need a human): handle resize, panel drag-drop, clipboard, HiDPI, X11 session, second instance, auto-update
 - [ ] Push branch / open PR — only when user asks
 
 ## Notes

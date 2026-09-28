@@ -179,13 +179,24 @@ pass: PNG, JPEG, vector PDF (Helvetica + Noto Emoji embedded), flattened PDF,
 SVG, HTML, GIF, MP4 (H.264 1080×1080 30 fps), JSON. Shortcuts with the menu bar
 hidden: Ctrl+O opens the Open dialog, Ctrl+E the quick PNG export's Save dialog.
 A lone Alt does not reveal the hidden menu bar on Wayland (the ☰ button is the
-way in). Not yet covered: drag-drop, clipboard, HiDPI, X11 session, second
-instance, auto-update.
+way in).
+
+Editor: Unsplash photos load and insert; elements select, move, delete; undo and
+redo; text insert + in-place editing; font picker search and apply (Lobster
+from Google Fonts); colour picker; shapes; add page; timeline playback; Animate,
+Layers and Background panels; autosave to `~/Documents/Polotno/<name>.json`
+keeps all of it.
+
+Not yet covered: resizing with transformer handles and drag-and-drop from the
+side panel (automation drags in one jump, so a failure there proved nothing —
+check by hand), clipboard, HiDPI, X11 session, second instance, auto-update.
 
 **Don't test shortcuts by typing into the noVNC console from a Mac**: it
 remaps modifiers (Ctrl+O arrived as a plain `o`; other combos opened Files and
 Firefox via GNOME Super shortcuts). Inject real key presses at the virtual
-keyboard instead: Proxmox API `PUT /nodes/<node>/qemu/108/sendkey` with
+keyboard instead. The console can also leave Shift stuck down (typing a
+capital letter), after which every click extends the selection;
+`qm sendkey 108 shift` releases it. For key combos use Proxmox API `PUT /nodes/<node>/qemu/108/sendkey` with
 `key=ctrl-o` (or `qm sendkey 108 ctrl-o` in the Proxmox shell).
 
 ### Driving the VM's session over SSH
