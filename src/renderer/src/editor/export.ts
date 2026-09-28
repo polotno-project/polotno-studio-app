@@ -121,10 +121,21 @@ export async function exportHTML(store: DesignStore): Promise<void> {
   await store.saveAsHTML({ fileName: `${getDesignFileName(store)}.html` })
 }
 
+// Polotno loads gif.js from cdnjs unless window.GIF is already set. The page's
+// CSP (script-src 'self') blocks that script, and the export then waits on it
+// forever; the same 0.2.0 build is bundled instead, which also works offline.
+async function ensureGifLibrary(): Promise<void> {
+  const target = window as unknown as { GIF?: unknown }
+  if (target.GIF) return
+  const { default: GIF } = await import('gif.js')
+  target.GIF = GIF
+}
+
 export async function exportGIF(
   store: DesignStore,
   options: { quality?: number; fps?: number } = {}
 ): Promise<void> {
+  await ensureGifLibrary()
   await store.saveAsGIF({
     fileName: `${getDesignFileName(store)}.gif`,
     pixelRatio: options.quality ?? 1,

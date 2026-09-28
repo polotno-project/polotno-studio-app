@@ -1,7 +1,7 @@
 import { makeAutoObservable, runInAction } from 'mobx'
 import type { DocId } from '../../../shared/types'
 import { samePath } from '../../../shared/paths'
-import { createDesignStore, type DesignStore } from './store'
+import { createDesignStore, releaseDesignStore, type DesignStore } from './store'
 
 // Every field here is rendered by the UI. Anything about the design's
 // relationship to its file (baseline, load settling, autosave timers) is
@@ -117,6 +117,7 @@ class TabsModel {
     // Before the tab leaves the list, so pending autosaves are cancelled while
     // the tab is still resolvable.
     for (const listener of this.closeListeners) listener(docId)
+    releaseDesignStore(this.tabs[index].store)
     runInAction(() => {
       this.tabs.splice(index, 1)
       if (this.activeDocId === docId) {

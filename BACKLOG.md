@@ -2,3 +2,4 @@
 - [ ] 2026-09-25 — Rehearse a Windows auto-update (install N, publish N+1) — needs a signed release
 - [ ] 2026-09-28 — Native dialogs (external-change prompt, message boxes) are titled "polotno-app" on Windows: app.name is the package name, and menu.ts deliberately keeps it (userData path). Pass an explicit title instead
 - [ ] 2026-09-28 — Declare the Node requirement (package.json engines / .nvmrc, >= 22.12): on Node 20.9 npm ci fails in postinstall with only EBADENGINE warnings to explain it
+- [ ] 2026-09-28 — Vector PDF export fails for any design using Arial (the bundled templates do): @polotno/pdf-export maps Arial to base-14 Helvetica, and its browser build throws `Standard font "Helvetica-Bold" is not available in this build` (FONT_FAILED → "Try PDF (flattened)" toast). Not Windows-specific — handed to the macOS host. Options: fix/report upstream, or substitute Arimo/Tinos/Cousine for PDF export only

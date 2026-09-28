@@ -65,3 +65,29 @@ Packaged (`electron-builder --win --publish never`, x64 + arm64 NSIS) and instal
   page); now ASCII.
 
 Done. Left in BACKLOG.md: signing, auto-update rehearsal, dialog titles, Node engines.
+
+## Editor pass (2026-09-28, real mouse/keyboard on Windows)
+Works: Text panel + presets, text editing incl. Cyrillic, drag on canvas, Ctrl+C/V (in-app and
+from the Windows clipboard: text and image), Ctrl+Z/Ctrl+Y, Delete, Photos + search, shapes,
+table, line, Upload via the Windows file dialog, Background color/photo, Resize (magic resize
+to Story), font picker + search + apply (Lobster), page duplicate. Export: PNG, JPEG, PDF
+(flattened), SVG, HTML, MP4, JSON all write files.
+
+Found and fixed (all verified):
+- Open designs sharing a page id (duplicated file, "Duplicate" in My designs, same template
+  twice) exported/rendered EACH OTHER's canvas: Polotno finds a page's Konva stage by id across
+  the document and takes the first. store.ts keeps page ids unique across open designs
+  (reaction + reload with fresh ids; ids are MST identifiers, not settable in place). Verified:
+  4 tabs from one template render their own content, not dirty, no undo entry.
+- Export save dialog was titled with the blob: URL — will-download sets title "Export" (index.ts).
+  Verified.
+- GIF export hung forever: Polotno injects gif.js from cdnjs, blocked by the CSP
+  (script-src 'self'); script onerror is not handled, so no error toast either. export.ts now
+  bundles gif.js 0.2.0 into window.GIF. Verified: animated template → 149-frame 1080×1920 GIF;
+  re-ran PNG/JPEG (3 pages → zip), PDF (flattened), SVG, HTML, JSON — all still write files.
+
+Not fixed — handed to the macOS side (see BACKLOG.md): vector PDF fails for Arial designs — @polotno/pdf-export maps
+Arial to base-14 Helvetica, which its browser build lacks ("Standard font Helvetica-Bold is
+not available in this build"). The app's own bundled templates use Arial. The user gets the
+"Try PDF (flattened)" toast. Options: upstream fix, or substitute metric-compatible fonts
+(Arimo/Tinos/Cousine) for the PDF export only.

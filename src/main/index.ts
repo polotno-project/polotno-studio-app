@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, session } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createEditorWindow } from './window'
 import { installAppMenu } from './menu'
@@ -40,6 +40,11 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
   app.whenReady().then(() => {
     electronApp.setAppUserModelId('com.polotno.app')
     app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
+    // Exports are browser downloads. Untitled, their save dialog shows the
+    // blob: URL in its title bar (Windows).
+    session.defaultSession.on('will-download', (_event, item) => {
+      item.setSaveDialogOptions({ title: 'Export' })
+    })
 
     registerIpcHandlers()
     initBridgeRouter()
