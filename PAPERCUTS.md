@@ -1,0 +1,1 @@
+- 2026-09-28 [claude-opus-5-5] verifying vector PDF via 'electron . render x.json -o dir/x.pdf': fails with ENOENT when dir/ does not exist — the CLI only mkdirs for directory outputs, not a file target's parent

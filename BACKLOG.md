@@ -1,0 +1,1 @@
+- [ ] 2026-09-28 — Vector PDF export of templates/welcome.json fails: it uses fontFamily "Monaco" (macOS system font, not on Google Fonts) → FONT_FAILED. Swap the template to a Google/base-14 monospace (e.g. Courier Prime, Cousine) or register a font file — found while fixing the Arial vector-PDF bug, out of its scope
