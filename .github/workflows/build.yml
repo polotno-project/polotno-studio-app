@@ -41,3 +41,4 @@ jobs:
           if not exist "%RUNNER_TEMP%\cli-smoke.png" exit /b 1
           call dist\win-unpacked\resources\bin\polotno.cmd render
           if %ERRORLEVEL% neq 2 exit /b 1
+          exit /b 0
