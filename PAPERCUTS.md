@@ -3,3 +3,4 @@
 - 2026-09-28 [claude-opus-5-5] running the built GUI after 'electron-vite build': MCP server crash-loops (out/mcp-server.cjs missing) — it is only produced by 'npm run build:mcp', which electron-vite build does not run
 - 2026-09-28 [claude-opus-5-5] adding the Linux CI smoke test: the unpacked Linux binary is dist/linux-unpacked/polotno-app (package.json name), not productName 'Polotno' like mac/win; only a local 'electron-builder --linux --dir' run revealed it
 - 2026-09-28 [claude-opus-5-5] proxmox-mcp-plus create_vm can't attach an ISO, set vga (hardcoded std) or boot order, and adds a cloudinit ide2 drive on dir storage; installing a desktop VM still needs the Proxmox UI
+- 2026-09-28 [claude-opus-5-5] running npm run lint before committing: master already has 48 eslint errors + 362 prettier warnings (mcpb/, scripts/, src/mcp-server, menu.ts…), so lint can't gate commits; only per-file lint of touched files is meaningful
