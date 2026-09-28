@@ -39,7 +39,7 @@ export function createEditorWindow(options: { hidden?: boolean } = {}): BrowserW
       ? { titleBarStyle: 'hidden' as const, titleBarOverlay: titleBarOverlay() }
       : {}),
     // Linux keeps the system title bar; the menu bar under it is replaced by
-    // the tab strip's menu button (Alt still reveals it).
+    // the tab strip's menu button. The hidden menu keeps its accelerators.
     ...(process.platform === 'linux' ? { icon, autoHideMenuBar: true } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

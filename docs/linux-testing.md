@@ -176,9 +176,17 @@ Run the AppImage from a terminal so errors show up:
 
 Window, ☰ menu, Open/Save dialogs (GNOME portal), and all nine export formats
 pass: PNG, JPEG, vector PDF (Helvetica + Noto Emoji embedded), flattened PDF,
-SVG, HTML, GIF, MP4 (H.264 1080×1080 30 fps), JSON. Not yet covered: keyboard
-shortcuts (the noVNC console drops Ctrl), drag-drop, clipboard, HiDPI, X11
-session, second instance, auto-update.
+SVG, HTML, GIF, MP4 (H.264 1080×1080 30 fps), JSON. Shortcuts with the menu bar
+hidden: Ctrl+O opens the Open dialog, Ctrl+E the quick PNG export's Save dialog.
+A lone Alt does not reveal the hidden menu bar on Wayland (the ☰ button is the
+way in). Not yet covered: drag-drop, clipboard, HiDPI, X11 session, second
+instance, auto-update.
+
+**Don't test shortcuts by typing into the noVNC console from a Mac**: it
+remaps modifiers (Ctrl+O arrived as a plain `o`; other combos opened Files and
+Firefox via GNOME Super shortcuts). Inject real key presses at the virtual
+keyboard instead: Proxmox API `PUT /nodes/<node>/qemu/108/sendkey` with
+`key=ctrl-o` (or `qm sendkey 108 ctrl-o` in the Proxmox shell).
 
 ### Driving the VM's session over SSH
 
