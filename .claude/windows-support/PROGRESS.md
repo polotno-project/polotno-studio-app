@@ -86,7 +86,15 @@ Found and fixed (all verified):
   bundles gif.js 0.2.0 into window.GIF. Verified: animated template → 149-frame 1080×1920 GIF;
   re-ran PNG/JPEG (3 pages → zip), PDF (flattened), SVG, HTML, JSON — all still write files.
 
-Not fixed — handed to the macOS side (see BACKLOG.md): vector PDF fails for Arial designs — @polotno/pdf-export maps
+Merged master (2026-09-28): Polotno 4.14 runs on MobX 7 while the app pinned MobX 6 — two
+MobX copies ("[MobX] error 35"), so app reactions could not observe Polotno stores (the page-id
+guard only worked on its first run). App now uses mobx 7.0.3 (exact, matching polotno's pin) and
+mobx-react-lite 5 → one copy. Re-verified on 4.14: no error 35, the guard renames a collision
+introduced later by patch_design_json, per-tab renders separate, GIF (15 s) and vector PDF of an
+Arial design (fonts embedded) export, tab strip reactivity OK. Master itself still has the
+MobX split until this branch lands.
+
+Fixed on master (PR #1): vector PDF failed for Arial designs — @polotno/pdf-export maps
 Arial to base-14 Helvetica, which its browser build lacks ("Standard font Helvetica-Bold is
 not available in this build"). The app's own bundled templates use Arial. The user gets the
 "Try PDF (flattened)" toast. Options: upstream fix, or substitute metric-compatible fonts
