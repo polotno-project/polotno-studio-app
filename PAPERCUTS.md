@@ -1,3 +1,5 @@
 - 2026-09-25 [claude-opus-5-5] ad-hoc playwright script in scratchpad: bare 'playwright-core' import fails outside the repo (ESM resolves from the script's dir); import node_modules/playwright-core/index.mjs by absolute path
 - 2026-09-28 [claude-opus-5-5] verifying vector PDF via 'electron . render x.json -o dir/x.pdf': fails with ENOENT when dir/ does not exist — the CLI only mkdirs for directory outputs, not a file target's parent
 - 2026-09-28 [claude-opus-5-5] running the built GUI after 'electron-vite build': MCP server crash-loops (out/mcp-server.cjs missing) — it is only produced by 'npm run build:mcp', which electron-vite build does not run
+- 2026-09-28 [claude-opus-5-5] adding the Linux CI smoke test: the unpacked Linux binary is dist/linux-unpacked/polotno-app (package.json name), not productName 'Polotno' like mac/win; only a local 'electron-builder --linux --dir' run revealed it
+- 2026-09-28 [claude-opus-5-5] proxmox-mcp-plus create_vm can't attach an ISO, set vga (hardcoded std) or boot order, and adds a cloudinit ide2 drive on dir storage; installing a desktop VM still needs the Proxmox UI
