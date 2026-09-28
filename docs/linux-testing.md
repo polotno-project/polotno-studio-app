@@ -10,7 +10,7 @@ gotchas, a manual test checklist, and resetting the VM afterwards.
 |---|---|
 | Proxmox node | `<node>` (<proxmox-host>) |
 | VMID / name | `108` / `ubuntu2404-polotno-test` |
-| Resources | 4 vCPU, 6 GB RAM, 40 GB qcow2 disk on a file-based storage (qcow2, for snapshots) |
+| Resources | 4 vCPU, 6 GB RAM, 40 GB qcow2 disk on file-based storage (so snapshots work) |
 | OS | Ubuntu 24.04.5 Desktop (GNOME) |
 | User | `polotno`; the Mac's `~/.ssh/id_ed25519` key is authorized |
 | Clean snapshot | `clean-install`: fresh install + openssh-server + qemu-guest-agent + SSH key. Stock otherwise: no `libfuse2t64`, userns restriction on |
@@ -26,8 +26,8 @@ connect on the first try; see `PAPERCUTS.md`. There's no SPICE viewer on
 Homebrew. HDMI on the host shows only the Proxmox text console.
 
 The IP comes from DHCP. Look it up in the VM (`ip -4 a`) or, since the QEMU
-guest agent is installed, in Proxmox under VM 108 → Summary. It was `<vm-ip>` at setup. In the
-examples below `$VM` is `polotno@<vm-ip>`.
+guest agent is installed, in Proxmox under VM 108 → Summary. In the examples below `$VM` is
+`polotno@<vm-ip>`.
 
 ## 1. Get a build
 
