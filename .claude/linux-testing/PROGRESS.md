@@ -30,3 +30,4 @@ Branch: nikigan/linux-testing
 - MCP create_vm hardcodes vga=std, boot=scsi0, no ISO; adds cloudinit ide2 on dir storage.
 - VM 108 is currently dirty vs clean-install: libfuse2t64 installed, AppImage + template + out.png in ~, ~/.config/polotno-app. Roll back before real testing.
 - Verified on VM: electron-builder AppRun adds --no-sandbox when `unshare -Ur true` fails; with sysctl userns=0 the zygote runs sandboxed and render works.
+- CI green on #3 and #4 after fixing the Windows smoke step's exit code on nikigan/windows (cf5e20c). #4 uploads polotno-Linux/macOS/Windows artifacts.
