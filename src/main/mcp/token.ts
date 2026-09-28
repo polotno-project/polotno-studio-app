@@ -60,7 +60,9 @@ export async function writeDiscoveryFile(url: string, token: string): Promise<vo
     pid: process.pid,
     appVersion: app.getVersion(),
     startedAt: new Date().toISOString(),
-    execPath: process.execPath
+    // Inside an AppImage, execPath points into the /tmp/.mount_* dir that
+    // disappears when the app quits; APPIMAGE is the stable file to relaunch.
+    execPath: process.env.APPIMAGE ?? process.execPath
   }
   await fs.writeFile(discoveryPath(), JSON.stringify(discovery, null, 2))
 }
