@@ -8,6 +8,13 @@ body,
   overflow: hidden;
 }
 
+/* Polotno themes only its own scope. Our chrome (tab strip, Connect dialog)
+   sits outside it, and Polotno buttons without a color of their own (ghost,
+   outline) inherit this one — without it they stay black in dark mode. */
+body {
+  @apply text-neutral-900 dark:text-neutral-100;
+}
+
 /* Frameless window: the tab strip is the draggable title bar; anything
    clickable inside it opts out. */
 .app-drag {
