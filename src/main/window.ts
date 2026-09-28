@@ -49,11 +49,18 @@ export function createEditorWindow(options: { hidden?: boolean } = {}): BrowserW
   // POLOTNO_SHOW_INACTIVE: automated test runs show the window without
   // activating the app, so launches don't steal the user's focus.
   // hidden: the headless CLI never shows the window at all.
-  editorWindow.on('ready-to-show', () => {
-    if (options.hidden) return
+  let revealed = false
+  const reveal = (): void => {
+    if (options.hidden || revealed) return
+    revealed = true
     if (process.env.POLOTNO_SHOW_INACTIVE) editorWindow?.showInactive()
     else editorWindow?.show()
-  })
+  }
+  editorWindow.once('ready-to-show', reveal)
+  // Electron 38+ on Wayland often never emits ready-to-show for a hidden
+  // window (electron/electron#48859), which left the app running with no
+  // window on Ubuntu 24.04. Fall back to showing once the page has loaded.
+  if (process.platform === 'linux') editorWindow.webContents.once('did-finish-load', reveal)
   if (process.platform === 'win32') {
     const win = editorWindow
     const syncOverlay = (): void => win.setTitleBarOverlay(titleBarOverlay())

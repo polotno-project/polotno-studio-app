@@ -118,6 +118,13 @@ Run the AppImage from a terminal so errors show up:
       Expected noise in the VM: `Exiting GPU process due to errors during
       initialization` (no GPU with the std display; Chromium falls back to
       software rendering).
+- [ ] **Window appears on Wayland**: Electron 38+ often never fires
+      `ready-to-show` on Wayland ([electron#48859](https://github.com/electron/electron/issues/48859)).
+      Before the fix in `src/main/window.ts` (show on `did-finish-load` too) the app
+      ran, its MCP API even worked, but no window was ever mapped. Verify with
+      `WAYLAND_DEBUG=client ./polotno-app-*.AppImage 2>&1 | grep -m1 set_title`.
+      If a launch seems to do nothing, check `pgrep -a polotno-app`: an existing
+      instance without a window swallows new launches (single-instance lock).
 - [ ] **Wayland vs X11**: 24.04 runs GNOME on Wayland. Since Electron 38 the app
       runs natively on Wayland there (`--ozone-platform` defaults to `auto`).
       Test both native Wayland and XWayland (`--ozone-platform=x11`), and also an
@@ -162,6 +169,18 @@ Run the AppImage from a terminal so errors show up:
       ./polotno-app-*.AppImage lint design.json --json; echo "exit $?"
       ```
 - [ ] **Auto-update**: see below.
+
+### Driving the VM's session over SSH
+
+To start the GUI from SSH in the logged-in desktop session:
+
+```sh
+export XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0 XDG_SESSION_TYPE=wayland \
+  DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+# for XWayland (--ozone-platform=x11, xprop, xwininfo) also:
+export DISPLAY=:0 XAUTHORITY=$(ls /run/user/1000/.mutter-Xwaylandauth.* | head -1)
+nohup ~/polotno-app-*.AppImage > ~/polotno.log 2>&1 &
+```
 
 ### Auto-update
 

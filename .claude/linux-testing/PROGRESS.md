@@ -14,6 +14,7 @@ Branch: nikigan/linux-testing
 - [x] SSH key auth (Mac id_ed25519), snapshot `clean-install` taken (VM stopped, no RAM); VM notes set
 - [x] docs/linux-testing.md (verified libfuse error, sandbox behavior, CLI render, execPath on the VM)
 - [x] Fixed: CLI broke on stock 24.04 because AppRun prepends --no-sandbox (src/main/index.ts)
+- [x] Fixed: no window on Wayland — Electron 38+ ready-to-show bug (electron#48859); window.ts also shows on did-finish-load on Linux. Verified via WAYLAND_DEBUG (xdg_toplevel set_title). Waiting for user's visual confirmation.
 - [ ] Push branch / open PR — only when user asks
 
 ## Notes
