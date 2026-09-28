@@ -21,7 +21,7 @@ Branch: nikigan/linux-testing
 - [x] Shortcuts verified via Proxmox sendkey (Ctrl+O/E/S/A); Alt doesn't reveal the hidden menu bar on Wayland
 - [x] Editor pass on the VM: photos, text edit, fonts, colours, shapes, move/delete, undo/redo, pages, timeline, layers, background, autosave
 - [ ] Remaining manual checks (need a human): handle resize, panel drag-drop, clipboard, HiDPI, X11 session, second instance, auto-update
-- [ ] Push branch / open PR — only when user asks
+- [x] PR #4 opened against nikigan/windows (stacked on #3); infra details scrubbed from history, self-attribution trailers removed — only when user asks
 
 ## Notes
 - Commits: 74f24b5 (token.ts), 0d07b54 (CI). CI not yet run — branch not pushed.
