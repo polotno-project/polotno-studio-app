@@ -1,3 +1,4 @@
-- [ ] 2026-09-25 — Verify the Windows pass on a real Windows machine: title bar overlay (buttons clear of Connect AI/Export, glyphs follow light/dark), ☰ menu popup position, installer adds/removes `resources\bin` on user PATH and `polotno render` works in a fresh terminal, save while the file is open in another app — built and CI-tested from macOS only
 - [ ] 2026-09-25 — Windows code signing: set AZURE_* secrets and uncomment `win.azureSignOptions` in electron-builder.yml — needs the Azure Trusted Signing account
 - [ ] 2026-09-25 — Rehearse a Windows auto-update (install N, publish N+1) — needs a signed release
+- [ ] 2026-09-28 — Native dialogs (external-change prompt, message boxes) are titled "polotno-app" on Windows: app.name is the package name, and menu.ts deliberately keeps it (userData path). Pass an explicit title instead
+- [ ] 2026-09-28 — Declare the Node requirement (package.json engines / .nvmrc, >= 22.12): on Node 20.9 npm ci fails in postinstall with only EBADENGINE warnings to explain it

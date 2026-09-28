@@ -50,4 +50,18 @@ Found and fixed:
 - Connect dialog / Export menu kept the launch theme after a live switch (dark launch →
   light): outside a PolotnoScope, usePortalScope reads the theme once. Wrapped in PolotnoScope.
 
-Remaining: packaged build + installer (file association, CLI on PATH, uninstall), `npm run dev`.
+Packaged (`electron-builder --win --publish never`, x64 + arm64 NSIS) and installed:
+- `polotno.cmd` in win-unpacked: render writes the PNG, exit 0; no args exit 2 (checked from a
+  batch file — `cmd /c "x & echo %ERRORLEVEL%"` expands before x runs and always shows 0)
+- Install over an existing 0.1.1: old entry removed, re-added once at the end, other entries
+  untouched and in order; value becomes REG_EXPAND_SZ
+- Fresh cmd and PowerShell (launched via explorer.exe, so they get Explorer's environment —
+  proves the WM_SETTINGCHANGE broadcast): `polotno` resolves, render exits 0, no args exits 2
+- Uninstall: only our entry removed, order preserved, a fresh cmd no longer finds `polotno`
+- `.polotno` via Explorer opens in the app when closed and when already running (one main
+  process); an upper-case path to an open file does not add a tab
+- `npm run dev` starts and shows the same title bar
+- Fixed: the CLI usage line printed `…` as mojibake in cmd/PowerShell (legacy console code
+  page); now ASCII.
+
+Done. Left in BACKLOG.md: signing, auto-update rehearsal, dialog titles, Node engines.
