@@ -15,6 +15,7 @@ Branch: nikigan/linux-testing
 - [x] docs/linux-testing.md (verified libfuse error, sandbox behavior, CLI render, execPath on the VM)
 - [x] Fixed: CLI broke on stock 24.04 because AppRun prepends --no-sandbox (src/main/index.ts)
 - [x] Fixed: no window on Wayland — Electron 38+ ready-to-show bug (electron#48859); window.ts also shows on did-finish-load on Linux. Verified via WAYLAND_DEBUG (xdg_toplevel set_title). Waiting for user's visual confirmation.
+- [x] Linux menu: burger button in the tab strip (copied from nikigan/windows c01e38d, shown on Windows and Linux), autoHideMenuBar on Linux. Deployed to VM; waiting for user's visual check (button, popup, Alt, Ctrl+O/S/E).
 - [ ] Push branch / open PR — only when user asks
 
 ## Notes

@@ -38,7 +38,9 @@ export function createEditorWindow(options: { hidden?: boolean } = {}): BrowserW
     ...(process.platform === 'win32'
       ? { titleBarStyle: 'hidden' as const, titleBarOverlay: titleBarOverlay() }
       : {}),
-    ...(process.platform === 'linux' ? { icon } : {}),
+    // Linux keeps the system title bar; the menu bar under it is replaced by
+    // the tab strip's menu button (Alt still reveals it).
+    ...(process.platform === 'linux' ? { icon, autoHideMenuBar: true } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,

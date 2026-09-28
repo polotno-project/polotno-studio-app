@@ -8,9 +8,10 @@ import { ExportMenu } from './export-menu'
 import { ConnectPanel } from './connect-panel'
 
 const isMac = window.desktop.platform === 'darwin'
-// The hidden title bar also hides the Windows menu bar; this button opens the
-// same application menu as a popup.
-const hasMenuButton = window.desktop.platform === 'win32'
+// Windows and Linux have no menu bar in this window (hidden title bar on
+// Windows, auto-hidden menu bar on Linux); this button opens the same
+// application menu as a popup.
+const hasMenuButton = !isMac
 
 // Doubles as the window title bar (frameless window): the empty area drags
 // the window; tabs and buttons opt out. On macOS the traffic lights sit in
