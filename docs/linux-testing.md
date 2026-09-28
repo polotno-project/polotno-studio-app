@@ -44,7 +44,8 @@ gh run download <run-id> -n polotno-Linux -D /tmp/polotno-linux
 Apple Silicon included:
 
 ```sh
-npm run build                      # needs VITE_POLOTNO_KEY in env/.env for a licensed build
+npm run build                      # without VITE_POLOTNO_KEY in env/.env, renders carry a
+                                   # "free license limitation exceeded" banner
 npx electron-builder --linux --x64 --publish never
 # → dist/polotno-app-<version>.AppImage
 #   dist/linux-unpacked/polotno-app   (unpacked app, the one the CI smoke test runs)
@@ -147,8 +148,8 @@ Run the AppImage from a terminal so errors show up:
 - [ ] **MCP server**: after launch `~/.config/polotno-app/mcp.json` exists, with `pid`
       and `url`, and `execPath` pointing at the `.AppImage` file itself, not
       `/tmp/.mount_*`. The file is removed on quit.
-      `curl -s "$(jq -r .httpUrl ~/.config/polotno-app/mcp.json)/health"` answers
-      (no token needed; loopback only).
+      `wget -qO- "$(jq -r .httpUrl ~/.config/polotno-app/mcp.json)/health"` answers
+      (no token needed; loopback only; stock 24.04 has wget and jq but no curl).
       Connect panel → export `Polotno.mcpb` (save dialog) and install the skills
       (`~/.claude/skills/polotno-design` appears).
 - [ ] **CLI render**, in both sandbox modes above; a GUI instance may run at the
