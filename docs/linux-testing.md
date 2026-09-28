@@ -149,6 +149,8 @@ Run the AppImage from a terminal so errors show up:
       JSON, animated GIF, and **MP4**. MP4 goes through `@polotno/video-export`
       (WebCodecs) with no hardware encoder in the VM. Check it finishes, the
       progress toast reaches 100%, and the file plays (`totem` or `ffprobe`).
+      Animated GIF takes ~25 s in the VM (1080×1080, 75 frames, ~11 MB) with no
+      progress indicator; wait for the save dialog before retrying.
 - [ ] **Fonts**: bundled fonts render in the canvas and in exports, and vector
       PDF embeds them. Try a design with a Cyrillic/CJK fallback. System fonts
       (e.g. Ubuntu, DejaVu) show up if the app lists them.
@@ -169,6 +171,14 @@ Run the AppImage from a terminal so errors show up:
       ./polotno-app-*.AppImage lint design.json --json; echo "exit $?"
       ```
 - [ ] **Auto-update**: see below.
+
+### Last run (2026-09-28, 0.1.1 + this branch, stock 24.04.5, Wayland)
+
+Window, ☰ menu, Open/Save dialogs (GNOME portal), and all nine export formats
+pass: PNG, JPEG, vector PDF (Helvetica + Noto Emoji embedded), flattened PDF,
+SVG, HTML, GIF, MP4 (H.264 1080×1080 30 fps), JSON. Not yet covered: keyboard
+shortcuts (the noVNC console drops Ctrl), drag-drop, clipboard, HiDPI, X11
+session, second instance, auto-update.
 
 ### Driving the VM's session over SSH
 
