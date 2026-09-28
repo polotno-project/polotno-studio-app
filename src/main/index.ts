@@ -12,7 +12,10 @@ import { migrateDraftsToLibrary } from './library'
 
 // Headless CLI subcommands (stage 3) branch before any window or lock exists,
 // so the GUI path and the CLI path never fight.
-const cliArgs = process.argv.slice(app.isPackaged ? 1 : 2)
+// electron-builder's AppImage launcher prepends --no-sandbox when user
+// namespaces are blocked (stock Ubuntu 24.04); Chromium has already read it,
+// so drop it or `render`/`lint` would not be recognized.
+const cliArgs = process.argv.slice(app.isPackaged ? 1 : 2).filter((arg) => arg !== '--no-sandbox')
 const CLI_COMMANDS = new Set(['render', 'lint'])
 
 if (CLI_COMMANDS.has(cliArgs[0])) {
