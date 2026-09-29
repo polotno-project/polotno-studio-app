@@ -7,6 +7,8 @@ Already done (see `.claude/windows-support/PROGRESS.md` on master): title bar, â
 CLI on PATH, save retries, path casing, full editor + export pass and NSIS install/uninstall on
 Windows 11. v0.1.1 already publishes `polotno-app-<v>-setup.exe`, its blockmap and `latest.yml`.
 
+PR: https://github.com/polotno-project/polotno-studio-app/pull/6 (Phase 3, Phase 1 prep, unsigned rehearsal).
+
 ## Phase 1 â€” Code signing (blocker: needs the Azure account)
 Microsoft renamed Azure Trusted Signing to **Azure Artifact Signing** (docs:
 learn.microsoft.com/azure/artifact-signing). Endpoints are unchanged (`https://<region>.codesigning.azure.net`),
