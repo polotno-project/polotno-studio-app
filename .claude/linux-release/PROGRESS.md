@@ -97,9 +97,13 @@ modes for AppImage vs deb, and deb checklist items (menu/dock grouping, .polotno
       failed. Fixed: build/icons/{16..512}x{..}.png (sips from build/icon.png) + `linux.icon: build/icons`;
       GTK lookup now resolves; CI asserts the 512 icon. Window matching was fine (app_id polotno-app).
 - [x] 4.7b Dock icon + Pin to Dash checked by the user after the icon fix: working.
-- [ ] 4.7c Remaining eyes-only checks:
-      double-click a .polotno in Files, the X11 ("Ubuntu on Xorg") session.
-- [ ] 4.8 Eyeball the GIF progress toast (Rendering → Encoding → "GIF exported").
+- [x] 4.7c-1 Open a .polotno from Files (Enter on the selected file — noVNC double-clicks only
+      select) with the app running: added as a 2nd tab to the running instance, one main process.
+      But GNOME showed '"Polotno" is ready' instead of raising the window (Wayland focus-stealing
+      prevention: win.focus() in second-instance has no xdg-activation token) → BACKLOG.
+      The .polotno file shows a generic text icon in Files (MIME type has no icon) → BACKLOG.
+- [ ] 4.7c-2 X11 ("Ubuntu on Xorg") session — needs a logout + password at the login screen (user).
+- [x] 4.8 GIF progress toast: Rendering → Encoding → dismissed at the save dialog → "Saved to …" (7.2).
 
 ## Phase 5 — Auto-update rehearsal
 Procedure in docs/linux-testing.md › Auto-update (deb subsection added: DebUpdater + pkexec,
@@ -135,8 +139,12 @@ config — procedure in docs). A published GitHub release is still the final che
       download's 'done' (state + item.getSavePath()) as `export:downloadDone`; App.tsx toasts
       "Saved to <path>" (completed) / "The export could not be saved." (interrupted), nothing on
       cancel. GIF/MP4 loading toasts are dismissed instead of claiming "exported" early.
-      Typecheck OK. Patched into VM 108's app.asar and relaunched — needs the user's eyes
-      (4.8 + this): export PNG and GIF, save to ~/Desktop, check the toast path; cancel once.
+      Typecheck OK. Verified on VM 108 (patched app.asar, via the Proxmox noVNC console in the
+      browser, 2026-09-29): PNG → "Saved to /home/polotno/Downloads/🚀-big-news!-….png"
+      (2160×2160 on disk); JPEG dialog cancelled → no toast; GIF → "Rendering GIF… n%" →
+      "Encoding GIF… n%" → toast gone when the dialog opened → "Saved to /home/polotno/….gif"
+      (1080×1080, 10 MB). The local build has no Polotno/Unsplash keys, so the canvas shows the
+      free-trial banner and Photos fails — expected, not a release issue.
       Restore afterwards: `cp /opt/Polotno/resources/app.asar.orig /opt/Polotno/resources/app.asar`
       (as root) or reinstall the deb.
 
