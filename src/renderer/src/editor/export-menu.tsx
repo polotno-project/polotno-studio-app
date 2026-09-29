@@ -55,9 +55,23 @@ export async function runExport(format: MenuFormat): Promise<void> {
       case 'html':
         await exportHTML(store)
         break
-      case 'gif':
-        await exportGIF(store)
+      case 'gif': {
+        const id = toast.loading('Rendering GIF… 0%')
+        try {
+          await exportGIF(store, {
+            onProgress: (phase, p) =>
+              toast.loading(
+                `${phase === 'capture' ? 'Rendering' : 'Encoding'} GIF… ${Math.round(p)}%`,
+                { id }
+              )
+          })
+          toast.success('GIF exported', { id })
+        } catch (error) {
+          toast.error('GIF export failed', { id })
+          throw error
+        }
         break
+      }
       case 'mp4': {
         const id = toast.loading('Rendering video… 0%')
         try {

@@ -30,9 +30,11 @@ skipped here to avoid merge conflicts and marked "done in windows-release".
 - [x] 2.4 Node requirement `engines` + `.nvmrc` — done in windows-release.
 
 ## Phase 3 — Editor polish
-- [ ] 3.1 GIF export progress: ~25 s with nothing on screen. `exportGIF` in
-      src/renderer/src/editor/export.ts has no `onProgress`; give it the same progress toast as
-      MP4 (check `store.saveAsGIF` options in current Polotno docs).
+- [x] 3.1 GIF export progress: `store.saveAsGIF` has no `onProgress` (Polotno 4.14.1 types + docs),
+      so `exportGIF` swaps `window.GIF` for a subclass during the export: `addFrame` counts
+      captured frames ("Rendering GIF… n%"), gif.js 'progress' events cover encoding
+      ("Encoding GIF… n%"). Verified in a throwaway Electron harness (Workspace mounted, 45 frames,
+      both phases reach 100%, window.GIF restored, GIF saved). Still eyeball it in the app/VM.
 - [x] 3.2 Vector PDF of the welcome template fails ("Monaco" → FONT_FAILED) — done in windows-release.
 - [x] 3.3 Dialog titles "polotno-app" → explicit `title: 'Polotno'` — done in windows-release.
 

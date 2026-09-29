@@ -131,16 +131,59 @@ async function ensureGifLibrary(): Promise<void> {
   target.GIF = GIF
 }
 
+type GifPhase = 'capture' | 'encode'
+
+interface GifEncoder {
+  addFrame(...args: unknown[]): unknown
+  render(): unknown
+  on(event: 'progress', listener: (fraction: number) => void): unknown
+}
+
+// saveAsGIF has no onProgress. It builds its encoder from window.GIF, adds one
+// frame per captured canvas, then encodes in workers, and gif.js reports that
+// as 'progress' events. A subclass for the duration of one export reports both
+// phases. Frame count mirrors Polotno's loop: per page, duration / frame delay.
 export async function exportGIF(
   store: DesignStore,
-  options: { quality?: number; fps?: number } = {}
+  options: {
+    quality?: number
+    fps?: number
+    onProgress?: (phase: GifPhase, percent: number) => void
+  } = {}
 ): Promise<void> {
   await ensureGifLibrary()
-  await store.saveAsGIF({
-    fileName: `${getDesignFileName(store)}.gif`,
-    pixelRatio: options.quality ?? 1,
-    fps: options.fps ?? 15
-  })
+  const fps = options.fps ?? 15
+  const target = window as unknown as { GIF: new (...args: unknown[]) => GifEncoder }
+  const BaseGIF = target.GIF
+  const onProgress = options.onProgress
+  if (onProgress) {
+    const frameDelay = 1000 / fps
+    const totalFrames = store.pages.reduce(
+      (sum, page) => sum + Math.max(1, Math.floor(page.duration / frameDelay)),
+      0
+    )
+    target.GIF = class extends BaseGIF {
+      private captured = 0
+      addFrame(...args: unknown[]): unknown {
+        this.captured++
+        onProgress('capture', Math.min(100, (this.captured / totalFrames) * 100))
+        return super.addFrame(...args)
+      }
+      render(): unknown {
+        this.on('progress', (fraction) => onProgress('encode', fraction * 100))
+        return super.render()
+      }
+    }
+  }
+  try {
+    await store.saveAsGIF({
+      fileName: `${getDesignFileName(store)}.gif`,
+      pixelRatio: options.quality ?? 1,
+      fps
+    })
+  } finally {
+    target.GIF = BaseGIF
+  }
 }
 
 export async function exportJSON(store: DesignStore): Promise<void> {
