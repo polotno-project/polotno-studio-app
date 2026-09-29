@@ -71,14 +71,14 @@ Then:
 - [ ] 2.1 vN installs; `resources\app-update.yml` shows provider generic + publisherName. On
       arm64 hardware (if available) the one NSIS exe installs the arm64 app — check
       `Polotno.exe` in Task Manager → Details → Architecture.
-- [ ] 2.2 Launch vN: "Polotno x.y.z is ready" (title bar "Polotno") within ~10 s.
+- [x] 2.2 Launch vN: "Polotno x.y.z is ready" (title bar "Polotno") within ~10 s.
       `%APPDATA%\polotno-app\logs\main.log` shows "Checking for update", "Found version",
       a differential download ("Download block maps" / "Full: …, To download: …"), and no
       signature error. `%LOCALAPPDATA%\polotno-app-updater\pending\` holds the installer.
-- [ ] 2.3 Restart Now → relaunches on vN+1 (Apps & features version; Check for Updates says up to date); in a NEW
+- [x] 2.3 Restart Now → relaunches on vN+1 (Apps & features version; Check for Updates says up to date); in a NEW
       terminal `polotno render` works and `reg query HKCU\Environment /v Path` has exactly one
       `…\resources\bin` entry; double-clicking a `.polotno` opens it; open tabs restored.
-- [ ] 2.4 Reinstall vN; on the prompt pick Later, quit → update installs on quit; next launch is
+- [x] 2.4 Reinstall vN; on the prompt pick Later, quit → update installs on quit; next launch is
       vN+1 and Check for Updates says "You are up to date (Polotno x.y.z)."
 - [ ] 2.5b Negative check: build vN+2 UNSIGNED (no sign args), serve it → vN+1 must refuse it
       (log: "New version … is not signed by the application owner"). Proves publisherName works.
@@ -90,11 +90,41 @@ Then:
       Linux: ~/.config/polotno-app/logs/main.log). Verified with a packaged mac --dir build:
       "Checking for update" + the (expected, no app-update.yml in a --dir build) error land in
       the file. Shared with Linux.
-- [ ] 2.6 Update while a CLI `render` is running and while the app is busy exporting — no
+- [~] 2.6 Update while a CLI `render` is running and while the app is busy exporting — no
       half-installed state (quitAndInstall while render.exe still runs: installer should wait
       or fail cleanly and retry on next quit; check main.log).
 Afterwards: uninstall, delete `%LOCALAPPDATA%\polotno-app-updater`, and never publish the rc
 builds — they only existed on the local feed.
+
+### Unsigned rehearsal on the Windows PC (2026-09-29, via Orca environment "PC")
+Windows 11 x64, driven over Orca (terminal + `orca computer`). Builds 0.1.90–0.1.94 made on
+macOS from this branch (`electron-builder --win`, x64+arm64 NSIS, unsigned) with
+`publish: generic → http://<mac-ip>:8765/`; feed served from the Mac (range-capable server for
+differential downloads). Nothing published to GitHub. Unsigned ⇒ no publisherName ⇒ signature
+check skipped: 2.5b and the publisherName half of 2.1 still need the signed run.
+- 0.1.1 → 0.1.90 silent install over the GitHub 0.1.1: fine; app-update.yml points at the feed.
+- 2.2 PASS: update found ~10 s after launch; prompt "Polotno 0.1.91 is ready", window title
+  "Polotno" (3.1 confirmed on Windows). Differential: 0.1.90→0.1.91 127 changed blocks,
+  2.4 MB of 186 MB (1%) — fell back to full only because python http.server lacks ranges;
+  with a range server 0.1.91→0.1.92 421 blocks, 8.7 MB (5%) in 1.5 s, and 0.1.92→0.1.93 /
+  0.1.93→0.1.94 2.4 MB (1%) each. main.log shows every step.
+- 2.3 PASS (Restart Now): installed + relaunched in ~30 s; PATH has exactly one
+  `…\resources\bin` entry, still REG_EXPAND_SZ; `.polotno` association intact; all 7 open tabs
+  restored (session.json identical); `polotno render` from a fresh PATH exits 0.
+- 2.4 PASS (Later + quit): "Auto install update on quit", silent (`/S`), no relaunch, closes in
+  ~1 s; next launch "not available"; ☰ › Help › Check for Updates → "You are up to date
+  (Polotno 0.1.92)." titled "Polotno".
+- 2.6 FINDING (CLI render during update): the NSIS installer taskkills every Polotno.exe,
+  including CLI renders → those renders die with exit -1 and no message. With renders spawning
+  back-to-back (agent loop) it can't win: after 2 kill rounds it shows "Failed to close Polotno.
+  Please close Polotno manually and click Retry" (GUI already gone). Retry after the loop
+  ended → installed 0.1.94 + relaunched fine. In the silent install-on-quit path the same
+  prompt defaults to Cancel (`/SD IDCANCEL`), i.e. the update is silently skipped until the next
+  quit (read from allowOnlyOneInstallerInstance.nsh, not reproduced). → BACKLOG.md.
+  "Busy exporting" is just quit-during-export (not update-specific) — not tested.
+- electron-updater warns "disableWebInstaller is set to false" on every download → BACKLOG.md.
+- Test leftovers on the PC: Polotno 0.1.94 test build installed (its feed URL is the Mac, now
+  offline), `%TEMP%\polotno-upd`. Reinstall 0.1.1 from GitHub to restore a normal update path.
 
 ## Phase 3 — Polish (can go in parallel with Phase 1)
 - [x] 3.1 Dialog titles: message boxes show "polotno-app" (app.name). Pass `title: 'Polotno'`
