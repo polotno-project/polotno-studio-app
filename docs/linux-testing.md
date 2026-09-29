@@ -315,20 +315,48 @@ nohup ~/polotno-app-*.AppImage > ~/polotno.log 2>&1 &
 
 electron-updater reads `latest-linux.yml` from the latest **published** GitHub
 release (drafts are invisible to it). On Linux it only updates when launched
-from an AppImage, because it needs the `APPIMAGE` env var. It checks 10 s after
-startup, downloads in the background, and replaces the `.AppImage` file in
-place on restart.
+from an AppImage (or the deb, below), because it needs the `APPIMAGE` env var.
+It checks 10 s after startup, downloads in the background, and replaces the
+`.AppImage` on restart or quit. When the file name contains the old version
+(`polotno-app-0.1.1.AppImage`), the new file gets the new name
+(`polotno-app-0.1.2.AppImage`) and the old one is deleted, so a launcher or
+script pointing at the old path breaks; `mcp.json` `execPath` follows.
 
 1. Put an AppImage older than the current release in `~/` (an older release
    asset, or a CI artifact built from an older commit/version).
 2. Launch it and wait. The "Polotno x.y.z is ready" dialog appears; or use the
    menu item to check for updates.
-3. Click **Restart Now**. The same file path now holds the new version (check
-   the version in About or `mcp.json`'s `appVersion`), and the app relaunches.
+3. Click **Restart Now**. The file is replaced by the new version (renamed if
+   the name carried the version; check About or `mcp.json`'s `appVersion`), and
+   the app relaunches.
 4. Also test **Later** + quit: the update installs on quit.
 5. AppImage in a folder the user can't write to (e.g. `sudo mkdir /opt/ro &&
    sudo cp` it there): the update must fail without breaking the running app.
-   The error goes to the console (run from a terminal to see it).
+   The error goes to the console (run from a terminal to see it):
+   `Updater error EACCES: permission denied, unlink '/opt/ro/…AppImage'`; the
+   old file stays and the app quits normally.
+
+#### Rehearsing without a GitHub release
+
+A published release is the real test, but the whole flow can run against a
+feed on the VM's own loopback. Build the old and the new version with a
+`generic` publish provider in a copy of the config, outside `dist/`:
+
+```sh
+# eb-feed.yml = electron-builder.yml with
+#   publish: { provider: generic, url: http://127.0.0.1:8765 }
+# and '!dist/**' added to files (with another output dir, dist/ isn't
+# excluded automatically and the installers end up inside the app).
+npx electron-builder --linux --x64 --publish never --config eb-feed.yml -c.directories.output=/tmp/dist-old
+npx electron-builder --linux --x64 --publish never --config eb-feed.yml -c.directories.output=/tmp/dist-new \
+  -c.extraMetadata.version=0.1.2
+```
+
+Copy `dist-new/{latest-linux.yml,*.AppImage,*.deb}` to `~/feed` on the VM and
+serve it there with `python3 -m http.server 8765 --bind 127.0.0.1`. Install or
+run the `dist-old` build. `http.server` has no range requests, so the log
+shows "Cannot download differentially, fallback to full download", which is
+fine; GitHub supports ranges.
 
 #### deb
 
@@ -341,6 +369,10 @@ beesu). If dpkg fails on dependencies it runs `apt-get install -f -y`.
 
 1. Install an older deb (an older release asset, or a CI artifact from an
    older version): `sudo apt install ./polotno-app_<old>_amd64.deb`.
+   Launch it from the desktop, not from an SSH shell: pkexec asks the
+   session's polkit agent, and a process in an SSH session has none. Over SSH,
+   `systemd-run --user --setenv=WAYLAND_DISPLAY=wayland-0 /opt/Polotno/polotno`
+   starts it the way GNOME does (logs: `journalctl --user -u <unit>`).
 2. Launch from the app menu and wait for the "Polotno x.y.z is ready" dialog.
 3. **Restart Now** → a password prompt (polkit) appears; after it, the app
    relaunches on the new version (`apt policy polotno-app`, About,

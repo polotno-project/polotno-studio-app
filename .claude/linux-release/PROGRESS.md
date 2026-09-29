@@ -50,7 +50,9 @@ skipped here to avoid merge conflicts and marked "done in windows-release".
       (so a successful render proves the AppArmor profile gives Chromium its sandbox), checks the
       /usr/bin link, aa-status, MIME registration, CLI exit code 2 on no inputs, and removal. Unpacked
       smoke test path → dist/linux-unpacked/polotno; artifact now includes dist/*.deb.
-      Branch pushed 2026-09-29; build.yml only runs on pull_request / push to master, so CI needs a PR.
+      Draft PR #5. First run failed: the runner has no desktop-file-utils, so postinst skipped
+      update-desktop-database and mimeinfo.cache didn't exist → CI installs desktop-file-utils first
+      (2c6442b). Green on all three OSes; the deb smoke test passes with the userns restriction on.
 - [x] 2.4 Node requirement `engines` + `.nvmrc` — done in windows-release.
 
 ## Phase 3 — Editor polish
@@ -94,11 +96,16 @@ modes for AppImage vs deb, and deb checklist items (menu/dock grouping, .polotno
 ## Phase 5 — Auto-update rehearsal
 Procedure in docs/linux-testing.md › Auto-update (deb subsection added: DebUpdater + pkexec,
 Restart Now / Later / cancelled prompt / manual apt upgrade).
-- [ ] 5.1 Put an older AppImage in ~/ (v0.1.0 asset), launch → update dialog.
-- [ ] 5.2 Restart Now → same path holds the new version; `mcp.json` `appVersion` and
-      `execPath` updated; CLI still works.
-- [ ] 5.3 Later + quit → installs on quit.
-- [ ] 5.4 AppImage in a read-only / root-owned dir → updater fails gracefully (log it).
+Rehearsed 2026-09-29 on the clean VM (rolled back to clean-install) against a loopback feed
+(generic provider http://127.0.0.1:8765 on the VM; old 0.1.1 / new 0.1.2 built with a copy of the
+config — procedure in docs). A published GitHub release is still the final check (6.1).
+- [x] 5.1 Old AppImage in ~/Applications → downloads 0.1.2 (full download: http.server has no ranges).
+- [x] 5.2 Install on update → file replaced AND renamed polotno-app-0.1.1 → polotno-app-0.1.2.AppImage
+      (sha matches the feed); relaunch: appVersion 0.1.2, execPath = new file, CLI works, no further
+      update. (Tested via Later + quit; Restart Now uses the same install path — click it once by hand.)
+- [x] 5.3 Later + quit → "Auto install update on quit", installed.
+- [x] 5.4 Root-owned /opt/ro → "Updater error EACCES: permission denied, unlink …"; old file kept,
+      app quit cleanly. Only visible on the console (file log: windows-release 5.6).
 - [ ] 5.5 deb update path — documented; rehearsal needs two published versions (VM, user).
 - [x] 5.6 Updater errors are only console.error'd — file log done in windows-release.
 
