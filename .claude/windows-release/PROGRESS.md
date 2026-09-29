@@ -36,8 +36,14 @@ Windows 11. v0.1.1 already publishes `polotno-app-<v>-setup.exe`, its blockmap a
       survives the silent reinstall, not duplicated); `.polotno` association intact; open
       documents/session restored.
 - [ ] 2.4 Later + quit → installs on quit; the Check for Updates menu item reports "up to date".
-- [ ] 2.5 Updater errors are only `console.error`ed — invisible in a packaged app. Add a file
+- [x] 2.5 Updater errors are only `console.error`ed — invisible in a packaged app. Add a file
       log (electron-log, or electron-updater's `logger`) so field failures are debuggable.
+      Done: electron-log 5 (runtime dependency) as `autoUpdater.logger`, file level info;
+      updater errors and failed interactive checks logged with stack. File:
+      `%APPDATA%\polotno-app\logs\main.log` (mac: ~/Library/Logs/polotno-app/main.log,
+      Linux: ~/.config/polotno-app/logs/main.log). Verified with a packaged mac --dir build:
+      "Checking for update" + the (expected, no app-update.yml in a --dir build) error land in
+      the file. Shared with Linux.
 - [ ] 2.6 Update while a CLI `render` is running and while the app is busy exporting — no
       half-installed state.
 
