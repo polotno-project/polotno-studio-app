@@ -260,6 +260,8 @@ and the CLI on the AppImage.
       ./polotno-app-*.AppImage render design.json -o out.png --pixel-ratio 1 && file out.png
       ./polotno-app-*.AppImage lint design.json --json; echo "exit $?"
       ```
+      Without any display env (`env -u DISPLAY -u WAYLAND_DISPLAY polotno render x.json`)
+      it prints "polotno needs a display …" and exits 1 (it used to core dump, 139).
 - [ ] **Auto-update**: see below.
 
 ### Last run (2026-09-28, 0.1.1 + this branch, stock 24.04.5, Wayland)

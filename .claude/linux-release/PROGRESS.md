@@ -125,6 +125,13 @@ config — procedure in docs). A published GitHub release is still the final che
       Side finding: CLI without any display env segfaults (exit 139) → BACKLOG.
 - [x] 5.6 Updater errors are only console.error'd — file log done in windows-release.
 
+## Phase 7 — Follow-ups (2026-09-29)
+- [x] 7.1 CLI without a display: `requireDisplay()` in src/main/cli exits 1 with an xvfb-run hint
+      when neither DISPLAY nor WAYLAND_DISPLAY is set (JS runs before Chromium's ozone init — a
+      usage error still printed there). Verified on VM 108 by swapping a rebuilt app.asar into
+      /opt/Polotno/resources (original kept as app.asar.orig): exit 1 + message; with Wayland env
+      render still exits 0. CI deb smoke test asserts exit 1. README + linux-testing.md updated.
+
 ## Phase 6 — Release
 - [ ] 6.1 Tag, draft release from release.yml, download the draft AppImage (and deb) onto a
       clean VM (rollback to clean-install), smoke test, publish.

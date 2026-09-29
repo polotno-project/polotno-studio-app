@@ -72,6 +72,17 @@ function parseArgs(args: string[]): CliOptions {
   return options
 }
 
+// The hidden editor window needs a display. Without one (SSH, CI), Chromium
+// crashes on ready with a core dump (exit 139), so say so before it gets there.
+function requireDisplay(): void {
+  if (process.platform !== 'linux') return
+  if (process.env.DISPLAY || process.env.WAYLAND_DISPLAY) return
+  fail(
+    1,
+    'polotno needs a display (DISPLAY or WAYLAND_DISPLAY). Without one, run it under Xvfb: xvfb-run -a polotno ...'
+  )
+}
+
 async function waitForRenderer(timeoutMs = 30000): Promise<void> {
   const start = Date.now()
   for (;;) {
@@ -174,6 +185,7 @@ export function runCli(args: string[]): void {
   let options: CliOptions
   try {
     options = parseArgs(args)
+    requireDisplay()
   } catch (error) {
     if (error instanceof CliError) {
       console.error(error.message)

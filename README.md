@@ -58,6 +58,10 @@ Export menu and the `export_design` MCP tool use the same two names.
 Exit codes: 0 ok, 1 render failure, 2 bad arguments, 3 invalid design JSON,
 4 lint found errors.
 
+The CLI renders in a hidden window, so it needs a display. On a Linux machine
+without one (SSH, CI) it exits 1 with a hint; run it under Xvfb:
+`xvfb-run -a polotno render …`.
+
 ## File format
 
 One design = one JSON file (`.polotno`, plain JSON). The content is exactly

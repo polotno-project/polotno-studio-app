@@ -68,6 +68,9 @@ jobs:
           test -s /tmp/deb-smoke.png
           set +e; xvfb-run -a polotno render; code=$?; set -e
           test "$code" -eq 2
+          # No display: a clear error and exit 1, not Chromium's core dump (139).
+          set +e; env -u DISPLAY -u WAYLAND_DISPLAY polotno render /tmp/none.json; code=$?; set -e
+          test "$code" -eq 1
           sudo apt-get remove -y polotno-app
           test ! -e /usr/bin/polotno
           test ! -e /etc/apparmor.d/polotno
