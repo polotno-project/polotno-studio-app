@@ -1,7 +1,7 @@
 - [ ] 2026-09-25 — Windows code signing: set AZURE_* secrets and uncomment `win.azureSignOptions` in electron-builder.yml — needs the Azure Trusted Signing account
 - [ ] 2026-09-25 — Rehearse a Windows auto-update (install N, publish N+1) — needs a signed release
 - [x] 2026-09-28 — Native dialogs (external-change prompt, message boxes) are titled "polotno-app" on Windows: app.name is the package name, and menu.ts deliberately keeps it (userData path). Pass an explicit title instead
-- [ ] 2026-09-28 — Declare the Node requirement (package.json engines / .nvmrc, >= 22.12): on Node 20.9 npm ci fails in postinstall with only EBADENGINE warnings to explain it
+- [x] 2026-09-28 — Declare the Node requirement (package.json engines / .nvmrc, >= 22.12): on Node 20.9 npm ci fails in postinstall with only EBADENGINE warnings to explain it
 - [ ] 2026-09-28 — Vector PDF export of templates/welcome.json fails: it uses fontFamily "Monaco" (macOS system font, not on Google Fonts) → FONT_FAILED. Swap the template to a Google/base-14 monospace (e.g. Courier Prime, Cousine) or register a font file — found while fixing the Arial vector-PDF bug, out of its scope
 - [x] 2026-09-28 — MCP discovery file on Linux: use `process.env.APPIMAGE ?? process.execPath` for `execPath` in src/main/mcp/token.ts — inside an AppImage, process.execPath points into the temporary /tmp/.mount_* dir, which is gone once the app quits, so agents can't relaunch the app
 - [ ] 2026-09-28 — Linux packaging: consider adding `deb` (and maybe `rpm`) targets next to AppImage — an AppImage doesn't install a .desktop entry, so .polotno file associations and the app-menu launcher don't work without AppImageLauncher/Gear Lever

@@ -48,8 +48,10 @@ Windows 11. v0.1.1 already publishes `polotno-app-<v>-setup.exe`, its blockmap a
       Done: `title: 'Polotno'` on all 7 message boxes (open/save file dialogs keep Windows'
       own "Open"/"Save As"). typecheck + build pass. macOS ignores message-box titles, so the
       visible check is on Windows (add to the 4.2 smoke test).
-- [ ] 3.2 Node requirement: `engines.node >=22.12` in package.json + `.nvmrc` (npm ci's
+- [x] 3.2 Node requirement: `engines.node >=22.12` in package.json + `.nvmrc` (npm ci's
       postinstall fails on 20.9 with only EBADENGINE warnings). Shared with Linux — do it once.
+      Done: engines in package.json (+ lockfile root entry), `.nvmrc` = 22, build.yml and
+      release.yml read `node-version-file: .nvmrc`, README states the requirement.
 - [ ] 3.3 Vector PDF of the welcome template fails on Windows/Linux ("Monaco" font →
       FONT_FAILED). Locate the template (not in src/ — likely vendor skills or remote templates),
       switch to Cousine/Courier Prime. Shared with Linux.
