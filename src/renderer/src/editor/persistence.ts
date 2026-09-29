@@ -12,6 +12,7 @@ import { tabs, designSnapshot, type DesignTab } from './tabs-model'
 
 const DIRTY_DEBOUNCE_MS = 400
 const AUTOSAVE_DEBOUNCE_MS = 1000
+const AUTOSAVE_RETRY_MS = 5000
 const PREVIEW_WIDTH = 240
 
 interface PersistenceState {
@@ -153,7 +154,10 @@ export async function saveAs(docId: DocId): Promise<boolean> {
   return writeTo(tab, result.filePath)
 }
 
-// The caller is a timer, so nothing is waiting to catch this.
+// The caller is a timer, so nothing is waiting to catch this. A failed save
+// tries again on its own: on Windows another program holding the file open
+// blocks the write for as long as it keeps it, and the edit would otherwise
+// wait for the next change to reach disk.
 async function autosave(tab: DesignTab): Promise<void> {
   if (!states.has(tab.docId)) return // detached meanwhile
   try {
@@ -161,6 +165,10 @@ async function autosave(tab: DesignTab): Promise<void> {
     await writePreview(tab)
   } catch (error) {
     console.error('Autosave failed for tab', tab.name, error)
+    const state = states.get(tab.docId)
+    if (!state) return
+    clearTimeout(state.saveTimer)
+    state.saveTimer = setTimeout(() => void autosave(tab), AUTOSAVE_RETRY_MS)
   }
 }
 

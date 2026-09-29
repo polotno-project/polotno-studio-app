@@ -66,7 +66,9 @@ function parseArgs(args: string[]): CliOptions {
     else if (arg.startsWith('-')) fail(2, `Unknown option: ${arg}`)
     else options.inputs.push(arg)
   }
-  if (options.inputs.length === 0) fail(2, `Usage: polotno ${options.command} <design.json…> [-o out]`)
+  // ASCII only: Windows consoles default to a legacy code page and would show
+  // UTF-8 punctuation as mojibake.
+  if (options.inputs.length === 0) fail(2, `Usage: polotno ${options.command} <design.json...> [-o out]`)
   return options
 }
 

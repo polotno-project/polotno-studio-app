@@ -1,24 +1,45 @@
+import { useRef } from 'react'
 import { observer } from 'mobx-react-lite'
-import { Plus, X } from 'lucide-react'
+import { Menu, Plus, X } from 'lucide-react'
+import { PolotnoScope } from 'polotno/primitives/portal-scope'
 import { tabs } from './tabs-model'
 import { requestCloseTab } from './document'
 import { ExportMenu } from './export-menu'
 import { ConnectPanel } from './connect-panel'
 
 const isMac = window.desktop.platform === 'darwin'
+// The hidden title bar also hides the Windows menu bar; this button opens the
+// same application menu as a popup.
+const hasMenuButton = window.desktop.platform === 'win32'
 
 // Doubles as the window title bar (frameless window): the empty area drags
 // the window; tabs and buttons opt out. On macOS the traffic lights sit in
 // the reserved left inset.
 export const TabStrip = observer(function TabStrip(): React.JSX.Element {
+  const actionsRef = useRef<HTMLDivElement>(null)
   return (
     <div
       className={
-        'app-drag flex h-10 shrink-0 items-center gap-1 border-b border-neutral-200 bg-neutral-100 pr-2 dark:border-neutral-800 dark:bg-neutral-900 ' +
+        'app-drag window-controls-inset flex h-10 shrink-0 items-center gap-1 border-b border-neutral-200 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 ' +
         (isMac ? 'pl-20' : 'pl-2')
       }
     >
-      <div className="app-no-drag flex min-w-0 flex-1 items-center gap-1">
+      {hasMenuButton && (
+        <button
+          aria-label="Menu"
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect()
+            void window.desktop.invoke('app:showMenu', {
+              x: Math.round(rect.left),
+              y: Math.round(rect.bottom)
+            })
+          }}
+          className="app-no-drag flex size-7 shrink-0 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-200/70 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
+        >
+          <Menu className="size-4" />
+        </button>
+      )}
+      <div className="flex min-w-0 flex-1 items-center gap-1">
         {tabs.tabs.map((tab) => {
           const isActive = tab.docId === tabs.activeDocId
           return (
@@ -28,7 +49,7 @@ export const TabStrip = observer(function TabStrip(): React.JSX.Element {
               aria-selected={isActive}
               onClick={() => tabs.activate(tab.docId)}
               className={
-                'group flex h-7 max-w-48 min-w-10 flex-1 cursor-default items-center gap-1.5 rounded-md px-3 text-xs font-medium whitespace-nowrap transition-colors select-none ' +
+                'app-no-drag group flex h-7 max-w-48 min-w-10 flex-1 cursor-default items-center gap-1.5 rounded-md px-3 text-xs font-medium whitespace-nowrap transition-colors select-none ' +
                 (isActive
                   ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-800 dark:text-neutral-50'
                   : 'text-neutral-500 hover:bg-neutral-200/70 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200')
@@ -57,14 +78,18 @@ export const TabStrip = observer(function TabStrip(): React.JSX.Element {
         <button
           aria-label="New design"
           onClick={() => tabs.newTab()}
-          className="flex size-7 shrink-0 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-200/70 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
+          className="app-no-drag flex size-7 shrink-0 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-200/70 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200"
         >
           <Plus className="size-4" />
         </button>
       </div>
-      <div className="app-no-drag ml-auto flex shrink-0 items-center gap-2">
-        <ConnectPanel />
-        <ExportMenu />
+      {/* Outside the editor's PolotnoContainer, Polotno dialogs and menus read
+          the theme once when they mount; PolotnoScope keeps them following it. */}
+      <div ref={actionsRef} className="app-no-drag ml-auto flex shrink-0 items-center gap-2">
+        <PolotnoScope elementRef={actionsRef}>
+          <ConnectPanel />
+          <ExportMenu />
+        </PolotnoScope>
       </div>
     </div>
   )

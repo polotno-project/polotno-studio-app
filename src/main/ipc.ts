@@ -1,4 +1,4 @@
-import { app, ipcMain, dialog, shell, BrowserWindow } from 'electron'
+import { app, ipcMain, dialog, shell, BrowserWindow, Menu } from 'electron'
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
@@ -117,6 +117,9 @@ export function registerIpcHandlers(): void {
 
   handle('recent:list', () => listRecent())
   handle('app:rendererReady', () => markRendererReady())
+  handle('app:showMenu', (event, { x, y }) => {
+    Menu.getApplicationMenu()?.popup({ window: windowOf(event), x, y })
+  })
 
   handle('mcp:getStatus', () => getMcpStatus())
   handle('mcp:regenerateToken', () => {

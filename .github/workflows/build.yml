@@ -30,3 +30,15 @@ jobs:
           ./node_modules/electron/dist/Electron.app/Contents/MacOS/Electron . render \
             src/renderer/src/templates/social-media-post.json -o /tmp/cli-smoke.png --pixel-ratio 1
           test -s /tmp/cli-smoke.png
+      # Goes through the shipped polotno.cmd wrapper: proves it waits for the
+      # GUI binary and passes the exit code through (no inputs = exit 2).
+      - name: CLI smoke test (Windows, via polotno.cmd)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call dist\win-unpacked\resources\bin\polotno.cmd render src\renderer\src\templates\social-media-post.json -o "%RUNNER_TEMP%\cli-smoke.png" --pixel-ratio 1
+          if errorlevel 1 exit /b 1
+          if not exist "%RUNNER_TEMP%\cli-smoke.png" exit /b 1
+          call dist\win-unpacked\resources\bin\polotno.cmd render
+          if %ERRORLEVEL% neq 2 exit /b 1
+          exit /b 0

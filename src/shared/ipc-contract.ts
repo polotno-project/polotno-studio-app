@@ -31,6 +31,8 @@ export interface InvokeApi {
   'recent:list': () => RecentEntry[]
   // Renderer announces its doc:openPath listener is live; main flushes queued opens.
   'app:rendererReady': () => void
+  // Pops up the application menu at a window point (Windows has no menu bar).
+  'app:showMenu': (p: { x: number; y: number }) => void
   'library:list': () => LibraryEntry[]
   'library:create': (p: { name: string; content: string }) => { filePath: string }
   'library:rename': (p: { filePath: string; name: string }) => { filePath: string }

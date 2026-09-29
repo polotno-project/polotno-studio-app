@@ -8,6 +8,13 @@ body,
   overflow: hidden;
 }
 
+/* Polotno themes only its own scope. Our chrome (tab strip, Connect dialog)
+   sits outside it, and Polotno buttons without a color of their own (ghost,
+   outline) inherit this one — without it they stay black in dark mode. */
+body {
+  @apply text-neutral-900 dark:text-neutral-100;
+}
+
 /* Frameless window: the tab strip is the draggable title bar; anything
    clickable inside it opts out. */
 .app-drag {
@@ -15,4 +22,11 @@ body,
 }
 .app-no-drag {
   -webkit-app-region: no-drag;
+}
+
+/* Keeps the tab strip's right edge clear of the Windows window controls
+   overlay. The titlebar-area-* env values only exist while the overlay is on;
+   elsewhere this falls back to plain 0.5rem padding. */
+.window-controls-inset {
+  padding-right: calc(100% - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100%) + 0.5rem);
 }

@@ -97,7 +97,14 @@ export function installAppMenu(): void {
       ]
     },
     { role: 'viewMenu' },
-    { role: 'windowMenu' },
+    // The Windows/Linux windowMenu role has a Close item on Ctrl+W, which
+    // would take the shortcut from Close Tab and close the whole window.
+    isMac
+      ? { role: 'windowMenu' }
+      : {
+          label: 'Window',
+          submenu: [{ role: 'minimize' }, { role: 'close', accelerator: 'Alt+F4' }]
+        },
     ...(isMac ? [] : [{ label: 'Help', submenu: [checkForUpdatesItem] }]),
     ...(is.dev
       ? [
