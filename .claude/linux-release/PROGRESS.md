@@ -106,7 +106,15 @@ config — procedure in docs). A published GitHub release is still the final che
 - [x] 5.3 Later + quit → "Auto install update on quit", installed.
 - [x] 5.4 Root-owned /opt/ro → "Updater error EACCES: permission denied, unlink …"; old file kept,
       app quit cleanly. Only visible on the console (file log: windows-release 5.6).
-- [ ] 5.5 deb update path — documented; rehearsal needs two published versions (VM, user).
+- [x] 5.5 deb update 0.1.1 → 0.1.2 (loopback feed): app started via `systemd-run --user` (like GNOME
+      does; an SSH-session process gets no polkit agent), download → "ready" dialog → user clicked
+      Restart Now + entered the password (pkexec) → dpkg upgrade done 15:28:45, app relaunched
+      15:28:50 as the user, AppArmor label "polotno (unconfined)", no --no-sandbox; appVersion 0.1.2,
+      /usr/bin/polotno + /etc/apparmor.d/polotno intact, CLI works.
+      Observed: GNOME showed "Polotno is not responding" right after the relaunch and it cleared by
+      itself — probably slow first start in the VM (software GL) plus a CLI render I ran at the same
+      moment. Re-check once on a quiet VM / real hardware; if it repeats, look at startup work.
+      Side finding: CLI without any display env segfaults (exit 139) → BACKLOG.
 - [x] 5.6 Updater errors are only console.error'd — file log done in windows-release.
 
 ## Phase 6 — Release
