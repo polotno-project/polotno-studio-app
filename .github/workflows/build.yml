@@ -42,6 +42,30 @@ jobs:
           call dist\win-unpacked\resources\bin\polotno.cmd render
           if %ERRORLEVEL% neq 2 exit /b 1
           exit /b 0
+      # Installs the deb the way users do and runs the `polotno` CLI with the
+      # userns restriction ON: only the deb's AppArmor profile lets Chromium's
+      # sandbox start (chrome-sandbox isn't setuid, nothing adds --no-sandbox),
+      # so a render here proves the profile works. Runs before the step below,
+      # which lifts the restriction.
+      - name: deb smoke test (install, sandboxed CLI, MIME, remove)
+        if: runner.os == 'Linux'
+        run: |
+          set -x
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=1
+          sudo apt-get update -qq
+          sudo apt-get install -y ./dist/polotno-app_*_amd64.deb
+          test "$(readlink -f /usr/bin/polotno)" = /opt/Polotno/polotno
+          sudo aa-status | grep -qw polotno
+          grep -q 'application/x-polotno:\*\.polotno' /usr/share/mime/globs2
+          grep -q '^application/x-polotno=polotno.desktop' /usr/share/applications/mimeinfo.cache
+          xvfb-run -a polotno render src/renderer/src/templates/social-media-post.json \
+            -o /tmp/deb-smoke.png --pixel-ratio 1
+          test -s /tmp/deb-smoke.png
+          set +e; xvfb-run -a polotno render; code=$?; set -e
+          test "$code" -eq 2
+          sudo apt-get remove -y polotno-app
+          test ! -e /usr/bin/polotno
+          test ! -e /etc/apparmor.d/polotno
       # Runs the packaged binary, so it also covers the Linux packaging. Ubuntu
       # 24.04 blocks unprivileged user namespaces via AppArmor, which Chromium's
       # sandbox needs; lift that on the runner instead of passing --no-sandbox,
@@ -50,7 +74,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          xvfb-run -a ./dist/linux-unpacked/polotno-app render \
+          xvfb-run -a ./dist/linux-unpacked/polotno render \
             src/renderer/src/templates/social-media-post.json -o /tmp/cli-smoke.png --pixel-ratio 1
           test -s /tmp/cli-smoke.png
       # PR builds for test machines: `gh run download <run-id> -n polotno-Linux`.
@@ -60,6 +84,7 @@ jobs:
           name: polotno-${{ runner.os }}
           path: |
             dist/*.AppImage
+            dist/*.deb
             dist/*.dmg
             dist/*.zip
             dist/*.exe
