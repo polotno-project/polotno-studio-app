@@ -20,6 +20,7 @@ export function initUpdater(): void {
     updateReady = true
     void dialog
       .showMessageBox({
+        title: 'Polotno',
         type: 'info',
         message: `Polotno ${info.version} is ready`,
         detail: 'The update installs when you quit, or restart now.',
@@ -43,7 +44,10 @@ export function initUpdater(): void {
 // Menu item entry point: reports the outcome instead of failing silently.
 export async function checkForUpdatesInteractive(): Promise<void> {
   if (!app.isPackaged) {
-    dialog.showMessageBoxSync({ message: 'Updates are disabled in development builds.' })
+    dialog.showMessageBoxSync({
+      title: 'Polotno',
+      message: 'Updates are disabled in development builds.'
+    })
     return
   }
   if (updateReady) {
@@ -53,10 +57,14 @@ export async function checkForUpdatesInteractive(): Promise<void> {
   try {
     const result = await autoUpdater.checkForUpdates()
     if (!result?.updateInfo || result.updateInfo.version === app.getVersion()) {
-      dialog.showMessageBoxSync({ message: `You are up to date (Polotno ${app.getVersion()}).` })
+      dialog.showMessageBoxSync({
+        title: 'Polotno',
+        message: `You are up to date (Polotno ${app.getVersion()}).`
+      })
     }
   } catch (error) {
     dialog.showMessageBoxSync({
+      title: 'Polotno',
       type: 'error',
       message: 'Could not check for updates.',
       detail: error instanceof Error ? error.message : String(error)

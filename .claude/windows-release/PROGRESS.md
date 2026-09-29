@@ -42,9 +42,12 @@ Windows 11. v0.1.1 already publishes `polotno-app-<v>-setup.exe`, its blockmap a
       half-installed state.
 
 ## Phase 3 — Polish (can go in parallel with Phase 1)
-- [ ] 3.1 Dialog titles: message boxes show "polotno-app" (app.name). Pass `title: 'Polotno'`
+- [x] 3.1 Dialog titles: message boxes show "polotno-app" (app.name). Pass `title: 'Polotno'`
       in src/main/ipc.ts (`dialog:confirm`, `dialog:externalChange`), src/main/updater.ts
       (all four), src/main/menu.ts. Don't change app.name (userData path).
+      Done: `title: 'Polotno'` on all 7 message boxes (open/save file dialogs keep Windows'
+      own "Open"/"Save As"). typecheck + build pass. macOS ignores message-box titles, so the
+      visible check is on Windows (add to the 4.2 smoke test).
 - [ ] 3.2 Node requirement: `engines.node >=22.12` in package.json + `.nvmrc` (npm ci's
       postinstall fails on 20.9 with only EBADENGINE warnings). Shared with Linux — do it once.
 - [ ] 3.3 Vector PDF of the welcome template fails on Windows/Linux ("Monaco" font →
