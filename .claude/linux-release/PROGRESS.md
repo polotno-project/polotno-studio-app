@@ -89,6 +89,10 @@ modes for AppImage vs deb, and deb checklist items (menu/dock grouping, .polotno
       menu entry, MIME, /opt/Polotno gone; ~/.config/polotno-app + ~/Documents/Polotno kept.
       AppImage with the renamed binary: CLI render OK, GUI runs with --no-sandbox (as documented),
       execPath = the .AppImage.
+- [x] Dock showed a generic gear (user, 2026-09-29): electron-builder installed the lone 1024px icon to
+      hicolor/1024x1024, which Ubuntu's hicolor index.theme doesn't define (max 512x512) → icon lookup
+      failed. Fixed: build/icons/{16..512}x{..}.png (sips from build/icon.png) + `linux.icon: build/icons`;
+      GTK lookup now resolves; CI asserts the 512 icon. Window matching was fine (app_id polotno-app).
 - [ ] 4.7b deb visual checks (need eyes): dock icon while running, "Pin to Dash" → one icon,
       double-click a .polotno in Files, the X11 ("Ubuntu on Xorg") session.
 - [ ] 4.8 Eyeball the GIF progress toast (Rendering → Encoding → "GIF exported").

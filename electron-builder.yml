@@ -71,6 +71,9 @@ linux:
   # so deb users keep the Chromium sandbox on Ubuntu 24.04+. The AppImage can't
   # carry a profile and runs with --no-sandbox there (docs/linux-testing.md).
   executableName: polotno
+  # Standard hicolor sizes. A lone 1024px icon lands in hicolor/1024x1024,
+  # which Ubuntu's hicolor theme doesn't define → GNOME shows a generic gear.
+  icon: build/icons
   target:
     - AppImage
     - deb

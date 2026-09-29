@@ -92,6 +92,7 @@ What the package does (electron-builder's stock `postinst`/`postrm`):
 | CLI | `/usr/bin/polotno` → `/etc/alternatives/polotno` → `/opt/Polotno/polotno` | yes |
 | AppArmor | `/etc/apparmor.d/polotno` (`userns`, unconfined), loaded right away | unloaded and deleted |
 | Menu entry | `/usr/share/applications/polotno-app.desktop` (`StartupWMClass=polotno-app`) | yes |
+| Icon | `/usr/share/icons/hicolor/{16…512}x{16…512}/apps/polotno.png` (from `build/icons/`) | yes |
 | MIME | `/usr/share/mime/packages/polotno.xml`: `application/x-polotno` = `*.polotno` | yes |
 | Updates | `resources/package-type` = `deb`, so electron-updater uses its deb updater | — |
 

@@ -60,6 +60,8 @@ jobs:
           test "$(readlink -f /usr/bin/polotno)" = /opt/Polotno/polotno
           sudo aa-status | grep -qw polotno
           grep -q 'application/x-polotno:\*\.polotno' /usr/share/mime/globs2
+          # hicolor has no 1024x1024 dir; without standard sizes GNOME shows a gear.
+          test -e /usr/share/icons/hicolor/512x512/apps/polotno.png
           grep -q '^application/x-polotno=polotno-app.desktop' /usr/share/applications/mimeinfo.cache
           xvfb-run -a polotno render src/renderer/src/templates/social-media-post.json \
             -o /tmp/deb-smoke.png --pixel-ratio 1
