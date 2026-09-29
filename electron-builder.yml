@@ -76,8 +76,10 @@ linux:
     - deb
   category: Graphics
   synopsis: Offline-first desktop design editor
-  # Name the .desktop file after package.json desktopName, which is also the
-  # window's Wayland app_id / X11 WM_CLASS, so docks group the window with it.
+  # Name the .desktop file after package.json desktopName (also StartupWMClass),
+  # so docks group the window with its launcher. Electron takes the Wayland
+  # app_id from desktopName but the X11 WM_CLASS from app.name (package.json
+  # "name"), so desktopName must stay "<name>.desktop" for both to match.
   syncDesktopName: true
 deb:
   artifactName: ${name}_${version}_${arch}.${ext}

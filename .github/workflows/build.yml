@@ -57,7 +57,7 @@ jobs:
           test "$(readlink -f /usr/bin/polotno)" = /opt/Polotno/polotno
           sudo aa-status | grep -qw polotno
           grep -q 'application/x-polotno:\*\.polotno' /usr/share/mime/globs2
-          grep -q '^application/x-polotno=polotno.desktop' /usr/share/applications/mimeinfo.cache
+          grep -q '^application/x-polotno=polotno-app.desktop' /usr/share/applications/mimeinfo.cache
           xvfb-run -a polotno render src/renderer/src/templates/social-media-post.json \
             -o /tmp/deb-smoke.png --pixel-ratio 1
           test -s /tmp/deb-smoke.png

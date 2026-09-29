@@ -21,10 +21,13 @@ Ownership: the windows-release workspace owns the shared items (2.4 Node engines
 skipped here to avoid merge conflicts and marked "done in windows-release".
 
 ## Phase 2 — Packaging fixes
-- [x] 2.1 `desktopName: polotno.desktop` in package.json + `linux.syncDesktopName: true`: the deb
-      installs /usr/share/applications/polotno.desktop with `StartupWMClass=polotno` (= Electron's
-      app_id/WM_CLASS); the AppImage embeds the same polotno.desktop. The build warning is gone.
-      Still verify on the VM, Wayland and X11 (4.x): dock icon + window grouping.
+- [x] 2.1 `desktopName: polotno-app.desktop` in package.json + `linux.syncDesktopName: true`: the deb
+      installs /usr/share/applications/polotno-app.desktop with `StartupWMClass=polotno-app`; the
+      AppImage embeds the same entry. Build warning gone. First tried `polotno.desktop`: on the VM
+      Wayland app_id became "polotno" but X11 WM_CLASS stayed "polotno-app" (Electron takes WM_CLASS
+      from app.name = package name, app_id from desktopName) → X11 wouldn't group. With
+      polotno-app.desktop all three match (verified on VM: set_app_id("polotno-app"),
+      WM_CLASS "polotno-app", "polotno-app").
 - [x] 2.2 deb target (`dist/polotno-app_<v>_amd64.deb`, package `polotno-app`, Section graphics).
       Finding: electron-builder 26's STOCK deb after-install/after-remove already do the AppArmor
       part: install `resources/apparmor-profile` (`userns`, flags=(unconfined), for
@@ -47,7 +50,7 @@ skipped here to avoid merge conflicts and marked "done in windows-release".
       (so a successful render proves the AppArmor profile gives Chromium its sandbox), checks the
       /usr/bin link, aa-status, MIME registration, CLI exit code 2 on no inputs, and removal. Unpacked
       smoke test path → dist/linux-unpacked/polotno; artifact now includes dist/*.deb.
-      Not run yet — needs a push (ask the user).
+      Branch pushed 2026-09-29; build.yml only runs on pull_request / push to master, so CI needs a PR.
 - [x] 2.4 Node requirement `engines` + `.nvmrc` — done in windows-release.
 
 ## Phase 3 — Editor polish
@@ -70,9 +73,22 @@ modes for AppImage vs deb, and deb checklist items (menu/dock grouping, .polotno
 - [ ] 4.5 Second instance: launching again focuses the first; opening a `.polotno` file adds
       a tab to the running app.
 - [ ] 4.6 Other distros smoke test: Fedora (GNOME, libfuse differences), maybe KDE.
-- [ ] 4.7 deb on the VM (checklist items in docs): install via apt, profile loaded, sandboxed
-      without the sysctl, unloading the profile makes it fail, app menu + dock icon + pin grouping
-      (Wayland and X11), .polotno double-click (+ into a running instance), `polotno` CLI, removal.
+- [x] 4.7 deb on VM 108 (2026-09-29, over SSH + guest agent; VM NOT rolled back — the rollback was
+      blocked by the permission classifier; leftovers: libfuse2t64, old AppImage, ~/.config):
+      apt install OK (profile loaded, no "Skipping"), /usr/bin/polotno → /opt/Polotno/polotno,
+      chrome-sandbox 0755. Restriction ON (=1): menu launch (gtk-launch polotno-app) runs with no
+      --no-sandbox, main process AppArmor label "polotno (unconfined)", zygotes in their own userns,
+      renderer Seccomp 2. Profile unloaded → FATAL "Rather than run without sandboxing" (exit 133);
+      reloaded → works. CLI render/lint OK, no inputs → exit 2. MIME: gio content-type
+      application/x-polotno, default polotno-app.desktop. `gio open design.polotno` with the app
+      running → added to the running instance's tabs (session.json), no extra process left.
+      Updater check runs from the deb ("0.1.1 is not available"). mcp.json execPath
+      /opt/Polotno/polotno. Reinstall keeps link + profile. apt remove: link, profile (unloaded),
+      menu entry, MIME, /opt/Polotno gone; ~/.config/polotno-app + ~/Documents/Polotno kept.
+      AppImage with the renamed binary: CLI render OK, GUI runs with --no-sandbox (as documented),
+      execPath = the .AppImage.
+- [ ] 4.7b deb visual checks (need eyes): dock icon while running, "Pin to Dash" → one icon,
+      double-click a .polotno in Files, the X11 ("Ubuntu on Xorg") session.
 - [ ] 4.8 Eyeball the GIF progress toast (Rendering → Encoding → "GIF exported").
 
 ## Phase 5 — Auto-update rehearsal

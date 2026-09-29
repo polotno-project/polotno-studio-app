@@ -91,7 +91,7 @@ What the package does (electron-builder's stock `postinst`/`postrm`):
 | App | `/opt/Polotno/` (binary `/opt/Polotno/polotno`) | yes |
 | CLI | `/usr/bin/polotno` → `/etc/alternatives/polotno` → `/opt/Polotno/polotno` | yes |
 | AppArmor | `/etc/apparmor.d/polotno` (`userns`, unconfined), loaded right away | unloaded and deleted |
-| Menu entry | `/usr/share/applications/polotno.desktop` (`StartupWMClass=polotno`) | yes |
+| Menu entry | `/usr/share/applications/polotno-app.desktop` (`StartupWMClass=polotno-app`) | yes |
 | MIME | `/usr/share/mime/packages/polotno.xml`: `application/x-polotno` = `*.polotno` | yes |
 | Updates | `resources/package-type` = `deb`, so electron-updater uses its deb updater | — |
 
@@ -100,7 +100,7 @@ Check it:
 ```sh
 readlink -f /usr/bin/polotno                            # /opt/Polotno/polotno
 sudo aa-status | grep -w polotno                        # profile loaded
-xdg-mime query default application/x-polotno            # polotno.desktop
+xdg-mime query default application/x-polotno            # polotno-app.desktop
 gio info -a standard::content-type ~/x.polotno          # application/x-polotno
 ```
 
@@ -156,6 +156,7 @@ Check which mode the app is running in:
 
 ```sh
 pgrep -a polotno | head -3   # "--no-sandbox" on the main process = unsandboxed
+cat /proc/$(pgrep -o -x polotno)/attr/current   # deb: "polotno (unconfined)" = profile applied
 pgrep -af 'type=zygote'      # sandboxed: zygote processes without --no-sandbox
 ```
 
@@ -185,9 +186,13 @@ and the CLI on the AppImage.
 - [ ] **App menu + dock (deb)**: Polotno appears in Activities with its icon
       and launches. While it runs, the dock shows the Polotno icon (not a
       generic one), and pinning it to the dock ("Pin to Dash") then relaunching
-      from the pin gives one icon, not two. Same in an X11 session, where
-      `xprop WM_CLASS` (click the window) should show a class matching
-      `StartupWMClass=polotno`.
+      from the pin gives one icon, not two. Same in an X11 session. The window
+      identifiers must all be `polotno-app`: Wayland `app_id` (from package.json
+      `desktopName`; `WAYLAND_DEBUG=client polotno 2>&1 | grep -m1 set_app_id`),
+      X11 `WM_CLASS` (from package.json `name`; `xprop WM_CLASS`, or
+      `--ozone-platform=x11` under Wayland) and `StartupWMClass` in the
+      .desktop file. Electron takes the two from different fields, so
+      `desktopName` must stay `<name>.desktop`.
 - [ ] **.polotno double-click (deb)**: in Files, a `.polotno` file shows
       "Polotno design file" as its type; double-click opens it in Polotno, and
       with the app already running it opens as a new tab in the running window.
@@ -284,6 +289,17 @@ capital letter), after which every click extends the selection;
 `key=ctrl-o` (or `qm sendkey 108 ctrl-o` in the Proxmox shell).
 
 ### Driving the VM's session over SSH
+
+`sudo` over SSH asks for a password; the QEMU guest agent runs commands as
+root without one (Proxmox API `POST /nodes/<node>/qemu/108/agent/exec`, or the
+proxmox MCP `execute_vm_command`). Handy for `apt install ./….deb` and
+`apparmor_parser`.
+
+To stop the app, kill only the main process: `kill $(pgrep -o -x polotno)`.
+`pkill -x polotno` also SIGTERMs the zygote/GPU children, and the browser then
+aborts with "GPU process isn't usable" plus a core dump, which looks like a crash
+but isn't. And `pkill -f /opt/Polotno/polotno` inside `ssh '…'` kills the SSH
+shell itself (its own command line matches).
 
 To start the GUI from SSH in the logged-in desktop session:
 
