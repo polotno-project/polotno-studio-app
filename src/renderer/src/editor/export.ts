@@ -139,18 +139,27 @@ interface GifEncoder {
   on(event: 'progress', listener: (fraction: number) => void): unknown
 }
 
+type GifExportOptions = {
+  quality?: number
+  fps?: number
+  onProgress?: (phase: GifPhase, percent: number) => void
+}
+
+// One GIF export at a time: each swaps the global window.GIF, so an overlapping
+// one (another tab) would wrap the first's subclass and restore the wrong one.
+let gifQueue: Promise<unknown> = Promise.resolve()
+
+export function exportGIF(store: DesignStore, options: GifExportOptions = {}): Promise<void> {
+  const run = gifQueue.then(() => runGifExport(store, options))
+  gifQueue = run.catch(() => undefined)
+  return run
+}
+
 // saveAsGIF has no onProgress. It builds its encoder from window.GIF, adds one
 // frame per captured canvas, then encodes in workers, and gif.js reports that
 // as 'progress' events. A subclass for the duration of one export reports both
 // phases. Frame count mirrors Polotno's loop: per page, duration / frame delay.
-export async function exportGIF(
-  store: DesignStore,
-  options: {
-    quality?: number
-    fps?: number
-    onProgress?: (phase: GifPhase, percent: number) => void
-  } = {}
-): Promise<void> {
+async function runGifExport(store: DesignStore, options: GifExportOptions): Promise<void> {
   await ensureGifLibrary()
   const fps = options.fps ?? 15
   const target = window as unknown as { GIF: new (...args: unknown[]) => GifEncoder }

@@ -61,6 +61,9 @@ skipped here to avoid merge conflicts and marked "done in windows-release".
       captured frames ("Rendering GIF… n%"), gif.js 'progress' events cover encoding
       ("Encoding GIF… n%"). Verified in a throwaway Electron harness (Workspace mounted, 45 frames,
       both phases reach 100%, window.GIF restored, GIF saved). Still eyeball it in the app/VM.
+      Codex review (PR #5, P2): overlapping GIF exports (two tabs) stacked the window.GIF wrapper and
+      could leave a stale one → exports now run one at a time (module-level promise queue). Harness:
+      two concurrent exports get 91 events each (no cross-talk), window.GIF === original afterwards.
 - [x] 3.2 Vector PDF of the welcome template fails ("Monaco" → FONT_FAILED) — done in windows-release.
 - [x] 3.3 Dialog titles "polotno-app" → explicit `title: 'Polotno'` — done in windows-release.
 
