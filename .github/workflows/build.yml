@@ -42,3 +42,28 @@ jobs:
           call dist\win-unpacked\resources\bin\polotno.cmd render
           if %ERRORLEVEL% neq 2 exit /b 1
           exit /b 0
+      # Runs the packaged binary, so it also covers the Linux packaging. Ubuntu
+      # 24.04 blocks unprivileged user namespaces via AppArmor, which Chromium's
+      # sandbox needs; lift that on the runner instead of passing --no-sandbox,
+      # so the app is tested with its sandbox on.
+      - name: CLI smoke test (Linux, packaged app under Xvfb)
+        if: runner.os == 'Linux'
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          xvfb-run -a ./dist/linux-unpacked/polotno-app render \
+            src/renderer/src/templates/social-media-post.json -o /tmp/cli-smoke.png --pixel-ratio 1
+          test -s /tmp/cli-smoke.png
+      # PR builds for test machines: `gh run download <run-id> -n polotno-Linux`.
+      - name: Upload installers
+        uses: actions/upload-artifact@v7
+        with:
+          name: polotno-${{ runner.os }}
+          path: |
+            dist/*.AppImage
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+            dist/latest*.yml
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
