@@ -52,9 +52,17 @@ Windows 11. v0.1.1 already publishes `polotno-app-<v>-setup.exe`, its blockmap a
       postinstall fails on 20.9 with only EBADENGINE warnings). Shared with Linux — do it once.
       Done: engines in package.json (+ lockfile root entry), `.nvmrc` = 22, build.yml and
       release.yml read `node-version-file: .nvmrc`, README states the requirement.
-- [ ] 3.3 Vector PDF of the welcome template fails on Windows/Linux ("Monaco" font →
+- [x] 3.3 Vector PDF of the welcome template fails on Windows/Linux ("Monaco" font →
       FONT_FAILED). Locate the template (not in src/ — likely vendor skills or remote templates),
       switch to Cousine/Courier Prime. Shared with Linux.
+      Done: the template is src/renderer/src/templates/welcome.json after all; it never names
+      Monaco. Its `quill-ql-classes` text uses `class="ql-font-monospace"`, which
+      @polotno/core maps to "Monaco, Courier New, monospace"; pdf-export takes the first family,
+      Google Fonts answers 400 → FONT_FAILED on every OS (reproduced on macOS). Georgia is fine
+      (Google serves it). Swapped that span to inline `'Courier New', monospace` (base-14
+      Courier, no network), matching the template's other mono spans. `polotno render
+      welcome.json -o x.pdf` now writes 4 pages, text extracts, mono runs are /Courier.
+      Upstream issue (any design with ql-font-monospace) → BACKLOG.md.
 - [ ] 3.4 Installer UX check: Start menu + desktop shortcut names ("Polotno"), uninstaller
       display name, installer icon, per-user vs per-machine (currently per-user default —
       confirm that's intended).
