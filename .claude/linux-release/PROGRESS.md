@@ -133,6 +133,6 @@ config — procedure in docs). A published GitHub release is still the final che
 ## Open questions
 - Save As writes `.json` (files.ts:107, since d09a636) while the file association / Linux MIME cover
   only `*.polotno` → app-saved designs don't double-click-open in Polotno. Asked the user
-  (A: default .polotno on Save As, B: + library, C: keep .json and fix README). Shared code — likely
-  windows-release or a separate PR.
+  (A: default .polotno on Save As, B: + library, C: keep .json and fix README). User: no change for
+  now → BACKLOG.md. PR #5 marked ready for review.
 
