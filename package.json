@@ -6,7 +6,7 @@
   "author": "Polotno",
   "homepage": "https://polotno.com",
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "scripts": {
     "format": "prettier --write .",

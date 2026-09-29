@@ -10,7 +10,7 @@ editor. Agent edits and your edits share one undo stack.
 
 ## Development
 
-Requires Node.js 22.12 or newer (`.nvmrc`).
+Requires Node.js 22.13 or newer (`.nvmrc`).
 
 ```bash
 npm install

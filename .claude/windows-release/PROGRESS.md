@@ -49,8 +49,9 @@ and electron-builder 26 still drives it through the `TrustedSigning` PowerShell 
       the Windows runner with the secret present (tested all three branches in bash).
 - [x] 1.4 PR/`build.yml` builds stay unsigned — enforced by the release.yml-only gating above.
 - [ ] 1.5 Verify on a tag build: `Get-AuthenticodeSignature` on `Polotno.exe`, the installer,
-      the uninstaller (`Uninstall Polotno.exe` in the install dir) and `resources\app.asar.unpacked`
-      native binaries show Valid with the Polotno subject; SmartScreen shows the publisher instead
+      and the uninstaller (`Uninstall Polotno.exe` in the install dir) show Valid with the Polotno
+      subject (electron-builder signs only .exe by default; a future native .node/.dll needs
+      `win.signExts`); SmartScreen shows the publisher instead
       of "Unknown publisher" (reputation may still warn for the first downloads).
 - [ ] 1.6 `publisherName` ends up in the installed app's `resources\app-update.yml` (not in
       latest.yml — that's where electron-updater's NsisUpdater reads it). Check it's there and
@@ -61,7 +62,7 @@ and electron-builder 26 still drives it through the `TrustedSigning` PowerShell 
 Recommended: rehearse against a local update feed so no rehearsal build reaches 0.1.1 users
 (every published GitHub release is picked up by their updater). On the Windows 11 machine:
 1. `az login` with an account that has the Signer role (TrustedSigning also accepts Azure CLI
-   credentials), Node ≥ 22.12, repo checked out at the release commit, `npm ci`.
+   credentials), Node ≥ 22.13, repo checked out at the release commit, `npm ci`.
 2. Set version to vN (e.g. 0.2.0-rc.1 — any semver above 0.1.1) and build:
    `npm run build && npx electron-builder --win --publish never -c.publish.provider=generic
    -c.publish.url=http://127.0.0.1:8080/ <the four -c.win.azureSignOptions.* args from release.yml>`
@@ -137,7 +138,8 @@ check skipped: 2.5b and the publisherName half of 2.1 still need the signed run.
       visible check is on Windows (add to the 4.2 smoke test).
 - [x] 3.2 Node requirement: `engines.node >=22.12` in package.json + `.nvmrc` (npm ci's
       postinstall fails on 20.9 with only EBADENGINE warnings). Shared with Linux — do it once.
-      Done: engines in package.json (+ lockfile root entry), `.nvmrc` = 22, build.yml and
+      Done: engines `>=22.13` in package.json (+ lockfile root entry) — 22.13, not 22.12:
+      @polotno/pdf-export 0.13 declares `>=22.13.0` (caught in the PR review), `.nvmrc` = 22, build.yml and
       release.yml read `node-version-file: .nvmrc`, README states the requirement.
 - [x] 3.3 Vector PDF of the welcome template fails on Windows/Linux ("Monaco" font →
       FONT_FAILED). Locate the template (not in src/ — likely vendor skills or remote templates),
@@ -177,7 +179,7 @@ check skipped: 2.5b and the publisherName half of 2.1 still need the signed run.
 
 ## Notes
 - Signing needs org validation; start 1.1 first, everything else can proceed meanwhile.
-- Test machine: Windows 11 Pro 26200 (used for the Windows support pass). Node ≥ 22.12.
+- Test machine: Windows 11 Pro 26200 (used for the Windows support pass). Node ≥ 22.13.
 - Playwright `_electron` needs `colorScheme: null` (see windows-support notes).
 - E2E on macOS without touching the real profile: launch Electron on a wrapper dir whose
   main.cjs does `app.setPath('userData'|'documents', <tmp>)` then requires `out/main/index.js`
