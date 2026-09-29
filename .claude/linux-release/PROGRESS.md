@@ -60,7 +60,10 @@ skipped here to avoid merge conflicts and marked "done in windows-release".
 - [x] 3.2 Vector PDF of the welcome template fails ("Monaco" → FONT_FAILED) — done in windows-release.
 - [x] 3.3 Dialog titles "polotno-app" → explicit `title: 'Polotno'` — done in windows-release.
 
-## Phase 4 — Remaining manual checks (VM 108, by hand)
+## Phase 4 — Remaining manual checks (VM 108, by hand — need the user)
+Docs done: docs/linux-testing.md now has "Install the deb" (what it installs, checks), the sandbox
+modes for AppImage vs deb, and deb checklist items (menu/dock grouping, .polotno double-click,
+`polotno` CLI, removal).
 - [ ] 4.1 Resize with transformer handles; drag-and-drop from side panel to canvas.
 - [ ] 4.2 Clipboard: copy/paste text and images, in-app and from other apps.
 - [ ] 4.3 HiDPI: 200% and fractional (125%/150%) scaling — canvas sharpness, title bar.
@@ -68,18 +71,26 @@ skipped here to avoid merge conflicts and marked "done in windows-release".
 - [ ] 4.5 Second instance: launching again focuses the first; opening a `.polotno` file adds
       a tab to the running app.
 - [ ] 4.6 Other distros smoke test: Fedora (GNOME, libfuse differences), maybe KDE.
+- [ ] 4.7 deb on the VM (checklist items in docs): install via apt, profile loaded, sandboxed
+      without the sysctl, unloading the profile makes it fail, app menu + dock icon + pin grouping
+      (Wayland and X11), .polotno double-click (+ into a running instance), `polotno` CLI, removal.
+- [ ] 4.8 Eyeball the GIF progress toast (Rendering → Encoding → "GIF exported").
 
 ## Phase 5 — Auto-update rehearsal
-Procedure in docs/linux-testing.md › Auto-update.
+Procedure in docs/linux-testing.md › Auto-update (deb subsection added: DebUpdater + pkexec,
+Restart Now / Later / cancelled prompt / manual apt upgrade).
 - [ ] 5.1 Put an older AppImage in ~/ (v0.1.0 asset), launch → update dialog.
 - [ ] 5.2 Restart Now → same path holds the new version; `mcp.json` `appVersion` and
       `execPath` updated; CLI still works.
 - [ ] 5.3 Later + quit → installs on quit.
 - [ ] 5.4 AppImage in a read-only / root-owned dir → updater fails gracefully (log it).
-- [ ] 5.5 If deb shipped: update path for deb users.
+- [ ] 5.5 deb update path — documented; rehearsal needs two published versions (VM, user).
 - [x] 5.6 Updater errors are only console.error'd — file log done in windows-release.
 
 ## Phase 6 — Release
 - [ ] 6.1 Tag, draft release from release.yml, download the draft AppImage (and deb) onto a
       clean VM (rollback to clean-install), smoke test, publish.
-- [ ] 6.2 Document install steps for users (libfuse2t64 on 24.04, chmod +x, sandbox note).
+- [x] 6.2 User install steps: docs/linux-install.md (deb vs AppImage table, apt install, updates,
+      uninstall, libfuse2t64/libfuse2, sandbox limitation of the AppImage), linked from README.
+      Use it for the release notes.
+- [ ] 6.3 Before tagging: replace the `deb.maintainer` placeholder in electron-builder.yml.
