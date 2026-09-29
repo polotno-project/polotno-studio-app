@@ -69,9 +69,15 @@ Windows 11. v0.1.1 already publishes `polotno-app-<v>-setup.exe`, its blockmap a
       Courier, no network), matching the template's other mono spans. `polotno render
       welcome.json -o x.pdf` now writes 4 pages, text extracts, mono runs are /Courier.
       Upstream issue (any design with ql-font-monospace) → BACKLOG.md.
-- [ ] 3.4 Installer UX check: Start menu + desktop shortcut names ("Polotno"), uninstaller
+- [x] 3.4 Installer UX check: Start menu + desktop shortcut names ("Polotno"), uninstaller
       display name, installer icon, per-user vs per-machine (currently per-user default —
       confirm that's intended).
+      Config reviewed: Start menu + desktop shortcut and uninstall entry are all
+      `${productName}` = "Polotno"; icon comes from build/icon.png (1024², converted to .ico).
+      Per-user is intended and now explicit (`oneClick: true`, `perMachine: false` + comment):
+      updates need no UAC, and cli-path.ps1 edits the HKCU PATH only. `electron-builder --win
+      --x64` on macOS builds the installer (oneClick=true perMachine=false). Seeing the names
+      and icon on screen → 4.2 smoke test.
 
 ## Phase 4 — Release
 - [ ] 4.1 Bump version, tag `v*`, let release.yml build all three OSes into the draft release.

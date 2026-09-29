@@ -43,6 +43,11 @@ win:
   #   certificateProfileName: polotno-app
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
+  # Per-user one-click install (%LOCALAPPDATA%\Programs): updates install
+  # without a UAC prompt, and build/win/cli-path.ps1 edits the per-user (HKCU)
+  # PATH — a per-machine install would need HKLM there too.
+  oneClick: true
+  perMachine: false
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
