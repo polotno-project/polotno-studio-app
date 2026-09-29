@@ -239,8 +239,9 @@ and the CLI on the AppImage.
       (WebCodecs) with no hardware encoder in the VM. Check it finishes, the
       progress toast reaches 100%, and the file plays (`totem` or `ffprobe`).
       Animated GIF takes ~25 s in the VM (1080×1080, 75 frames, ~11 MB): a toast
-      shows "Rendering GIF… n%" (frame capture), then "Encoding GIF… n%", then
-      "GIF exported" once the save dialog opens.
+      shows "Rendering GIF… n%" (frame capture), then "Encoding GIF… n%", and
+      goes away when the save dialog opens. After every format's save dialog a
+      toast says "Saved to <path>"; cancelling the dialog shows nothing.
 - [ ] **Fonts**: bundled fonts render in the canvas and in exports, and vector
       PDF embeds them. Try a design with a Cyrillic/CJK fallback. System fonts
       (e.g. Ubuntu, DejaVu) show up if the app lists them.

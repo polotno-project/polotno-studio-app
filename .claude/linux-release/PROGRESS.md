@@ -131,6 +131,14 @@ config — procedure in docs). A published GitHub release is still the final che
       usage error still printed there). Verified on VM 108 by swapping a rebuilt app.asar into
       /opt/Polotno/resources (original kept as app.asar.orig): exit 1 + message; with Wayland env
       render still exits 0. CI deb smoke test asserts exit 1. README + linux-testing.md updated.
+- [x] 7.2 Export toasts say where the file went: main's will-download handler forwards each
+      download's 'done' (state + item.getSavePath()) as `export:downloadDone`; App.tsx toasts
+      "Saved to <path>" (completed) / "The export could not be saved." (interrupted), nothing on
+      cancel. GIF/MP4 loading toasts are dismissed instead of claiming "exported" early.
+      Typecheck OK. Patched into VM 108's app.asar and relaunched — needs the user's eyes
+      (4.8 + this): export PNG and GIF, save to ~/Desktop, check the toast path; cancel once.
+      Restore afterwards: `cp /opt/Polotno/resources/app.asar.orig /opt/Polotno/resources/app.asar`
+      (as root) or reinstall the deb.
 
 ## Phase 6 — Release
 - [ ] 6.1 Tag, draft release from release.yml, download the draft AppImage (and deb) onto a

@@ -44,9 +44,14 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
     electronApp.setAppUserModelId('com.polotno.app')
     app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
     // Exports are browser downloads. Untitled, their save dialog shows the
-    // blob: URL in its title bar (Windows).
-    session.defaultSession.on('will-download', (_event, item) => {
+    // blob: URL in its title bar (Windows). The export call resolves once the
+    // download starts, so only 'done' can say whether and where it was saved.
+    session.defaultSession.on('will-download', (_event, item, webContents) => {
       item.setSaveDialogOptions({ title: 'Export' })
+      item.once('done', (_doneEvent, state) => {
+        if (webContents.isDestroyed()) return
+        webContents.send('export:downloadDone', { state, filePath: item.getSavePath() })
+      })
     })
 
     registerIpcHandlers()

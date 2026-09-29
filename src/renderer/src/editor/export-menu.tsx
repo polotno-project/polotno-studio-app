@@ -65,7 +65,8 @@ export async function runExport(format: MenuFormat): Promise<void> {
                 { id }
               )
           })
-          toast.success('GIF exported', { id })
+          // Resolves when the save dialog opens; export:downloadDone reports the file.
+          toast.dismiss(id)
         } catch (error) {
           toast.error('GIF export failed', { id })
           throw error
@@ -78,7 +79,7 @@ export async function runExport(format: MenuFormat): Promise<void> {
           await exportVideo(store, {
             onProgress: (p) => toast.loading(`Rendering video… ${Math.round(p)}%`, { id })
           })
-          toast.success('Video exported', { id })
+          toast.dismiss(id)
         } catch (error) {
           toast.error('Video export failed', { id })
           throw error
