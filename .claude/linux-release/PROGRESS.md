@@ -93,7 +93,8 @@ modes for AppImage vs deb, and deb checklist items (menu/dock grouping, .polotno
       hicolor/1024x1024, which Ubuntu's hicolor index.theme doesn't define (max 512x512) → icon lookup
       failed. Fixed: build/icons/{16..512}x{..}.png (sips from build/icon.png) + `linux.icon: build/icons`;
       GTK lookup now resolves; CI asserts the 512 icon. Window matching was fine (app_id polotno-app).
-- [ ] 4.7b deb visual checks (need eyes): dock icon while running, "Pin to Dash" → one icon,
+- [x] 4.7b Dock icon + Pin to Dash checked by the user after the icon fix: working.
+- [ ] 4.7c Remaining eyes-only checks:
       double-click a .polotno in Files, the X11 ("Ubuntu on Xorg") session.
 - [ ] 4.8 Eyeball the GIF progress toast (Rendering → Encoding → "GIF exported").
 
@@ -128,3 +129,10 @@ config — procedure in docs). A published GitHub release is still the final che
       uninstall, libfuse2t64/libfuse2, sandbox limitation of the AppImage), linked from README.
       Use it for the release notes.
 - [x] 6.3 `deb.maintainer` set to the real address.
+
+## Open questions
+- Save As writes `.json` (files.ts:107, since d09a636) while the file association / Linux MIME cover
+  only `*.polotno` → app-saved designs don't double-click-open in Polotno. Asked the user
+  (A: default .polotno on Save As, B: + library, C: keep .json and fix README). Shared code — likely
+  windows-release or a separate PR.
+
