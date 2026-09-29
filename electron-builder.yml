@@ -26,6 +26,8 @@ fileAssociations:
     name: Polotno Design
     description: Polotno design file
     role: Editor
+    # Linux only: the deb registers it with shared-mime-info (glob *.polotno).
+    mimeType: application/x-polotno
 win:
   executableName: Polotno
   # `polotno` CLI wrapper; build/installer.nsh puts resources\bin on the PATH.
@@ -64,9 +66,39 @@ mac:
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
+  # The deb's stock after-install links /usr/bin/<executableName> (the `polotno`
+  # CLI) and installs the AppArmor userns profile for /opt/Polotno/<executableName>,
+  # so deb users keep the Chromium sandbox on Ubuntu 24.04+. The AppImage can't
+  # carry a profile and runs with --no-sandbox there (docs/linux-testing.md).
+  executableName: polotno
   target:
     - AppImage
+    - deb
   category: Graphics
+  synopsis: Offline-first desktop design editor
+  # Name the .desktop file after package.json desktopName, which is also the
+  # window's Wayland app_id / X11 WM_CLASS, so docks group the window with it.
+  syncDesktopName: true
+deb:
+  artifactName: ${name}_${version}_${arch}.${ext}
+  # TODO(release): real contact address; dpkg shows it as the package Maintainer.
+  maintainer: Polotno <TODO-maintainer@polotno.com>
+  vendor: Polotno
+  packageCategory: graphics
+  # electron-builder's default list plus ALSA: Electron links libasound.so.2,
+  # which a minimal Ubuntu 24.04 lacks (the app then won't start). The t64
+  # package provides libasound2, so the alternative covers 22.04/Debian too.
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+    - libasound2t64 | libasound2
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false

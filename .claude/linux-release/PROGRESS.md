@@ -21,12 +21,34 @@ Ownership: the windows-release workspace owns the shared items (2.4 Node engines
 skipped here to avoid merge conflicts and marked "done in windows-release".
 
 ## Phase 2 — Packaging fixes
-- [ ] 2.1 `desktopName` in package.json + `linux.syncDesktopName: true` so WM_CLASS/app_id
-      matches the .desktop file (dock icon + window grouping). Verify on Wayland and X11.
-- [ ] 2.2 If deb chosen: `linux.target: [AppImage, deb]`, maintainer/vendor/synopsis fields,
-      AppArmor profile via `deb.afterInstall` (and removal in afterRemove), `polotno` CLI symlink
-      in /usr/bin, MIME type for `.polotno`. Check electron-builder docs for current option names.
-- [ ] 2.3 CI: build.yml smoke-tests the deb too (`dpkg -i`, run CLI render under xvfb).
+- [x] 2.1 `desktopName: polotno.desktop` in package.json + `linux.syncDesktopName: true`: the deb
+      installs /usr/share/applications/polotno.desktop with `StartupWMClass=polotno` (= Electron's
+      app_id/WM_CLASS); the AppImage embeds the same polotno.desktop. The build warning is gone.
+      Still verify on the VM, Wayland and X11 (4.x): dock icon + window grouping.
+- [x] 2.2 deb target (`dist/polotno-app_<v>_amd64.deb`, package `polotno-app`, Section graphics).
+      Finding: electron-builder 26's STOCK deb after-install/after-remove already do the AppArmor
+      part: install `resources/apparmor-profile` (`userns`, flags=(unconfined), for
+      /opt/Polotno/<executable>) to /etc/apparmor.d, load it with apparmor_parser, unload + delete it
+      on remove, link /usr/bin/<executable> via update-alternatives, run update-mime-database /
+      update-desktop-database. So no custom scripts: `linux.executableName: polotno` makes that
+      /usr/bin/polotno (the CLI), /opt/Polotno/polotno and /etc/apparmor.d/polotno. The AppImage's
+      inner binary is renamed too (AppRun `BIN="$APPDIR/polotno"`, render verified).
+      `fileAssociations[].mimeType: application/x-polotno` → /usr/share/mime/packages/polotno.xml
+      (glob *.polotno) + `MimeType=` in the .desktop.
+      `deb.depends` = electron-builder defaults + `libasound2t64 | libasound2` (minimal 24.04 failed
+      with missing libasound.so.2).
+      electron-updater 6.8.9 updates deb installs: resources/package-type=deb → DebUpdater downloads
+      the .deb from latest-linux.yml (lists AppImage + deb) and runs `dpkg -i` via pkexec/gksudo.
+      Verified in an amd64 ubuntu:24.04 container: apt install, /usr/bin/polotno → /opt/Polotno/polotno,
+      globs2 + mimeinfo.cache entries, CLI render (500 KB PNG), apt remove cleans up. AppArmor itself
+      can't run in a container → CI (2.3) and VM.
+      **Blocker before release: `deb.maintainer` is a placeholder (TODO-maintainer@polotno.com) —
+      needs the real contact address from the user.**
+- [x] 2.3 CI: build.yml "deb smoke test" installs the deb with apt, keeps the userns restriction ON
+      (so a successful render proves the AppArmor profile gives Chromium its sandbox), checks the
+      /usr/bin link, aa-status, MIME registration, CLI exit code 2 on no inputs, and removal. Unpacked
+      smoke test path → dist/linux-unpacked/polotno; artifact now includes dist/*.deb.
+      Not run yet — needs a push (ask the user).
 - [x] 2.4 Node requirement `engines` + `.nvmrc` — done in windows-release.
 
 ## Phase 3 — Editor polish
