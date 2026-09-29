@@ -81,8 +81,8 @@ linux:
   syncDesktopName: true
 deb:
   artifactName: ${name}_${version}_${arch}.${ext}
-  # TODO(release): real contact address; dpkg shows it as the package Maintainer.
-  maintainer: Polotno <TODO-maintainer@polotno.com>
+  # dpkg shows it as the package Maintainer.
+  maintainer: Polotno <lavrton@gmail.com>
   vendor: Polotno
   packageCategory: graphics
   # electron-builder's default list plus ALSA: Electron links libasound.so.2,

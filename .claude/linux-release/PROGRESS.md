@@ -42,8 +42,7 @@ skipped here to avoid merge conflicts and marked "done in windows-release".
       Verified in an amd64 ubuntu:24.04 container: apt install, /usr/bin/polotno → /opt/Polotno/polotno,
       globs2 + mimeinfo.cache entries, CLI render (500 KB PNG), apt remove cleans up. AppArmor itself
       can't run in a container → CI (2.3) and VM.
-      **Blocker before release: `deb.maintainer` is a placeholder (TODO-maintainer@polotno.com) —
-      needs the real contact address from the user.**
+      `deb.maintainer: Polotno <lavrton@gmail.com>` (address given by the user).
 - [x] 2.3 CI: build.yml "deb smoke test" installs the deb with apt, keeps the userns restriction ON
       (so a successful render proves the AppArmor profile gives Chromium its sandbox), checks the
       /usr/bin link, aa-status, MIME registration, CLI exit code 2 on no inputs, and removal. Unpacked
@@ -93,4 +92,4 @@ Restart Now / Later / cancelled prompt / manual apt upgrade).
 - [x] 6.2 User install steps: docs/linux-install.md (deb vs AppImage table, apt install, updates,
       uninstall, libfuse2t64/libfuse2, sandbox limitation of the AppImage), linked from README.
       Use it for the release notes.
-- [ ] 6.3 Before tagging: replace the `deb.maintainer` placeholder in electron-builder.yml.
+- [x] 6.3 `deb.maintainer` set to the real address.
