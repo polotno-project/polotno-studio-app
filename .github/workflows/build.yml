@@ -53,6 +53,9 @@ jobs:
           set -x
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=1
           sudo apt-get update -qq
+          # Desktop systems have update-desktop-database; the runner doesn't, and
+          # without it postinst can't write mimeinfo.cache (checked below).
+          sudo apt-get install -y desktop-file-utils
           sudo apt-get install -y ./dist/polotno-app_*_amd64.deb
           test "$(readlink -f /usr/bin/polotno)" = /opt/Polotno/polotno
           sudo aa-status | grep -qw polotno
