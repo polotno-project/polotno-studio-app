@@ -186,3 +186,29 @@ needs a custom list. rpm default depends use Fedora names → soname requires wo
 - [ ] 8.5 Not rehearsed: in-app update for rpm (RpmUpdater → pkexec dnf/zypper) and pacman
       (PacmanUpdater → pkexec pacman -U) — needs a desktop VM with a polkit agent (Fedora VM, like 5.5).
       Not checked on a real desktop: menu entry/dock icon on Fedora GNOME / openSUSE / Arch (4.6).
+
+## Phase 9 — Visual tests on Fedora + Arch VMs (2026-09-30, user chose "Fedora + Arch VMs")
+Packages: CI run 36714269554 artifact (has the Polotno key), in the session scratchpad `ci/`.
+Host has 15.4 GB; HA uses 8 GB → VM 108 shut down, new VMs run one at a time.
+ISOs downloading to `local`: Fedora-Workstation-Live-44-1.7.x86_64.iso, archlinux-x86_64.iso (sha256 checked).
+VMs are created via the Proxmox API from the logged-in web UI tab (fetch with Proxmox.CSRFPreventionToken;
+the MCP can't attach an ISO or import a disk). The live-ISO GUI install was abandoned (noVNC typing drops keys,
+installer footer off-screen) → cloud images instead: downloaded to local ISO storage as
+fedora-44-cloud-base.img / arch-cloudimg.img (sha256 checked), VM created with
+`scsi0: nas-disk:0,import-from=/var/lib/vz/template/iso/<img>,format=qcow2`, `ide2: nas-disk:cloudinit`,
+ciuser polotno + the Mac's ssh key, ipconfig0 dhcp, then resized to 40G. Passwordless sudo via cloud-init.
+GNOME via `dnf install @workstation-product-environment`, graphical.target, GDM autologin for polotno.
+- [x] 9.1 Fedora 44 VM 109 (192.168.0.155, DHCP): cloud image + GNOME 50 (Wayland), snapshot clean-install.
+- [x] 9.2 Fedora (CI rpm, SELinux enforcing): `sudo dnf install ./polotno-app-0.1.1.x86_64.rpm` pulled
+      dejavu-sans-fonts; xdg-mime: application/x-polotno → polotno-app.desktop. Activities search "polo" shows
+      Polotno with its icon; Enter launches it; overview labels the window "Polotno" with the app icon (desktop
+      match). Chromium sandbox ON: no --no-sandbox, sandboxed zygote in its own user namespace, renderer seccomp
+      mode 2. Unsplash photos load (CI key). Double-click sample.polotno in Files (opened from GNOME) → "sample"
+      tab in the running app, second instance exits; GNOME shows '"Polotno" is ready' (same Wayland focus
+      limitation as Ubuntu, already in BACKLOG). Export → PDF → GTK dialog "Export" in ~/Downloads → Save →
+      toast; file 45 KB %PDF, NotoEmoji embedded, Arial → Helvetica (expected).
+      Finding: a Files window started over SSH inherits XDG_SESSION_TYPE=tty; a second instance launched from it
+      picks X11, fails "Missing X server or $DISPLAY" and then hangs in anon_pipe_write instead of exiting
+      (3/3). Not reachable from a real desktop launch → BACKLOG (GUI path without a usable display).
+- [ ] 9.3 Arch VM (110): archinstall + GNOME, snapshot clean-install
+- [ ] 9.4 Arch: pacman -U → same checks
