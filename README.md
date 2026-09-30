@@ -8,7 +8,7 @@ The app has a built-in MCP server. Any AI agent (Claude, Cursor, Codex, …) can
 create, edit, see, and export designs while you edit the same designs in the
 editor. Agent edits and your edits share one undo stack.
 
-Linux: `.deb` and AppImage, see [docs/linux-install.md](docs/linux-install.md).
+Linux: `.deb`, `.rpm`, `.pacman` and AppImage, see [docs/linux-install.md](docs/linux-install.md).
 
 ## Development
 

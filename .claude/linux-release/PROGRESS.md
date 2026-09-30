@@ -162,3 +162,27 @@ config — procedure in docs). A published GitHub release is still the final che
   (A: default .polotno on Save As, B: + library, C: keep .json and fix README). User: no change for
   now → BACKLOG.md. PR #5 marked ready for review.
 
+
+## Phase 8 — Other distros (2026-09-30, user: "proceed with builds for other distros")
+Scope: rpm (Fedora/RHEL/openSUSE) + pacman (Arch/Manjaro) next to AppImage + deb; arm64 stays in BACKLOG.
+Facts: electron-builder 26.15.3 builds both via fpm and writes resources/package-type, so
+electron-updater picks RpmUpdater (zypper/dnf/yum/rpm via pkexec) / PacmanUpdater. The stock
+after-install script is shared with the deb (update-alternatives link, MIME/desktop DB, AppArmor only
+when apparmor_status is enabled). Default pacman depends include http-parser (dropped from Arch) →
+needs a custom list. rpm default depends use Fedora names → soname requires work on openSUSE too.
+- [x] 8.1 electron-builder.yml: rpm + pacman targets. maintainer moved deb → linux (fpm needs it for
+      every target). rpm depends = sonames (+ `(dejavu-sans-fonts or dejavu-fonts)`: minimal openSUSE has
+      no font → Skia FATAL "Not implemented"), `fpm: --directories=/opt/Polotno` (otherwise empty dirs
+      stay after removal). pacman depends = deb set under Arch names + ttf-font.
+      Artifacts: polotno-app-<v>.x86_64.rpm, polotno-app-<v>-x64.pacman.
+- [x] 8.2 Built on macOS (`brew install rpm` for rpmbuild). Containers (amd64, --security-opt
+      seccomp=unconfined, as a non-root user): fedora:latest (44), opensuse/tumbleweed, archlinux:latest →
+      install, /usr/bin/polotno link, no missing libs in ldd, globs2 + mimeinfo.cache, package-type,
+      xvfb-run render ~500 KB PNG exit 0, no inputs exit 2, remove leaves no /usr/bin/polotno or /opt/Polotno.
+- [x] 8.3 CI: build.yml + release.yml install rpm + libarchive-tools on Linux before packaging;
+      build.yml runs scripts/linux-package-smoke.sh in fedora/opensuse/arch containers (script passes
+      locally on all three); artifact includes *.rpm and *.pacman. latest-linux.yml lists all four files.
+- [x] 8.4 Docs: linux-install.md (table + rpm/pacman sections), linux-testing.md, README.
+- [ ] 8.5 Not rehearsed: in-app update for rpm (RpmUpdater → pkexec dnf/zypper) and pacman
+      (PacmanUpdater → pkexec pacman -U) — needs a desktop VM with a polkit agent (Fedora VM, like 5.5).
+      Not checked on a real desktop: menu entry/dock icon on Fedora GNOME / openSUSE / Arch (4.6).

@@ -34,15 +34,15 @@ guest agent is installed, in Proxmox under VM 108 → Summary. In the examples b
 
 **From CI (any PR or push).** `build.yml` uploads each platform's installers
 as an artifact named `polotno-<runner OS>`. The Linux one contains the
-AppImage, the deb and `latest-linux.yml`. Artifacts are kept for 14 days.
+AppImage, the deb, the rpm, the pacman package and `latest-linux.yml`. Artifacts are kept for 14 days.
 
 ```sh
 gh run list --workflow Build --branch <branch> --limit 5
 gh run download <run-id> -n polotno-Linux -D /tmp/polotno-linux
 ```
 
-**Local, from the Mac.** electron-builder can build the x64 AppImage on macOS,
-Apple Silicon included:
+**Local, from the Mac.** electron-builder can build the x64 Linux packages on
+macOS, Apple Silicon included. The rpm needs `rpmbuild` (`brew install rpm`):
 
 ```sh
 npm run build                      # without VITE_POLOTNO_KEY in env/.env, renders carry a
@@ -50,6 +50,8 @@ npm run build                      # without VITE_POLOTNO_KEY in env/.env, rende
 npx electron-builder --linux --x64 --publish never
 # → dist/polotno-app-<version>.AppImage
 #   dist/polotno-app_<version>_amd64.deb
+#   dist/polotno-app-<version>.x86_64.rpm
+#   dist/polotno-app-<version>-x64.pacman
 #   dist/linux-unpacked/polotno   (unpacked app, the one the CI smoke test runs)
 ```
 
@@ -70,6 +72,24 @@ registration, and run
 itself fails there with "Exec format error"; unpack it with
 `unsquashfs -o <offset>` (offset = end of the ELF section headers) and run
 `squashfs-root/AppRun`.
+
+**rpm and pacman** are checked in stock containers by
+`scripts/linux-package-smoke.sh` (CI runs it for Fedora, openSUSE Tumbleweed
+and Arch): install, `/usr/bin/polotno` link, `ldd` finds every library, MIME
+and desktop registration, CLI render as a normal user, removal leaves nothing
+in `/opt/Polotno`. Locally:
+
+```sh
+docker run --rm --platform linux/amd64 --security-opt seccomp=unconfined \
+  -v "$PWD":/w -w /w fedora:latest scripts/linux-package-smoke.sh fedora
+# opensuse/tumbleweed … opensuse, archlinux:latest … arch
+```
+
+Docker's default seccomp profile blocks the user namespaces Chromium's sandbox
+needs (the zygote aborts with "Failed to move to new namespace") and, under
+amd64 emulation, pacman's own sandbox; hence `seccomp=unconfined`. Inspect the
+packages on the Mac with `rpm -qpR`/`rpm -qp --scripts` (brew's rpm) and
+`tar -xOf dist/*.pacman .PKGINFO`.
 
 ## 2. Copy it to the VM
 

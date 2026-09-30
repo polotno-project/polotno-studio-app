@@ -22,6 +22,10 @@ jobs:
       - run: npm run build
         env:
           VITE_POLOTNO_KEY: ${{ secrets.VITE_POLOTNO_KEY }}
+      # rpmbuild for the rpm target, bsdtar for the pacman target.
+      - name: Linux packaging tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y rpm libarchive-tools
       - name: Package (unsigned, no publish)
         run: npx electron-builder --publish never
       - name: CLI smoke test (render bundled templates)
@@ -74,6 +78,17 @@ jobs:
           sudo apt-get remove -y polotno-app
           test ! -e /usr/bin/polotno
           test ! -e /etc/apparmor.d/polotno
+      # Stock Fedora, openSUSE and Arch containers: install the rpm/pacman,
+      # check what it registers, render with the CLI, remove it.
+      - name: rpm/pacman smoke test (Fedora, openSUSE, Arch containers)
+        if: runner.os == 'Linux'
+        run: |
+          for pair in fedora=fedora:latest opensuse=opensuse/tumbleweed arch=archlinux:latest; do
+            echo "::group::${pair%%=*}"
+            docker run --rm --security-opt seccomp=unconfined -v "$PWD":/w -w /w "${pair#*=}" \
+              scripts/linux-package-smoke.sh "${pair%%=*}"
+            echo "::endgroup::"
+          done
       # Runs the packaged binary, so it also covers the Linux packaging. Ubuntu
       # 24.04 blocks unprivileged user namespaces via AppArmor, which Chromium's
       # sandbox needs; lift that on the runner instead of passing --no-sandbox,
@@ -93,6 +108,8 @@ jobs:
           path: |
             dist/*.AppImage
             dist/*.deb
+            dist/*.rpm
+            dist/*.pacman
             dist/*.dmg
             dist/*.zip
             dist/*.exe

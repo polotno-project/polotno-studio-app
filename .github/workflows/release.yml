@@ -21,6 +21,10 @@ jobs:
       - run: npm run build
         env:
           VITE_POLOTNO_KEY: ${{ secrets.VITE_POLOTNO_KEY }}
+      # rpmbuild for the rpm target, bsdtar for the pacman target.
+      - name: Linux packaging tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y rpm libarchive-tools
       - name: Package and upload to draft release
         shell: bash
         # Missing repo secrets arrive as empty strings; electron-builder treats

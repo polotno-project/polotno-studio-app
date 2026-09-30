@@ -1,14 +1,17 @@
 # Installing Polotno on Linux
 
 Every release on the [GitHub releases page](https://github.com/polotno-project/polotno-studio-app/releases)
-has two Linux downloads, both for 64-bit x86 (x64/amd64):
+has four Linux downloads, all for 64-bit x86 (x64/amd64):
 
 | File | For | Menu entry, `.polotno` double-click, `polotno` command | Chromium sandbox on Ubuntu 24.04+ | Updates |
 |---|---|---|---|---|
 | `polotno-app_<version>_amd64.deb` | Ubuntu, Debian, Mint, Pop!_OS and other Debian-based systems | yes | yes | in the app, asks for your password |
+| `polotno-app-<version>.x86_64.rpm` | Fedora, RHEL/Alma/Rocky, openSUSE | yes | yes | in the app, asks for your password |
+| `polotno-app-<version>-x64.pacman` | Arch, Manjaro, EndeavourOS | yes | yes | in the app, asks for your password |
 | `polotno-app-<version>.AppImage` | any distribution, no install needed | no (see below) | no, see [Sandbox](#sandbox) | in the app, no password |
 
-Pick the `.deb` if your system supports it.
+Pick the package for your system (`.deb`, `.rpm` or `.pacman`); the AppImage
+is the fallback for everything else.
 
 ## .deb (Ubuntu, Debian and derivatives)
 
@@ -35,6 +38,41 @@ update is installed as a package, so the system asks for your password.
 the `polotno` command and the AppArmor profile. Your designs (in
 `~/Documents/Polotno` and wherever you saved them) and settings
 (`~/.config/polotno-app`) stay.
+
+## .rpm (Fedora, RHEL and derivatives, openSUSE)
+
+```sh
+sudo dnf install ./polotno-app-<version>.x86_64.rpm                             # Fedora, RHEL
+sudo zypper install --allow-unsigned-rpm ./polotno-app-<version>.x86_64.rpm     # openSUSE
+```
+
+The package isn't signed yet, so zypper needs `--allow-unsigned-rpm` and dnf
+may warn that it skipped the OpenPGP check. After installing you get the same
+as with the `.deb`: the menu entry, `.polotno` double-click and the `polotno`
+command. These systems don't restrict user namespaces, so Chromium's sandbox
+works without an extra profile.
+
+**Updates:** as with the `.deb`: **Restart Now** or **Later**, then the
+system asks for your password and the app installs the update with `dnf` or
+`zypper`.
+
+**Uninstall:** `sudo dnf remove polotno-app` or
+`sudo zypper remove polotno-app`. Designs and settings stay.
+
+## .pacman (Arch and derivatives)
+
+```sh
+sudo pacman -U ./polotno-app-<version>-x64.pacman
+```
+
+pacman installs the dependencies from the repositories; if it asks which font
+provider to use (`ttf-font`), any of them works. You get the menu entry,
+`.polotno` double-click and the `polotno` command.
+
+**Updates:** in the app, installed with `pacman -U` after asking for your
+password.
+
+**Uninstall:** `sudo pacman -R polotno-app`. Designs and settings stay.
 
 ## AppImage (any distribution)
 
@@ -71,4 +109,6 @@ sandbox needs, unless an AppArmor profile allows them for the app. An
 AppImage can't install such a profile, so on these systems the AppImage starts
 Polotno **without the Chromium sandbox** (like most Electron AppImages). The
 sandbox limits the damage if web content inside the app is ever exploited.
-If that matters to you, use the `.deb`, which installs the profile.
+If that matters to you, use the `.deb`, which installs the profile. On
+Fedora, openSUSE and Arch nothing restricts user namespaces, so the AppImage
+keeps the sandbox there too.
