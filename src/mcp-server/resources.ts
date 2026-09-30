@@ -16,17 +16,19 @@ function markdownFiles(dir: string, base: string): string[] {
   return files
 }
 
+// Scanned once: the server is rebuilt for every request.
+let skillFiles: string[] | undefined
+
 export function registerResources(server: McpServer): void {
   const skillDir = process.env.POLOTNO_SKILLS_DIR
   if (!skillDir) return
-  let files: string[]
   try {
-    files = markdownFiles(skillDir, skillDir)
+    skillFiles ??= markdownFiles(skillDir, skillDir)
   } catch (error) {
     console.error('Skill resources unavailable:', error)
-    return
+    skillFiles = []
   }
-  for (const file of files) {
+  for (const file of skillFiles) {
     server.registerResource(
       file,
       `polotno://skill/${file}`,
@@ -39,7 +41,13 @@ export function registerResources(server: McpServer): void {
         mimeType: 'text/markdown'
       },
       (uri) => ({
-        contents: [{ uri: uri.href, mimeType: 'text/markdown', text: readFileSync(join(skillDir, file), 'utf8') }]
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: 'text/markdown',
+            text: readFileSync(join(skillDir, file), 'utf8')
+          }
+        ]
       })
     )
   }
