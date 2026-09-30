@@ -73,6 +73,22 @@ itself fails there with "Exec format error"; unpack it with
 `unsquashfs -o <offset>` (offset = end of the ELF section headers) and run
 `squashfs-root/AppRun`.
 
+**Fedora and Arch desktop VMs** (Proxmox VM 109 `fedora44-polotno-test`, VM 110
+`arch-polotno-test`, snapshot `clean-install` each, user `polotno` with the Mac's
+SSH key and passwordless sudo, GDM auto-login, GNOME 50 on Wayland) were built
+from the distros' cloud images instead of the live installers: the image is
+downloaded into ISO storage as `<name>.img`, the VM is created with
+`scsi0: nas-disk:0,import-from=/var/lib/vz/template/iso/<name>.img` plus a
+cloud-init drive (`ciuser`, `sshkeys`, `ipconfig0=ip=dhcp`), resized to 40G, and
+GNOME is installed over SSH (`dnf install @workstation-product-environment` /
+`pacman -S gnome qemu-guest-agent`). Only one test VM fits in the host's RAM at a
+time. Start the app from Activities, not from an SSH shell: an SSH environment
+has no `LANG` (exports then get the name `download`) and Files started from SSH
+inherits `XDG_SESSION_TYPE=tty` (a second instance then fails on X11 and hangs).
+Keyboard shortcuts into the VM work through the Proxmox API
+(`PUT /nodes/<node>/qemu/<vmid>/sendkey key=meta_l`); noVNC drops Ctrl and
+characters.
+
 **rpm and pacman** are checked in stock containers by
 `scripts/linux-package-smoke.sh` (CI runs it for Fedora, openSUSE Tumbleweed
 and Arch): install, `/usr/bin/polotno` link, `ldd` finds every library, MIME

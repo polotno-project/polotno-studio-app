@@ -134,8 +134,11 @@ pacman:
   artifactName: ${name}-${version}-${arch}.${ext}
   # electron-builder's default pacman list names packages Arch no longer has
   # (http-parser) and libraries Electron bundles itself (ffmpeg, re2, …);
-  # this is the deb's set under Arch package names, plus any font (ttf-font
-  # is Arch's virtual package for one).
+  # this is the deb's set under Arch package names, plus Noto Sans. The UI
+  # font stacks name "Noto Sans" but no GNOME font; without it Chromium takes
+  # the letters from Nimbus Sans (the Helvetica/Arial alias) and the spaces
+  # from Noto Color Emoji, which leaves wide gaps between words. Any other
+  # ttf-font provider (e.g. gnu-free-fonts, pulled in by GNOME) doesn't help.
   depends:
     - gtk3
     - libnotify
@@ -147,7 +150,7 @@ pacman:
     - util-linux-libs
     - libsecret
     - alsa-lib
-    - ttf-font
+    - noto-fonts
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false

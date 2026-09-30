@@ -210,5 +210,20 @@ GNOME via `dnf install @workstation-product-environment`, graphical.target, GDM 
       Finding: a Files window started over SSH inherits XDG_SESSION_TYPE=tty; a second instance launched from it
       picks X11, fails "Missing X server or $DISPLAY" and then hangs in anon_pipe_write instead of exiting
       (3/3). Not reachable from a real desktop launch → BACKLOG (GUI path without a usable display).
-- [ ] 9.3 Arch VM (110): archinstall + GNOME, snapshot clean-install
-- [ ] 9.4 Arch: pacman -U → same checks
+- [x] 9.3 Arch VM 110 (192.168.0.187, no guest agent in the image → found via MAC/arp; guest agent installed
+      afterwards): Arch cloud image 2026-09-15 + `pacman -S gnome qemu-guest-agent` (GNOME 50 Wayland),
+      snapshot clean-install.
+- [x] 9.4 Arch (CI pacman): `pacman -U` added only libxss; Activities search shows Polotno + icon; launches;
+      overview labels the window "Polotno"; sandboxed zygote in its own user namespace; Files (from GNOME)
+      double-click → "sample" tab, second instance exits; PNG export → dialog suggests
+      "🚀-big-news!-we're-launching-something.png" → 2160×2160 PNG.
+      Finding (fixed): wide gaps between words in the UI ("Photos   by   Unsplash", "Connect  AI"). CDP
+      CSS.getPlatformFontsForNode: the stacks ('…"Helvetica Neue", "Noto Sans", Arial, sans-serif, …"Noto Color
+      Emoji"', once via --default-font-family, once hard-coded in the panel CSS) name no GNOME 50 font; letters
+      came from Nimbus Sans (gsfonts, fontconfig's Helvetica/Arial alias), the space from Noto Color Emoji.
+      ttf-font was satisfied by gnu-free-fonts (no effect); ttf-dejavu, ttf-liberation, cantarell-fonts
+      didn't fix it; noto-fonts did → pacman depends ttf-font → noto-fonts (106 MiB). Verified on the rolled-back
+      VM with a local build: noto-fonts pulled in, spacing normal from the first launch. Arch container smoke OK.
+      Not bugs (my SSH launches): export named "download" = app started over SSH without LANG (from Activities
+      the name is right); second-instance hang = XDG_SESSION_TYPE=tty (see 9.2).
+VMs: 109 and 110 shut down after testing; VM 108 (Ubuntu) left stopped.

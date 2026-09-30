@@ -65,8 +65,8 @@ system asks for your password and the app installs the update with `dnf` or
 sudo pacman -U ./polotno-app-<version>-x64.pacman
 ```
 
-pacman installs the dependencies from the repositories; if it asks which font
-provider to use (`ttf-font`), any of them works. You get the menu entry,
+pacman installs the dependencies from the repositories (including
+`noto-fonts`, which the editor's interface text needs). You get the menu entry,
 `.polotno` double-click and the `polotno` command.
 
 **Updates:** in the app, installed with `pacman -U` after asking for your
