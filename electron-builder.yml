@@ -26,6 +26,8 @@ fileAssociations:
     name: Polotno Design
     description: Polotno design file
     role: Editor
+    # Linux only: the deb registers it with shared-mime-info (glob *.polotno).
+    mimeType: application/x-polotno
 win:
   executableName: Polotno
   # `polotno` CLI wrapper; build/installer.nsh puts resources\bin on the PATH.
@@ -64,9 +66,91 @@ mac:
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
+  # The deb's stock after-install links /usr/bin/<executableName> (the `polotno`
+  # CLI) and installs the AppArmor userns profile for /opt/Polotno/<executableName>,
+  # so deb users keep the Chromium sandbox on Ubuntu 24.04+. The AppImage can't
+  # carry a profile and runs with --no-sandbox there (docs/linux-testing.md).
+  executableName: polotno
+  # Standard hicolor sizes. A lone 1024px icon lands in hicolor/1024x1024,
+  # which Ubuntu's hicolor theme doesn't define → GNOME shows a generic gear.
+  icon: build/icons
   target:
     - AppImage
+    - deb
+    - rpm
+    - pacman
   category: Graphics
+  # Package Maintainer/Packager for the deb, rpm and pacman.
+  maintainer: Polotno <lavrton@gmail.com>
+  synopsis: Offline-first desktop design editor
+  # Name the .desktop file after package.json desktopName (also StartupWMClass),
+  # so docks group the window with its launcher. Electron takes the Wayland
+  # app_id from desktopName but the X11 WM_CLASS from app.name (package.json
+  # "name"), so desktopName must stay "<name>.desktop" for both to match.
+  syncDesktopName: true
+deb:
+  artifactName: ${name}_${version}_${arch}.${ext}
+  vendor: Polotno
+  packageCategory: graphics
+  # electron-builder's default list plus ALSA: Electron links libasound.so.2,
+  # which a minimal Ubuntu 24.04 lacks (the app then won't start). The t64
+  # package provides libasound2, so the alternative covers 22.04/Debian too.
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+    - libasound2t64 | libasound2
+rpm:
+  artifactName: ${name}-${version}.${arch}.${ext}
+  vendor: Polotno
+  # fpm lists only files, so removal left empty /opt/Polotno dirs behind;
+  # this makes the rpm own the whole tree.
+  fpm:
+    - --directories=/opt/Polotno
+  # Library sonames instead of package names: Fedora and openSUSE name the
+  # packages differently (gtk3 vs libgtk-3-0, nss vs mozilla-nss), but both
+  # resolve the same sonames. Same set as the deb, plus ALSA and a font:
+  # minimal openSUSE has none and Chromium aborts in Skia (Fedora and Debian
+  # pull one in through gtk3/fontconfig).
+  depends:
+    - libgtk-3.so.0()(64bit)
+    - libnotify.so.4()(64bit)
+    - libnss3.so()(64bit)
+    - libXss.so.1()(64bit)
+    - libXtst.so.6()(64bit)
+    - xdg-utils
+    - libatspi.so.0()(64bit)
+    - libuuid.so.1()(64bit)
+    - libsecret-1.so.0()(64bit)
+    - libasound.so.2()(64bit)
+    - (dejavu-sans-fonts or dejavu-fonts)
+pacman:
+  artifactName: ${name}-${version}-${arch}.${ext}
+  # electron-builder's default pacman list names packages Arch no longer has
+  # (http-parser) and libraries Electron bundles itself (ffmpeg, re2, …);
+  # this is the deb's set under Arch package names, plus Noto Sans. The UI
+  # font stacks name "Noto Sans" but no GNOME font; without it Chromium takes
+  # the letters from Nimbus Sans (the Helvetica/Arial alias) and the spaces
+  # from Noto Color Emoji, which leaves wide gaps between words. Any other
+  # ttf-font provider (e.g. gnu-free-fonts, pulled in by GNOME) doesn't help.
+  depends:
+    - gtk3
+    - libnotify
+    - nss
+    - libxss
+    - libxtst
+    - xdg-utils
+    - at-spi2-core
+    - util-linux-libs
+    - libsecret
+    - alsa-lib
+    - noto-fonts
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false

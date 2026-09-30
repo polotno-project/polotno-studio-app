@@ -61,6 +61,9 @@ export interface MainEvents {
   // The window is closing: save everything, then answer with app:flushDone.
   'app:flushRequest': Record<string, never>
   'bridge:request': BridgeRequest
+  // An export's download finished: saved (completed), cancelled in the save
+  // dialog, or failed (interrupted).
+  'export:downloadDone': { state: 'completed' | 'cancelled' | 'interrupted'; filePath: string }
 }
 
 // Fire-and-forget renderer -> main messages (ipcRenderer.send).

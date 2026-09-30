@@ -5,6 +5,7 @@
   "main": "./out/main/index.js",
   "author": "Polotno",
   "homepage": "https://polotno.com",
+  "desktopName": "polotno-app.desktop",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
