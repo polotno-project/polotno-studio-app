@@ -93,6 +93,7 @@ export function registerIpcHandlers(): void {
 
   handle('dialog:confirm', async (event, { message, detail, confirmLabel }) => {
     const { response } = await dialog.showMessageBox(windowOf(event), {
+      title: 'Polotno',
       type: 'warning',
       message,
       detail,
@@ -105,6 +106,7 @@ export function registerIpcHandlers(): void {
 
   handle('dialog:externalChange', async (event, { name }) => {
     const { response } = await dialog.showMessageBox(windowOf(event), {
+      title: 'Polotno',
       type: 'question',
       message: `"${name}" changed on disk`,
       detail: 'The file was modified outside this app while you have unsaved changes.',

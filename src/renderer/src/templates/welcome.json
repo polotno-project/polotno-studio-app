@@ -276,7 +276,7 @@
           "fontSize": 24,
           "fontFamily": "Arial",
           "align": "left",
-          "text": "<p><span class=\"ql-font-serif\">Quill ql-font-serif class</span> · <span class=\"ql-font-monospace\">ql-font-monospace</span> · <span class=\"ql-size-large\">ql-size-large</span> · <span class=\"ql-size-huge\">ql-size-huge</span> (normalizeRichTextHtml converts these to inline styles).</p>"
+          "text": "<p><span class=\"ql-font-serif\">Quill ql-font-serif class</span> · <span style=\"font-family: 'Courier New', monospace\">inline monospace</span> · <span class=\"ql-size-large\">ql-size-large</span> · <span class=\"ql-size-huge\">ql-size-huge</span> (normalizeRichTextHtml converts these to inline styles).</p>"
         },
         {
           "id": "weight-100-to-900",

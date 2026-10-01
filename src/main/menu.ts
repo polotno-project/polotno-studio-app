@@ -121,6 +121,7 @@ export function installAppMenu(): void {
                   const pages =
                     json.ok && json.value ? (json.value as { pages: unknown[] }).pages.length : '?'
                   dialog.showMessageBoxSync({
+                    title: 'Polotno',
                     message: 'Bridge round-trip',
                     detail: `ping -> ${JSON.stringify(pong)}\nget_json -> ${pages} page(s)`
                   })
