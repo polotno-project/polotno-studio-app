@@ -26,3 +26,15 @@ Started 2026-10-05. Context: .claude/ai-subscription-integration/PROGRESS.md (re
 - .mcpb proxy kept on v1: forwards server/discover without standard headers → app answers -32020 → client falls
   back to initialize (verified with v2 stdio client auto mode). Proxy upgrade in BACKLOG.md.
 - Not done: no visual check of the Connect panel in the running app (row reuses CopyRow; typecheck passes).
+
+## place_image tool + Codex end-to-end (2026-10-05)
+- New tool place_image {designId, pageId?, filePath, x?, y?, width?, height?, props?, atIndex?}
+  (src/mcp-server/local-image.ts reads PNG/JPEG/WebP/GIF/SVG headers for natural size; embeds as data URL;
+  default = fit inside page without upscaling, centered). Parser checked on sips/cwebp-made files of every format.
+- E2E on the Mac: built app launched via Playwright _electron driver (scratchpad/e2e/driver.mjs, HTTP control
+  port 47800 — no tmux on this machine). Real `codex exec` (0.155.0, ChatGPT login) with the Connect-panel config
+  passed as -c overrides + default_tools_approval_mode="approve": create_design → image generation → place_image
+  from ~/.codex/generated_images/<thread>/… → text → render_page → lint (0 findings) → export png. 487k input
+  tokens (419k cached).
+- Finding: get_design_json returns 1.78 MB after place_image (base64 inline). In BACKLOG.md.
+- Left behind: ~/Documents/Polotno/Codex image test.json (the test design) — ask the user before deleting.

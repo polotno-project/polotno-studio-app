@@ -3,6 +3,7 @@ import type { CallToolResult, McpServer } from '@modelcontextprotocol/server'
 import { applyPatch, type Operation } from 'fast-json-patch'
 import { validateDesign } from '@polotno/schema'
 import { rpc } from './bridge-client'
+import { readLocalImage } from './local-image'
 import {
   EXPORT_EXTENSIONS,
   type CommandResult,
@@ -205,6 +206,61 @@ export const TOOLS: ToolDef[] = [
     handler: async ({ designId: id, pageId, element, atIndex }: any) => {
       const { value, rev } = await exec(id, { type: 'add_element', pageId, element, atIndex })
       return json({ ...(value as object), rev })
+    }
+  },
+  {
+    name: 'place_image',
+    description:
+      'Place a local image file (PNG, JPEG, WebP, GIF or SVG — e.g. one you just generated) on a page. The file is embedded in the design, so it can be deleted afterwards. Without width/height it keeps its aspect ratio and fits inside the page; without x/y it is centered. Returns elementId plus the placed box.',
+    schema: {
+      designId,
+      pageId: z.string().optional(),
+      filePath: z.string().describe('Absolute path to the image file'),
+      x: z.number().optional(),
+      y: z.number().optional(),
+      width: z
+        .number()
+        .positive()
+        .optional()
+        .describe('Omit to derive from height and aspect ratio'),
+      height: z
+        .number()
+        .positive()
+        .optional()
+        .describe('Omit to derive from width and aspect ratio'),
+      props: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('Extra element properties, e.g. name, opacity, cornerRadius'),
+      atIndex: z.number().optional().describe('Z-order index to insert at')
+    },
+    handler: async ({
+      designId: id,
+      pageId,
+      filePath,
+      x,
+      y,
+      width,
+      height,
+      props,
+      atIndex
+    }: any) => {
+      const image = await readLocalImage(filePath)
+      const page = (await exec(id, { type: 'get_info' })).value as { width: number; height: number }
+      const aspect = image.width / image.height
+      if (width === undefined && height === undefined) {
+        const scale = Math.min(1, page.width / image.width, page.height / image.height)
+        width = image.width * scale
+        height = image.height * scale
+      } else {
+        width ??= height * aspect
+        height ??= width / aspect
+      }
+      x ??= (page.width - width) / 2
+      y ??= (page.height - height) / 2
+      const element = { ...props, type: image.type, src: image.dataUrl, x, y, width, height }
+      const { value, rev } = await exec(id, { type: 'add_element', pageId, element, atIndex })
+      return json({ ...(value as object), x, y, width, height, rev })
     }
   },
   {

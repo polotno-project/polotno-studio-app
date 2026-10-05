@@ -33,7 +33,8 @@ Workflow:
 1. list_designs / create_design (new designs appear as background tabs).
 2. Edit with the typed tools (add_element, update_element, set_page, …) for
    targeted changes; use get_design_json + patch_design_json (RFC 6902) for
-   bulk or structural edits.
+   bulk or structural edits. place_image puts a local image file (e.g. one
+   you generated) on a page.
 3. LOOK at your work: render_page after edits, and lint_design to catch text
    overflow, contrast and layout problems. Fix errors, then re-render.
 4. export_design writes png/jpeg/pdf files to disk.

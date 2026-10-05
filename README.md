@@ -36,7 +36,7 @@ running to serve agents.
 | VS Code | **Add to VS Code** |
 | Any MCP client | **Copy config JSON** (streamable HTTP + `Authorization: Bearer <token>`) |
 
-Agents get 19 tools (create/edit/render/lint/export) and the bundled
+Agents get 20 tools (create/edit/place images/render/lint/export) and the bundled
 `polotno-design` skill as MCP resources under `polotno://skill/`.
 
 ## Headless CLI
