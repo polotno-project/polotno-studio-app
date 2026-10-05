@@ -12,11 +12,7 @@ import {
 } from 'polotno/primitives/dialog'
 import { Separator } from 'polotno/primitives/separator'
 
-interface McpStatus {
-  running: boolean
-  url: string | null
-  token: string
-}
+import type { McpStatus } from '../../../shared/ipc-contract'
 
 function cursorDeeplink(status: McpStatus): string {
   const config = btoa(
@@ -92,6 +88,9 @@ export function ConnectPanel(): React.JSX.Element {
   useEffect(() => {
     if (!open) return
     void window.desktop.invoke('mcp:getStatus').then(setStatus)
+    // The server restarts asynchronously (token rotation, crash restart):
+    // follow it instead of showing a stale "starting…".
+    return window.desktop.on('mcp:status', setStatus)
   }, [open])
 
   const openLink = (url: string): void => {
@@ -125,7 +124,9 @@ export function ConnectPanel(): React.JSX.Element {
               onClick={() => {
                 void window.desktop.invoke('mcp:saveMcpb').then((result) => {
                   if (result) {
-                    toast.success(`Saved. Double-click ${result.filePath} to install into Claude Desktop.`)
+                    toast.success(
+                      `Saved. Double-click ${result.filePath} to install into Claude Desktop.`
+                    )
                   }
                 })
               }}

@@ -19,6 +19,12 @@ export interface LibraryEntry {
   preview: string | null
 }
 
+export interface McpStatus {
+  running: boolean
+  url: string | null
+  token: string
+}
+
 // Promise-based renderer -> main calls (ipcRenderer.invoke).
 export interface InvokeApi {
   'doc:register': (p: { docId: DocId; filePath: string | null }) => void
@@ -45,7 +51,7 @@ export interface InvokeApi {
   'session:list': () => { filePaths: string[] }
   'dialog:confirm': (p: { message: string; detail?: string; confirmLabel: string }) => boolean
   'dialog:externalChange': (p: { name: string }) => 'reload' | 'keep'
-  'mcp:getStatus': () => { running: boolean; url: string | null; token: string }
+  'mcp:getStatus': () => McpStatus
   'mcp:regenerateToken': () => { token: string }
   'mcp:saveMcpb': () => { filePath: string } | null
   'mcp:installSkill': () => { path: string }
@@ -69,6 +75,8 @@ export interface MainEvents {
   'app:flushRequest': Record<string, never>
   'bridge:request': BridgeRequest
   'codex:event': CodexEvent
+  // The MCP server started listening or went away (Connect panel stays live).
+  'mcp:status': McpStatus
 }
 
 // Fire-and-forget renderer -> main messages (ipcRenderer.send).

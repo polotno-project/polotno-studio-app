@@ -64,3 +64,12 @@ Started 2026-10-05. Context: .claude/ai-subscription-integration/PROGRESS.md (re
   vinyl badge (~2.5 min); Stop interrupts within ~1 s and shows "Stopped.".
 - Fixed during testing: image card collapsed in an overflowing flex column (shrink-0); repeated tool rows grouped ×N.
 - Open items in BACKLOG.md (SIWC, user MCP servers merge, untested states, Windows lookup, persistence).
+
+## Bug: Connect panel stuck on "starting…" after token regeneration (2026-10-05)
+- Root cause: restartMcpServer() returns before the new utilityProcess is listening (currentUrl null); the panel
+  read mcp:getStatus once right after and never again. The server itself restarted fine (verified on the user's
+  running instance: healthy, new token in discovery + settings).
+- Refuted: port race on restart — 6 regenerations on a fixed port (41499) all kept the port.
+- Fix: launcher pushes 'mcp:status' on listening/exit; the open Connect panel subscribes.
+- Verified in an isolated second instance (--user-data-dir in scratchpad, so the user's running app was not
+  touched): 3 UI regenerations → panel shows "running" each time; copied command carries the new token.

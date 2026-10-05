@@ -1,16 +1,12 @@
-import { app, utilityProcess, type UtilityProcess } from 'electron'
+import { app, BrowserWindow, utilityProcess, type UtilityProcess } from 'electron'
 import { promises as fs } from 'node:fs'
 import { basename, join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
+import type { McpStatus } from '../../shared/ipc-contract'
 import type { ChildToMain, RpcMethod, RpcRequestMap } from '../../shared/mcp-rpc'
 import { execCommand, execAppCommand } from '../bridge-router'
 import { listRecent } from '../recent'
-import {
-  cleanStaleDiscovery,
-  getMcpToken,
-  removeDiscoveryFile,
-  writeDiscoveryFile
-} from './token'
+import { cleanStaleDiscovery, getMcpToken, removeDiscoveryFile, writeDiscoveryFile } from './token'
 
 // Runs the MCP server as a utilityProcess and answers its RPCs by routing
 // through the bridge into the live editor. Restarts on crash with a cap so a
@@ -21,8 +17,15 @@ let currentUrl: string | null = null
 let stopping = false
 let restarts: number[] = []
 
-export function getMcpStatus(): { running: boolean; url: string | null; token: string } {
+export function getMcpStatus(): McpStatus {
   return { running: child !== null && currentUrl !== null, url: currentUrl, token: getMcpToken() }
+}
+
+// The server comes up asynchronously (after a launch or a token rotation), so
+// a status read can be stale moments later; push every change to the windows.
+function broadcastStatus(): void {
+  const status = getMcpStatus()
+  for (const win of BrowserWindow.getAllWindows()) win.webContents.send('mcp:status', status)
 }
 
 function serverEntryPath(): string {
@@ -98,6 +101,7 @@ export function startMcpServer(): void {
     if (message.type === 'listening') {
       currentUrl = message.url
       void writeDiscoveryFile(message.url, token)
+      broadcastStatus()
       return
     }
     if (message.type === 'rpc') {
@@ -120,6 +124,7 @@ export function startMcpServer(): void {
     child = null
     currentUrl = null
     if (stopping) return
+    broadcastStatus()
     console.error(`MCP server exited with code ${code}`)
     const now = Date.now()
     restarts = restarts.filter((t) => now - t < 60_000)
