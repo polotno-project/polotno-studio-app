@@ -304,7 +304,8 @@ design with the polotno MCP tools; do not create other designs unless asked.
 // Codex features a design conversation must not have. With these off, the
 // polotno MCP tools and image generation are the whole toolbox: no shell or
 // file viewer that could read the user's files on behalf of a prompt that
-// arrived inside a design, no browser, connectors, plugins, or sub-agents.
+// arrived inside a design, no web, browser, connectors, or plugins. (Codex's
+// own `exec` stays: it only chains these tools and has no file access.)
 const DISABLED_FEATURES = [
   'shell_tool',
   'unified_exec',
@@ -339,6 +340,7 @@ async function threadConfig(
       }
     },
     'features.image_generation': true,
+    web_search: 'disabled',
     ...Object.fromEntries(DISABLED_FEATURES.map((feature) => [`features.${feature}`, false]))
   }
 }

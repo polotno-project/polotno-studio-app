@@ -78,3 +78,7 @@ Started 2026-10-05. Context: .claude/ai-subscription-integration/PROGRESS.md (re
 - User manually tested most untested paths from the testing guide (results not itemized in-session).
 - Codex review requested via `codex exec` (read-only); findings handled before the PR.
 - Full `npm run build` (typecheck + app + MCP server + .mcpb) passes.
+- Codex review: 18 findings. Fixed + verified live: #1 (lockdown + web_search disabled), #2, #4, #5, #6, #7, #8, #10,
+  #11, #14, #17. Deferred to BACKLOG.md: #3, #9, #12, #13, #15, #16, #18.
+- Lockdown probe: no shell/web/user MCP servers; Codex `exec` (code-mode tool chaining) remains, no file access.
+- Test designs left in ~/Documents/Polotno: Review fixes.json, Close test spare.json (plus earlier ones).
