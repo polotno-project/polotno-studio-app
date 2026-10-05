@@ -31,11 +31,12 @@ running to serve agents.
 | --- | --- |
 | Claude Desktop | **Download for Claude Desktop (.mcpb)**, then double-click the file |
 | Claude Code | **Copy Claude Code command**, then paste it in a terminal |
+| Codex (CLI, app, IDE) | **Copy Codex config**, then paste it into `~/.codex/config.toml` |
 | Cursor | **Add to Cursor** |
 | VS Code | **Add to VS Code** |
 | Any MCP client | **Copy config JSON** (streamable HTTP + `Authorization: Bearer <token>`) |
 
-Agents get 19 tools (create/edit/render/lint/export) and the bundled
+Agents get 20 tools (create/edit/place images/render/lint/export) and the bundled
 `polotno-design` skill as MCP resources under `polotno://skill/`.
 
 ## Headless CLI

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { McpServer } from '@modelcontextprotocol/server'
 
 // User-facing MCP prompts. `setup` is the first-run flow — deliberately a
 // setup check that ends in one design, not a product tour. `design-skill`

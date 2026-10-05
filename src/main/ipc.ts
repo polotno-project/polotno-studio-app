@@ -19,6 +19,14 @@ import { markRendererReady } from './open-files'
 import { getMcpStatus, restartMcpServer } from './mcp/launcher'
 import { regenerateMcpToken } from './mcp/token'
 import {
+  getCodexStatus,
+  resetAllCodex,
+  resetCodex,
+  runCodex,
+  signInToCodex,
+  stopCodex
+} from './codex/session'
+import {
   readDesignFile,
   readDesignFileBase64,
   writeDesignFile,
@@ -59,6 +67,9 @@ export function registerIpcHandlers(): void {
     persistSession()
   })
   handle('doc:close', (_event, { docId }) => {
+    // A Codex run on a closed design would keep spending usage on edits that
+    // can no longer land.
+    resetCodex(docId)
     unwatchDocument(docId)
     documents.close(docId)
     persistSession()
@@ -125,6 +136,7 @@ export function registerIpcHandlers(): void {
   handle('mcp:regenerateToken', () => {
     const token = regenerateMcpToken()
     restartMcpServer()
+    resetAllCodex()
     return { token }
   })
   handle('mcp:saveMcpb', async (event) => {
@@ -153,4 +165,9 @@ export function registerIpcHandlers(): void {
     if (!/^(https?|cursor|vscode):/.test(url)) throw new Error(`Refusing to open ${url}`)
     void shell.openExternal(url)
   })
+  handle('codex:status', () => getCodexStatus())
+  handle('codex:signIn', () => signInToCodex())
+  handle('codex:run', (_event, { docId, prompt }) => runCodex(docId, prompt))
+  handle('codex:stop', (_event, { docId }) => stopCodex(docId))
+  handle('codex:reset', (_event, { docId }) => resetCodex(docId))
 }

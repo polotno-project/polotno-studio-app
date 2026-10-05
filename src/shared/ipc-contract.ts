@@ -1,5 +1,6 @@
 import type { BridgeRequest, BridgeResponse } from './bridge-protocol'
 import type { DocId, RecentEntry } from './types'
+import type { CodexEvent, CodexStatus } from './codex'
 
 // Single source of truth for every IPC channel. The preload derives the typed
 // window.desktop API from these interfaces; main registers handlers against
@@ -16,6 +17,12 @@ export interface LibraryEntry {
   modifiedAt: number
   // Small JPEG data URL, or null when no thumbnail exists yet.
   preview: string | null
+}
+
+export interface McpStatus {
+  running: boolean
+  url: string | null
+  token: string
 }
 
 // Promise-based renderer -> main calls (ipcRenderer.invoke).
@@ -44,11 +51,17 @@ export interface InvokeApi {
   'session:list': () => { filePaths: string[] }
   'dialog:confirm': (p: { message: string; detail?: string; confirmLabel: string }) => boolean
   'dialog:externalChange': (p: { name: string }) => 'reload' | 'keep'
-  'mcp:getStatus': () => { running: boolean; url: string | null; token: string }
+  'mcp:getStatus': () => McpStatus
   'mcp:regenerateToken': () => { token: string }
   'mcp:saveMcpb': () => { filePath: string } | null
   'mcp:installSkill': () => { path: string }
   'shell:openExternal': (p: { url: string }) => void
+  // In-app generation through the user's Codex install (src/main/codex).
+  'codex:status': () => CodexStatus
+  'codex:signIn': () => void
+  'codex:run': (p: { docId: DocId; prompt: string }) => void
+  'codex:stop': (p: { docId: DocId }) => void
+  'codex:reset': (p: { docId: DocId }) => void
 }
 
 export type MenuAction = 'newTab' | 'openFile' | 'save' | 'saveAs' | 'closeTab' | 'export'
@@ -61,6 +74,9 @@ export interface MainEvents {
   // The window is closing: save everything, then answer with app:flushDone.
   'app:flushRequest': Record<string, never>
   'bridge:request': BridgeRequest
+  'codex:event': CodexEvent
+  // The MCP server started listening or went away (Connect panel stays live).
+  'mcp:status': McpStatus
 }
 
 // Fire-and-forget renderer -> main messages (ipcRenderer.send).

@@ -1,9 +1,10 @@
 import { z } from 'zod'
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { CallToolResult, McpServer } from '@modelcontextprotocol/server'
 import { applyPatch, type Operation } from 'fast-json-patch'
 import { validateDesign } from '@polotno/schema'
 import { rpc } from './bridge-client'
+import { readLocalImage } from './local-image'
+import { elideDataUrls, hasDataRefs, restoreDataUrls } from './data-urls'
 import {
   EXPORT_EXTENSIONS,
   type CommandResult,
@@ -51,6 +52,72 @@ async function exec(
   command: DesignCommand
 ): Promise<{ value: unknown; rev?: number }> {
   return unwrap(await rpc('design.exec', { docId: designId, command }))
+}
+
+type Json = Record<string, unknown>
+type DesignJson = { pages: { id: string; children: Json[] }[] }
+
+// Agents write numeric weights (700); the file format only takes strings.
+function coerceElement(element: Json): Json {
+  const out = { ...element }
+  if (typeof out.fontWeight === 'number') out.fontWeight = String(out.fontWeight)
+  if (Array.isArray(out.children)) out.children = (out.children as Json[]).map(coerceElement)
+  return out
+}
+
+// The store generates element ids on insert, nested group children
+// included; the schema requires them, so the validation copy gets stand-ins.
+function withPendingIds(element: Json, path = 'pending'): Json {
+  const out = { ...element, id: element.id ?? path }
+  if (Array.isArray(out.children)) {
+    out.children = (out.children as Json[]).map((child, i) => withPendingIds(child, `${path}-${i}`))
+  }
+  return out
+}
+
+function findElement(children: Json[], id: string): Json | undefined {
+  for (const child of children) {
+    if (child.id === id) return child
+    const nested = Array.isArray(child.children) && findElement(child.children as Json[], id)
+    if (nested) return nested
+  }
+  return undefined
+}
+
+// Restores get_design_json's asset references in values that skip the
+// element schema check (page backgrounds).
+async function withAssets<T>(designId: string, value: T): Promise<T> {
+  if (!hasDataRefs(value)) return value
+  return restoreDataUrls(value, (await exec(designId, { type: 'get_json' })).value)
+}
+
+// Element edits are checked against the file-format schema before they reach
+// the store. The live store accepts values a saved file cannot (fontWeight:
+// 700), and a design saved with them refuses to reopen. Also swaps the short
+// asset references get_design_json hands out back to their data URLs.
+async function checkedEdit(
+  designId: string,
+  edit: { add: Json; pageId?: string } | { update: Json; elementId: string }
+): Promise<Json> {
+  const design = (await exec(designId, { type: 'get_json' })).value as DesignJson
+  const candidate = structuredClone(design)
+  let result: Json
+  if ('add' in edit) {
+    result = coerceElement(restoreDataUrls(edit.add, design))
+    const page = candidate.pages.find((p) => p.id === edit.pageId) ?? candidate.pages[0]
+    page?.children.push(withPendingIds(result))
+  } else {
+    result = coerceElement(restoreDataUrls(edit.update, design))
+    const target = candidate.pages.map((p) => findElement(p.children, edit.elementId)).find(Boolean)
+    if (target) Object.assign(target, withPendingIds({ ...result, id: target.id }))
+  }
+  const check = validateDesign(candidate)
+  if (!check.valid) {
+    throw new Error(
+      `invalid_args: the element would make the design invalid: ${JSON.stringify(check.errors?.slice(0, 5))}`
+    )
+  }
+  return result
 }
 
 const designId = z.string().describe('The design id (from list_designs or create_design)')
@@ -160,7 +227,11 @@ export const TOOLS: ToolDef[] = [
       duration: z.number().optional().describe('Page duration in ms (for video designs)')
     },
     handler: async ({ designId: id, background, duration }: any) => {
-      const { value, rev } = await exec(id, { type: 'add_page', background, duration })
+      const { value, rev } = await exec(id, {
+        type: 'add_page',
+        background: await withAssets(id, background),
+        duration
+      })
       return json({ ...(value as object), rev })
     }
   },
@@ -187,7 +258,11 @@ export const TOOLS: ToolDef[] = [
     description: 'Set page properties (background color/image URL, duration, width/height, …).',
     schema: { designId, pageId: z.string(), props: z.record(z.string(), z.unknown()) },
     handler: async ({ designId: id, pageId, props }: any) => {
-      const { rev } = await exec(id, { type: 'set_page', pageId, props })
+      const { rev } = await exec(id, {
+        type: 'set_page',
+        pageId,
+        props: await withAssets(id, props)
+      })
       return json({ ok: true, rev })
     }
   },
@@ -204,8 +279,71 @@ export const TOOLS: ToolDef[] = [
       atIndex: z.number().optional().describe('Z-order index to insert at')
     },
     handler: async ({ designId: id, pageId, element, atIndex }: any) => {
-      const { value, rev } = await exec(id, { type: 'add_element', pageId, element, atIndex })
+      const { value, rev } = await exec(id, {
+        type: 'add_element',
+        pageId,
+        element: await checkedEdit(id, { add: element, pageId }),
+        atIndex
+      })
       return json({ ...(value as object), rev })
+    }
+  },
+  {
+    name: 'place_image',
+    description:
+      'Place a local image file (PNG, JPEG, WebP, GIF or SVG — e.g. one you just generated) on a page. The file is embedded in the design, so it can be deleted afterwards. Without width/height it keeps its aspect ratio and fits inside the page; without x/y it is centered. Returns elementId plus the placed box.',
+    schema: {
+      designId,
+      pageId: z.string().optional(),
+      filePath: z.string().describe('Absolute path to the image file'),
+      x: z.number().optional(),
+      y: z.number().optional(),
+      width: z
+        .number()
+        .positive()
+        .optional()
+        .describe('Omit to derive from height and aspect ratio'),
+      height: z
+        .number()
+        .positive()
+        .optional()
+        .describe('Omit to derive from width and aspect ratio'),
+      props: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('Extra element properties, e.g. name, opacity, cornerRadius'),
+      atIndex: z.number().optional().describe('Z-order index to insert at')
+    },
+    handler: async ({
+      designId: id,
+      pageId,
+      filePath,
+      x,
+      y,
+      width,
+      height,
+      props,
+      atIndex
+    }: any) => {
+      const image = await readLocalImage(filePath)
+      const page = (await exec(id, { type: 'get_info' })).value as { width: number; height: number }
+      const aspect = image.width / image.height
+      if (width === undefined && height === undefined) {
+        const scale = Math.min(1, page.width / image.width, page.height / image.height)
+        width = image.width * scale
+        height = image.height * scale
+      } else {
+        width ??= height * aspect
+        height ??= width / aspect
+      }
+      x ??= (page.width - width) / 2
+      y ??= (page.height - height) / 2
+      const element = await checkedEdit(id, {
+        add: { ...props, type: image.type, src: image.dataUrl, x, y, width, height },
+        pageId
+      })
+      const { value, rev } = await exec(id, { type: 'add_element', pageId, element, atIndex })
+      return json({ ...(value as object), x, y, width, height, rev })
     }
   },
   {
@@ -213,7 +351,11 @@ export const TOOLS: ToolDef[] = [
     description: 'Update properties of an element by id.',
     schema: { designId, elementId: z.string(), props: z.record(z.string(), z.unknown()) },
     handler: async ({ designId: id, elementId, props }: any) => {
-      const { rev } = await exec(id, { type: 'update_element', elementId, props })
+      const { rev } = await exec(id, {
+        type: 'update_element',
+        elementId,
+        props: await checkedEdit(id, { update: props, elementId })
+      })
       return json({ ok: true, rev })
     }
   },
@@ -243,11 +385,11 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'get_design_json',
     description:
-      'Full design JSON (store.toJSON() shape) with the current rev. Use rev as baseRev when patching.',
+      'Full design JSON (store.toJSON() shape) with the current rev. Use rev as baseRev when patching. Embedded assets (long data: URLs) are shortened to "data-elided:<mime>;bytes=…;sha=…" references; keep or copy a reference as-is (in patches, add_element, update_element) and it resolves to the original asset.',
     schema: { designId },
     handler: async ({ designId: id }: any) => {
       const { value, rev } = await exec(id, { type: 'get_json' })
-      return json({ rev, json: value })
+      return json({ rev, json: elideDataUrls(value) })
     }
   },
   {
@@ -266,11 +408,14 @@ export const TOOLS: ToolDef[] = [
           `rev_conflict: design is at rev ${current.rev}, you based the patch on rev ${baseRev}. Re-read with get_design_json.`
         )
       }
+      // Elision only rewrites leaf strings, so the agent's paths address the
+      // full design unchanged; only references inside op values need restoring.
+      const ops = restoreDataUrls(patch, current.value)
       let patched: unknown
       try {
         patched = applyPatch(
           structuredClone(current.value),
-          patch as unknown as Operation[],
+          ops as unknown as Operation[],
           true,
           false
         ).newDocument
@@ -375,7 +520,7 @@ export function registerTools(server: McpServer): void {
   for (const tool of TOOLS) {
     server.registerTool(
       tool.name,
-      { description: tool.description, inputSchema: tool.schema },
+      { description: tool.description, inputSchema: z.object(tool.schema) },
       async (args: Record<string, never>) => toCallToolResult(await tool.handler(args))
     )
   }
