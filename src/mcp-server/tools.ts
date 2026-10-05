@@ -4,6 +4,7 @@ import { applyPatch, type Operation } from 'fast-json-patch'
 import { validateDesign } from '@polotno/schema'
 import { rpc } from './bridge-client'
 import { readLocalImage } from './local-image'
+import { elideDataUrls, restoreDataUrls } from './data-urls'
 import {
   EXPORT_EXTENSIONS,
   type CommandResult,
@@ -51,6 +52,55 @@ async function exec(
   command: DesignCommand
 ): Promise<{ value: unknown; rev?: number }> {
   return unwrap(await rpc('design.exec', { docId: designId, command }))
+}
+
+type Json = Record<string, unknown>
+type DesignJson = { pages: { id: string; children: Json[] }[] }
+
+// Agents write numeric weights (700); the file format only takes strings.
+function coerceElement(element: Json): Json {
+  const out = { ...element }
+  if (typeof out.fontWeight === 'number') out.fontWeight = String(out.fontWeight)
+  if (Array.isArray(out.children)) out.children = (out.children as Json[]).map(coerceElement)
+  return out
+}
+
+function findElement(children: Json[], id: string): Json | undefined {
+  for (const child of children) {
+    if (child.id === id) return child
+    const nested = Array.isArray(child.children) && findElement(child.children as Json[], id)
+    if (nested) return nested
+  }
+  return undefined
+}
+
+// Element edits are checked against the file-format schema before they reach
+// the store. The live store accepts values a saved file cannot (fontWeight:
+// 700), and a design saved with them refuses to reopen. Also swaps the short
+// asset references get_design_json hands out back to their data URLs.
+async function checkedEdit(
+  designId: string,
+  edit: { add: Json; pageId?: string } | { update: Json; elementId: string }
+): Promise<Json> {
+  const design = (await exec(designId, { type: 'get_json' })).value as DesignJson
+  const candidate = structuredClone(design)
+  let result: Json
+  if ('add' in edit) {
+    result = coerceElement(restoreDataUrls(edit.add, design))
+    const page = candidate.pages.find((p) => p.id === edit.pageId) ?? candidate.pages[0]
+    page?.children.push({ ...result, id: result.id ?? 'pending' })
+  } else {
+    result = coerceElement(restoreDataUrls(edit.update, design))
+    const target = candidate.pages.map((p) => findElement(p.children, edit.elementId)).find(Boolean)
+    if (target) Object.assign(target, result)
+  }
+  const check = validateDesign(candidate)
+  if (!check.valid) {
+    throw new Error(
+      `invalid_args: the element would make the design invalid: ${JSON.stringify(check.errors?.slice(0, 5))}`
+    )
+  }
+  return result
 }
 
 const designId = z.string().describe('The design id (from list_designs or create_design)')
@@ -204,7 +254,12 @@ export const TOOLS: ToolDef[] = [
       atIndex: z.number().optional().describe('Z-order index to insert at')
     },
     handler: async ({ designId: id, pageId, element, atIndex }: any) => {
-      const { value, rev } = await exec(id, { type: 'add_element', pageId, element, atIndex })
+      const { value, rev } = await exec(id, {
+        type: 'add_element',
+        pageId,
+        element: await checkedEdit(id, { add: element, pageId }),
+        atIndex
+      })
       return json({ ...(value as object), rev })
     }
   },
@@ -258,7 +313,10 @@ export const TOOLS: ToolDef[] = [
       }
       x ??= (page.width - width) / 2
       y ??= (page.height - height) / 2
-      const element = { ...props, type: image.type, src: image.dataUrl, x, y, width, height }
+      const element = await checkedEdit(id, {
+        add: { ...props, type: image.type, src: image.dataUrl, x, y, width, height },
+        pageId
+      })
       const { value, rev } = await exec(id, { type: 'add_element', pageId, element, atIndex })
       return json({ ...(value as object), x, y, width, height, rev })
     }
@@ -268,7 +326,11 @@ export const TOOLS: ToolDef[] = [
     description: 'Update properties of an element by id.',
     schema: { designId, elementId: z.string(), props: z.record(z.string(), z.unknown()) },
     handler: async ({ designId: id, elementId, props }: any) => {
-      const { rev } = await exec(id, { type: 'update_element', elementId, props })
+      const { rev } = await exec(id, {
+        type: 'update_element',
+        elementId,
+        props: await checkedEdit(id, { update: props, elementId })
+      })
       return json({ ok: true, rev })
     }
   },
@@ -298,11 +360,11 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'get_design_json',
     description:
-      'Full design JSON (store.toJSON() shape) with the current rev. Use rev as baseRev when patching.',
+      'Full design JSON (store.toJSON() shape) with the current rev. Use rev as baseRev when patching. Embedded assets (long data: URLs) are shortened to "data-elided:<mime>;bytes=…;sha=…" references; keep or copy a reference as-is (in patches, add_element, update_element) and it resolves to the original asset.',
     schema: { designId },
     handler: async ({ designId: id }: any) => {
       const { value, rev } = await exec(id, { type: 'get_json' })
-      return json({ rev, json: value })
+      return json({ rev, json: elideDataUrls(value) })
     }
   },
   {
@@ -321,11 +383,14 @@ export const TOOLS: ToolDef[] = [
           `rev_conflict: design is at rev ${current.rev}, you based the patch on rev ${baseRev}. Re-read with get_design_json.`
         )
       }
+      // Elision only rewrites leaf strings, so the agent's paths address the
+      // full design unchanged; only references inside op values need restoring.
+      const ops = restoreDataUrls(patch, current.value)
       let patched: unknown
       try {
         patched = applyPatch(
           structuredClone(current.value),
-          patch as unknown as Operation[],
+          ops as unknown as Operation[],
           true,
           false
         ).newDocument

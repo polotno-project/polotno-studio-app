@@ -38,3 +38,13 @@ Started 2026-10-05. Context: .claude/ai-subscription-integration/PROGRESS.md (re
   tokens (419k cached).
 - Finding: get_design_json returns 1.78 MB after place_image (base64 inline). In BACKLOG.md.
 - Left behind: ~/Documents/Polotno/Codex image test.json (the test design) — ask the user before deleting.
+
+## get_design_json elision + schema-checked element edits (2026-10-05)
+- src/mcp-server/data-urls.ts: get_design_json swaps data: URLs >= 1024 chars for
+  `data-elided:<mime>;bytes=<n>;sha=<16hex>`; patch_design_json / add_element / update_element / place_image restore
+  them from the current design (unknown ref → invalid_args). Live test: 1.78 MB → 1,027 chars.
+- Bug found in the Codex run: add_element accepted fontWeight: 700 (number); the store kept it, the saved file
+  failed @polotno/schema and the design refused to reopen ("invalid-project"). Element edits are now validated
+  against the schema before reaching the store (checkedEdit in tools.ts); numeric fontWeight is coerced to string.
+- Broken test file left in the library: ~/Documents/Polotno/Codex image test.json (fontWeight 700). Also
+  "Elision test.json" from this test. Ask the user before deleting either.

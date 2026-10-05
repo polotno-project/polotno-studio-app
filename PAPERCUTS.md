@@ -17,3 +17,4 @@
 - 2026-09-25 [claude-opus-5-5] rg --include glob failed under zsh (no matches found: --include=*.tsx); quote globs in grep calls
 - 2026-09-25 [claude-opus-5-5] codex exec image test: the user's global ~/.codex MCP servers load into every run (a Cloudflare one errored on auth), which adds tokens and noise; the app should run codex with MCP disabled
 - 2026-10-05 [claude-opus-5-5] npm install @modelcontextprotocol/node@^2.3.1 failed (ETARGET): the v2 MCP packages are versioned independently — server is 2.3.1 but node is 2.1.1; check each with npm view first
+- 2026-10-05 [claude-opus-5-5] Playwright _electron app.close() hung on the Polotno app (driver answered /quit but Electron kept running), so the next launch silently exited on the single-instance lock; kill app.process().pid after a timeout
