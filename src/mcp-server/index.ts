@@ -1,8 +1,8 @@
 import { timingSafeEqual } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import express from 'express'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
+import { toNodeHandler } from '@modelcontextprotocol/node'
 import { z } from 'zod'
 import { registerTools, resolveTool } from './tools'
 import { registerResources } from './resources'
@@ -149,30 +149,25 @@ app.get('/', (_req, res) => {
   res.json({ name: 'polotno-app-mcp', endpoint: '/mcp' })
 })
 
-// Stateless: a fresh server + transport per request, no sessions. The server
-// never pushes to the client (no list_changed, logging, sampling), and without
-// sessions a client — or the .mcpb proxy — survives an app restart untouched:
-// the port and the per-install token stay the same. The .mcpb installed in
-// Claude Desktop never auto-updates, so this side has to carry that.
-app.post('/mcp', (req, res) => {
-  void (async () => {
-    const server = createServer()
-    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
-    res.on('close', () => {
-      void transport.close()
-      void server.close()
-    })
-    await server.connect(transport)
-    await transport.handleRequest(req, res, req.body)
-  })().catch((error) => {
-    console.error('MCP request failed', error)
-    if (!res.headersSent) res.status(500).end()
-  })
+// Stateless: a fresh server per request, no sessions. Serves the 2026-07-28
+// protocol (server/discover, per-request envelope) and, for older clients, the
+// 2025-era initialize handshake from the same factory. The server never pushes
+// to the client (no list_changed, logging, sampling), and without sessions a
+// client — or the .mcpb proxy — survives an app restart untouched: the port
+// and the per-install token stay the same. The .mcpb installed in Claude
+// Desktop never auto-updates, so this side has to carry that.
+const logError = (error: Error): void => console.error('MCP request failed', error)
+const mcpHandler = toNodeHandler(createMcpHandler(createServer, { onerror: logError }), {
+  onerror: logError
 })
 
-// No standalone SSE stream (GET) or session to end (DELETE) without sessions.
-app.all('/mcp', (_req, res) => {
-  res.status(405).set('Allow', 'POST').end()
+// express.json() already consumed the stream; hand over the parsed body, which
+// also keeps its 100mb limit in charge instead of the handler's 4 MiB default.
+app.all('/mcp', (req, res) => {
+  mcpHandler(req, res, req.body).catch((error: Error) => {
+    logError(error)
+    if (!res.headersSent) res.status(500).end()
+  })
 })
 
 function listen(port: number, fallbackToEphemeral: boolean): void {

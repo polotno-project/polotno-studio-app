@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { CallToolResult, McpServer } from '@modelcontextprotocol/server'
 import { applyPatch, type Operation } from 'fast-json-patch'
 import { validateDesign } from '@polotno/schema'
 import { rpc } from './bridge-client'
@@ -375,7 +374,7 @@ export function registerTools(server: McpServer): void {
   for (const tool of TOOLS) {
     server.registerTool(
       tool.name,
-      { description: tool.description, inputSchema: tool.schema },
+      { description: tool.description, inputSchema: z.object(tool.schema) },
       async (args: Record<string, never>) => toCallToolResult(await tool.handler(args))
     )
   }
