@@ -23,6 +23,17 @@ const threadByDoc = new Map<DocId, string>()
 const docByThread = new Map<string, DocId>()
 const turnByThread = new Map<string, string>()
 const messageText = new Map<string, string>()
+// Designs with a run in flight, claimed before the first await so a double
+// submit cannot start two turns on one design.
+const busy = new Set<DocId>()
+// Stop pressed before turn/start answered: interrupt as soon as the id is known.
+const stopRequested = new Set<DocId>()
+
+function finishRun(docId: DocId): void {
+  busy.delete(docId)
+  stopRequested.delete(docId)
+  emit({ type: 'turn', docId, state: 'idle' })
+}
 
 function emit(event: CodexEvent): void {
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send('codex:event', event)
@@ -110,12 +121,9 @@ async function start(): Promise<AppServer | null> {
     onNotification,
     onRequest,
     onExit: () => {
+      if (server !== codex && server !== null) return
       server = null
-      for (const [threadId, turnId] of turnByThread) {
-        if (!turnId) continue
-        const docId = docByThread.get(threadId)
-        if (docId) emit({ type: 'turn', docId, state: 'idle' })
-      }
+      for (const docId of [...busy]) finishRun(docId)
       threadByDoc.clear()
       docByThread.clear()
       turnByThread.clear()
@@ -136,6 +144,11 @@ async function start(): Promise<AppServer | null> {
     setStatus({ state: 'error', message: error instanceof Error ? error.message : String(error) })
     return null
   }
+}
+
+function refreshAccount(): void {
+  if (!server) return
+  readAccount(server).catch((error: Error) => setStatus({ state: 'error', message: error.message }))
 }
 
 function ensureServer(): Promise<AppServer | null> {
@@ -242,17 +255,20 @@ function onNotification(method: string, params: Record<string, unknown>): void {
         })
       }
       const docId = docByThread.get(threadId)
-      if (docId) emit({ type: 'turn', docId, state: 'idle' })
+      if (docId) finishRun(docId)
       return
     }
     case 'account/login/completed':
+      // Keep a failure on screen; re-reading the account would replace it
+      // with a plain "signed out".
       if (!params.success) {
         setStatus({ state: 'error', message: String(params.error ?? 'Sign-in failed.') })
+      } else {
+        refreshAccount()
       }
-      if (server) void readAccount(server)
       return
     case 'account/updated':
-      if (server) void readAccount(server)
+      if (status.state !== 'error') refreshAccount()
       return
   }
 }
@@ -282,8 +298,49 @@ design with the polotno MCP tools; do not create other designs unless asked.
 - For imagery, use your image generation tool, then put the saved file on the
   page with place_image (absolute path). Do not copy or convert the file.
 - Check your work with render_page and lint_design and fix what they show.
-- Do not run shell commands.
 - Reply in one or two short sentences: what you changed. No markdown headings.`
+}
+
+// Codex features a design conversation must not have. With these off, the
+// polotno MCP tools and image generation are the whole toolbox: no shell or
+// file viewer that could read the user's files on behalf of a prompt that
+// arrived inside a design, no browser, connectors, plugins, or sub-agents.
+const DISABLED_FEATURES = [
+  'shell_tool',
+  'unified_exec',
+  'view_image',
+  'apps',
+  'plugins',
+  'browser_use',
+  'browser_use_external',
+  'computer_use',
+  'multi_agent'
+]
+
+async function threadConfig(
+  codex: AppServer,
+  mcp: { url: string; token: string }
+): Promise<Record<string, unknown>> {
+  // Per-thread config merges into the user's own: switch off every MCP server
+  // they configured for themselves, so it never joins a design conversation.
+  const { config } = await codex.request<{ config: { mcp_servers?: Record<string, unknown> } }>(
+    'config/read',
+    {}
+  )
+  const own = Object.keys(config.mcp_servers ?? {}).filter((name) => name !== 'polotno')
+  return {
+    mcp_servers: {
+      ...Object.fromEntries(own.map((name) => [name, { enabled: false }])),
+      polotno: {
+        url: mcp.url,
+        http_headers: { Authorization: `Bearer ${mcp.token}` },
+        default_tools_approval_mode: 'approve',
+        tool_timeout_sec: 180
+      }
+    },
+    'features.image_generation': true,
+    ...Object.fromEntries(DISABLED_FEATURES.map((feature) => [`features.${feature}`, false]))
+  }
 }
 
 export async function getCodexStatus(): Promise<CodexStatus> {
@@ -299,50 +356,49 @@ export async function signInToCodex(): Promise<void> {
   })
   if (result.authUrl) {
     setStatus({ state: 'signingIn' })
-    await shell.openExternal(result.authUrl)
+    await shell.openExternal(result.authUrl).catch((error: Error) => {
+      setStatus({ state: 'error', message: `Could not open the browser: ${error.message}` })
+    })
   }
 }
 
 export async function runCodex(docId: DocId, prompt: string): Promise<void> {
-  const codex = await ensureServer()
-  if (!codex || status.state !== 'ready') throw new Error('Codex is not ready.')
-  const mcp = getMcpStatus()
-  if (!mcp.url) throw new Error('The Polotno MCP server is not running.')
-
-  let threadId = threadByDoc.get(docId)
-  if (!threadId) {
-    const cwd = join(app.getPath('userData'), 'codex-workspace')
-    await fs.mkdir(cwd, { recursive: true })
-    const result = await codex.request<{ thread: { id: string } }>('thread/start', {
-      cwd,
-      sandbox: 'read-only',
-      approvalPolicy: 'never',
-      ephemeral: true,
-      serviceName: 'polotno_app',
-      developerInstructions: instructions(docId),
-      config: {
-        mcp_servers: {
-          polotno: {
-            url: mcp.url,
-            http_headers: { Authorization: `Bearer ${mcp.token}` },
-            default_tools_approval_mode: 'approve',
-            tool_timeout_sec: 180
-          }
-        },
-        'features.image_generation': true
-      }
-    })
-    threadId = result.thread.id
-    threadByDoc.set(docId, threadId)
-    docByThread.set(threadId, docId)
-  }
-
-  emit({ type: 'entry', docId, entry: { kind: 'prompt', id: crypto.randomUUID(), text: prompt } })
-  emit({ type: 'turn', docId, state: 'running' })
+  if (busy.has(docId)) throw new Error('Codex is already working on this design.')
+  busy.add(docId)
   try {
-    await codex.request('turn/start', { threadId, input: [{ type: 'text', text: prompt }] })
+    const codex = await ensureServer()
+    if (!codex || status.state !== 'ready') throw new Error('Codex is not ready.')
+    const mcp = getMcpStatus()
+    if (!mcp.url) throw new Error('The Polotno MCP server is not running.')
+
+    let threadId = threadByDoc.get(docId)
+    if (!threadId) {
+      const cwd = join(app.getPath('userData'), 'codex-workspace')
+      await fs.mkdir(cwd, { recursive: true })
+      const result = await codex.request<{ thread: { id: string } }>('thread/start', {
+        cwd,
+        sandbox: 'read-only',
+        approvalPolicy: 'never',
+        ephemeral: true,
+        serviceName: 'polotno_app',
+        developerInstructions: instructions(docId),
+        config: await threadConfig(codex, { url: mcp.url, token: mcp.token })
+      })
+      threadId = result.thread.id
+      threadByDoc.set(docId, threadId)
+      docByThread.set(threadId, docId)
+    }
+
+    emit({ type: 'entry', docId, entry: { kind: 'prompt', id: crypto.randomUUID(), text: prompt } })
+    emit({ type: 'turn', docId, state: 'running' })
+    const { turn } = await codex.request<{ turn: { id: string } }>('turn/start', {
+      threadId,
+      input: [{ type: 'text', text: prompt }]
+    })
+    turnByThread.set(threadId, turn.id)
+    if (stopRequested.has(docId)) await stopCodex(docId)
   } catch (error) {
-    emit({ type: 'turn', docId, state: 'idle' })
+    finishRun(docId)
     throw error
   }
 }
@@ -350,16 +406,45 @@ export async function runCodex(docId: DocId, prompt: string): Promise<void> {
 export async function stopCodex(docId: DocId): Promise<void> {
   const threadId = threadByDoc.get(docId)
   const turnId = threadId && turnByThread.get(threadId)
-  if (server && threadId && turnId) await server.request('turn/interrupt', { threadId, turnId })
+  if (server && threadId && turnId) {
+    stopRequested.delete(docId)
+    await server.request('turn/interrupt', { threadId, turnId })
+  } else if (busy.has(docId)) {
+    stopRequested.add(docId)
+  }
 }
 
-// Forget the design's conversation; the next prompt starts a fresh one.
+// Forget the design's conversation; the next prompt starts a fresh one. A
+// run in flight is interrupted first (the tab closed, or the token changed).
 export function resetCodex(docId: DocId): void {
+  if (busy.has(docId)) void stopCodex(docId).catch(() => undefined)
   const threadId = threadByDoc.get(docId)
   if (!threadId) return
   threadByDoc.delete(docId)
   docByThread.delete(threadId)
   turnByThread.delete(threadId)
+  finishRun(docId)
+}
+
+// The MCP token was rotated: every conversation still holds the old one in its
+// thread config, so all of them start over with the next prompt.
+export function resetAllCodex(): void {
+  for (const docId of [...threadByDoc.keys()]) {
+    const hadThread = threadByDoc.has(docId)
+    resetCodex(docId)
+    if (hadThread) {
+      emit({
+        type: 'entry',
+        docId,
+        entry: {
+          kind: 'message',
+          id: crypto.randomUUID(),
+          text: 'The connection token changed, so the next prompt starts a new conversation.',
+          done: true
+        }
+      })
+    }
+  }
 }
 
 export function shutdownCodex(): void {

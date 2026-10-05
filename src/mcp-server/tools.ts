@@ -4,7 +4,7 @@ import { applyPatch, type Operation } from 'fast-json-patch'
 import { validateDesign } from '@polotno/schema'
 import { rpc } from './bridge-client'
 import { readLocalImage } from './local-image'
-import { elideDataUrls, restoreDataUrls } from './data-urls'
+import { elideDataUrls, hasDataRefs, restoreDataUrls } from './data-urls'
 import {
   EXPORT_EXTENSIONS,
   type CommandResult,
@@ -65,6 +65,16 @@ function coerceElement(element: Json): Json {
   return out
 }
 
+// The store generates element ids on insert, nested group children
+// included; the schema requires them, so the validation copy gets stand-ins.
+function withPendingIds(element: Json, path = 'pending'): Json {
+  const out = { ...element, id: element.id ?? path }
+  if (Array.isArray(out.children)) {
+    out.children = (out.children as Json[]).map((child, i) => withPendingIds(child, `${path}-${i}`))
+  }
+  return out
+}
+
 function findElement(children: Json[], id: string): Json | undefined {
   for (const child of children) {
     if (child.id === id) return child
@@ -72,6 +82,13 @@ function findElement(children: Json[], id: string): Json | undefined {
     if (nested) return nested
   }
   return undefined
+}
+
+// Restores get_design_json's asset references in values that skip the
+// element schema check (page backgrounds).
+async function withAssets<T>(designId: string, value: T): Promise<T> {
+  if (!hasDataRefs(value)) return value
+  return restoreDataUrls(value, (await exec(designId, { type: 'get_json' })).value)
 }
 
 // Element edits are checked against the file-format schema before they reach
@@ -88,11 +105,11 @@ async function checkedEdit(
   if ('add' in edit) {
     result = coerceElement(restoreDataUrls(edit.add, design))
     const page = candidate.pages.find((p) => p.id === edit.pageId) ?? candidate.pages[0]
-    page?.children.push({ ...result, id: result.id ?? 'pending' })
+    page?.children.push(withPendingIds(result))
   } else {
     result = coerceElement(restoreDataUrls(edit.update, design))
     const target = candidate.pages.map((p) => findElement(p.children, edit.elementId)).find(Boolean)
-    if (target) Object.assign(target, result)
+    if (target) Object.assign(target, withPendingIds({ ...result, id: target.id }))
   }
   const check = validateDesign(candidate)
   if (!check.valid) {
@@ -210,7 +227,11 @@ export const TOOLS: ToolDef[] = [
       duration: z.number().optional().describe('Page duration in ms (for video designs)')
     },
     handler: async ({ designId: id, background, duration }: any) => {
-      const { value, rev } = await exec(id, { type: 'add_page', background, duration })
+      const { value, rev } = await exec(id, {
+        type: 'add_page',
+        background: await withAssets(id, background),
+        duration
+      })
       return json({ ...(value as object), rev })
     }
   },
@@ -237,7 +258,11 @@ export const TOOLS: ToolDef[] = [
     description: 'Set page properties (background color/image URL, duration, width/height, …).',
     schema: { designId, pageId: z.string(), props: z.record(z.string(), z.unknown()) },
     handler: async ({ designId: id, pageId, props }: any) => {
-      const { rev } = await exec(id, { type: 'set_page', pageId, props })
+      const { rev } = await exec(id, {
+        type: 'set_page',
+        pageId,
+        props: await withAssets(id, props)
+      })
       return json({ ok: true, rev })
     }
   },

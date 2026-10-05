@@ -20,3 +20,10 @@
 - [ ] 2026-10-05 — AI panel: untested paths — Codex not installed ("missing"), signed-out → "Sign in with ChatGPT" browser flow, app-server crash → "Try again". Only verified signed-in on macOS with Homebrew codex 0.155.0
 - [ ] 2026-10-05 — AI panel: Windows/Linux codex lookup (codex.cmd under %APPDATA%\npm, spawn without shell) is unimplemented/untested in src/main/codex/session.ts findCodex()
 - [ ] 2026-10-05 — AI panel: conversations are ephemeral threads held in main memory — lost on app restart; consider thread/resume keyed by design file
+- [ ] 2026-10-05 — Codex review #3: place_image reads any absolute image path the token holder names (an in-app prompt injection could place ~/Pictures/… and render it to the model). Decide allowed roots (generated-images dirs, temp, user-confirmed paths), canonicalize with realpath, reject symlink escapes — product decision: external agents legitimately generate anywhere
+- [ ] 2026-10-05 — Codex review #12: place_image fits/centers against the design size; pages with their own width/height get a wrong box. get_info needs per-page sizes
+- [ ] 2026-10-05 — Codex review #13: create_design({json}) loads data-elided references from another design literally (broken images). Add includeAssets to get_design_json or a sourceDesignId for create_design
+- [ ] 2026-10-05 — Codex review #15: validateDesign is lenient and strips unknown keys, so update_element({props:{widht:200}}) succeeds as a no-op. Validate edited keys against the element schema
+- [ ] 2026-10-05 — Codex review #16/#18: local-image stat/read TOCTOU (open once, bounded read) and shallow format checks with no pixel cap (probe properly, cap width×height)
+- [ ] 2026-10-05 — Codex review #9 (dup of the Windows item above): resolve codex via where.exe/PATHEXT and %APPDATA%\npm\codex.cmd, spawn shims through ComSpec
+- [ ] 2026-10-05 — AI panel: abandoned browser sign-in leaves the panel on "Finish signing in…" (no cancel/timeout); call account/login/cancel and offer Cancel

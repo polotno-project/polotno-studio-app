@@ -45,8 +45,10 @@ export function elideDataUrls(design: unknown): unknown {
   return mapStrings(design, (s) => (isLongDataUrl(s) ? refFor(s) : s))
 }
 
-function hasDataRefs(value: unknown): boolean {
-  if (typeof value === 'string') return value.startsWith(PREFIX)
+// Only the full reference grammar counts: text that merely starts with the
+// prefix (a caption, say) is left alone.
+export function hasDataRefs(value: unknown): boolean {
+  if (typeof value === 'string') return REF.test(value)
   if (Array.isArray(value)) return value.some(hasDataRefs)
   if (value && typeof value === 'object') return Object.values(value).some(hasDataRefs)
   return false
@@ -58,9 +60,9 @@ export function restoreDataUrls<T>(value: T, design: unknown): T {
   if (!hasDataRefs(value)) return value
   const known = collect(design, new Map())
   return mapStrings(value, (s) => {
-    if (!s.startsWith(PREFIX)) return s
     const hash = REF.exec(s)?.[1]
-    const dataUrl = hash && known.get(hash)
+    if (!hash) return s
+    const dataUrl = known.get(hash)
     if (!dataUrl) {
       throw new Error(
         `invalid_args: ${s} does not match any embedded asset in this design. Re-read with get_design_json.`

@@ -20,6 +20,9 @@ export class AppServer {
   private nextId = 1
   private pending = new Map<number, Pending>()
   private stderrTail = ''
+  // Set once the process is gone: later requests fail at once instead of
+  // waiting forever for a reply that cannot come.
+  private closed: Error | null = null
 
   constructor(binary: string, env: NodeJS.ProcessEnv, handlers: AppServerHandlers) {
     this.proc = spawn(binary, ['app-server'], { env, stdio: ['pipe', 'pipe', 'pipe'] })
@@ -27,6 +30,7 @@ export class AppServer {
       this.stderrTail = (this.stderrTail + chunk.toString()).slice(-4000)
     })
     this.proc.on('error', (error) => this.failAll(error))
+    this.proc.stdin.on('error', (error) => this.failAll(error))
     this.proc.on('exit', (code) => {
       this.failAll(new Error(`codex app-server exited (${code}): ${this.stderrTail.trim()}`))
       handlers.onExit(code)
@@ -66,6 +70,7 @@ export class AppServer {
   }
 
   request<T = unknown>(method: string, params: unknown): Promise<T> {
+    if (this.closed) return Promise.reject(this.closed)
     const id = this.nextId++
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject })
@@ -86,6 +91,7 @@ export class AppServer {
   }
 
   private failAll(error: Error): void {
+    this.closed ??= error
     for (const entry of this.pending.values()) entry.reject(error)
     this.pending.clear()
   }

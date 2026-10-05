@@ -1,6 +1,7 @@
 import { makeAutoObservable } from 'mobx'
 import type { CodexEntry, CodexEvent, CodexStatus } from '../../../shared/codex'
 import type { DocId } from '../../../shared/types'
+import { tabs } from './tabs-model'
 
 // Renderer-side state for the AI panel: Codex status plus each design's
 // conversation feed. Lives outside the panel so switching side-panel sections
@@ -14,6 +15,13 @@ class CodexModel {
   constructor() {
     makeAutoObservable(this)
     window.desktop.on('codex:event', (event) => this.apply(event))
+    tabs.addCloseListener((docId) => this.forget(docId))
+  }
+
+  // The tab is gone (main has already stopped its run).
+  forget(docId: DocId): void {
+    this.feeds.delete(docId)
+    this.running.delete(docId)
   }
 
   feed(docId: DocId): CodexEntry[] {
