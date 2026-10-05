@@ -27,3 +27,4 @@
 - [ ] 2026-10-05 — Codex review #16/#18: local-image stat/read TOCTOU (open once, bounded read) and shallow format checks with no pixel cap (probe properly, cap width×height)
 - [ ] 2026-10-05 — Codex review #9 (dup of the Windows item above): resolve codex via where.exe/PATHEXT and %APPDATA%\npm\codex.cmd, spawn shims through ComSpec
 - [ ] 2026-10-05 — AI panel: abandoned browser sign-in leaves the panel on "Finish signing in…" (no cancel/timeout); call account/login/cancel and offer Cancel
+- [ ] 2026-10-05 — AI panel: Codex still lists the user's locally installed skills (e.g. ~/.agents/skills/polotno-design) in design conversations, while the content comes from the app's pinned copy via polotno://skill/ MCP resources; the two versions can drift. Hide user skills in Polotno threads so the bundled skill is the only source — find the Codex config/feature that controls skill loading first (not verified)
