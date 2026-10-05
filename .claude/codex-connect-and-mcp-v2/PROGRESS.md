@@ -73,3 +73,8 @@ Started 2026-10-05. Context: .claude/ai-subscription-integration/PROGRESS.md (re
 - Fix: launcher pushes 'mcp:status' on listening/exit; the open Connect panel subscribes.
 - Verified in an isolated second instance (--user-data-dir in scratchpad, so the user's running app was not
   touched): 3 UI regenerations → panel shows "running" each time; copied command carries the new token.
+
+## Wrap-up (2026-10-05)
+- User manually tested most untested paths from the testing guide (results not itemized in-session).
+- Codex review requested via `codex exec` (read-only); findings handled before the PR.
+- Full `npm run build` (typecheck + app + MCP server + .mcpb) passes.
