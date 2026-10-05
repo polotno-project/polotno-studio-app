@@ -48,3 +48,19 @@ Started 2026-10-05. Context: .claude/ai-subscription-integration/PROGRESS.md (re
   against the schema before reaching the store (checkedEdit in tools.ts); numeric fontWeight is coerced to string.
 - Broken test file left in the library: ~/Documents/Polotno/Codex image test.json (fontWeight 700). Also
   "Elision test.json" from this test. Ask the user before deleting either.
+
+## AI side panel prototype — Codex app-server (2026-10-05)
+- src/main/codex/app-server.ts: JSON-RPC over stdio to `codex app-server`.
+- src/main/codex/session.ts: finds codex (login-shell PATH, then common dirs), initialize, account/read,
+  ChatGPT browser sign-in (account/login/start → shell.openExternal), one ephemeral thread per design tab with
+  thread/start { sandbox: read-only, approvalPolicy: never, config.mcp_servers.polotno (our URL + bearer,
+  default_tools_approval_mode approve), features.image_generation, developerInstructions naming the designId },
+  turn/start, turn/interrupt; maps item/* notifications to CodexEntry rows (message deltas, mcpToolCall,
+  imageGeneration with a nativeImage preview of savedPath). Server requests (approvals) are declined.
+- IPC: codex:status/signIn/run/stop/reset + codex:event push. Renderer: editor/codex-model.ts (MobX),
+  sections/ai-section.tsx (first side-panel section "AI").
+- Verified on the Mac (Playwright driver + real Codex 0.155.0, ChatGPT plus): blank design → jazz poster with a
+  generated illustration (~5 min); follow-up in the same thread fixed a clipped tagline and generated/placed a
+  vinyl badge (~2.5 min); Stop interrupts within ~1 s and shows "Stopped.".
+- Fixed during testing: image card collapsed in an overflowing flex column (shrink-0); repeated tool rows grouped ×N.
+- Open items in BACKLOG.md (SIWC, user MCP servers merge, untested states, Windows lookup, persistence).

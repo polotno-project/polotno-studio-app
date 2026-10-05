@@ -17,10 +17,13 @@ import { designFileKind, parseDesignFile } from './import-design'
 import { nameFromPath } from './tabs-model'
 import { importDesign } from './document'
 import { TemplatesSection } from './sections/templates-section'
+import { AiSection } from './sections/ai-section'
 
 // Our Templates section replaces the stock one (same slot) to add the
-// "My designs" tab. Every other stock section, upload included, stays.
+// "My designs" tab. Every other stock section, upload included, stays. The
+// AI section (Codex) sits on top.
 const SECTIONS = [
+  AiSection,
   TemplatesSection,
   ...DEFAULT_SECTIONS.filter((section) => section.name !== 'templates')
 ] as Section[]

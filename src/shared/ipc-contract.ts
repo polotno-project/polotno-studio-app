@@ -1,5 +1,6 @@
 import type { BridgeRequest, BridgeResponse } from './bridge-protocol'
 import type { DocId, RecentEntry } from './types'
+import type { CodexEvent, CodexStatus } from './codex'
 
 // Single source of truth for every IPC channel. The preload derives the typed
 // window.desktop API from these interfaces; main registers handlers against
@@ -49,6 +50,12 @@ export interface InvokeApi {
   'mcp:saveMcpb': () => { filePath: string } | null
   'mcp:installSkill': () => { path: string }
   'shell:openExternal': (p: { url: string }) => void
+  // In-app generation through the user's Codex install (src/main/codex).
+  'codex:status': () => CodexStatus
+  'codex:signIn': () => void
+  'codex:run': (p: { docId: DocId; prompt: string }) => void
+  'codex:stop': (p: { docId: DocId }) => void
+  'codex:reset': (p: { docId: DocId }) => void
 }
 
 export type MenuAction = 'newTab' | 'openFile' | 'save' | 'saveAs' | 'closeTab' | 'export'
@@ -61,6 +68,7 @@ export interface MainEvents {
   // The window is closing: save everything, then answer with app:flushDone.
   'app:flushRequest': Record<string, never>
   'bridge:request': BridgeRequest
+  'codex:event': CodexEvent
 }
 
 // Fire-and-forget renderer -> main messages (ipcRenderer.send).

@@ -18,6 +18,7 @@ import { listRecent, addRecent } from './recent'
 import { markRendererReady } from './open-files'
 import { getMcpStatus, restartMcpServer } from './mcp/launcher'
 import { regenerateMcpToken } from './mcp/token'
+import { getCodexStatus, resetCodex, runCodex, signInToCodex, stopCodex } from './codex/session'
 import {
   readDesignFile,
   readDesignFileBase64,
@@ -153,4 +154,9 @@ export function registerIpcHandlers(): void {
     if (!/^(https?|cursor|vscode):/.test(url)) throw new Error(`Refusing to open ${url}`)
     void shell.openExternal(url)
   })
+  handle('codex:status', () => getCodexStatus())
+  handle('codex:signIn', () => signInToCodex())
+  handle('codex:run', (_event, { docId, prompt }) => runCodex(docId, prompt))
+  handle('codex:stop', (_event, { docId }) => stopCodex(docId))
+  handle('codex:reset', (_event, { docId }) => resetCodex(docId))
 }
