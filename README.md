@@ -31,6 +31,7 @@ running to serve agents.
 | --- | --- |
 | Claude Desktop | **Download for Claude Desktop (.mcpb)**, then double-click the file |
 | Claude Code | **Copy Claude Code command**, then paste it in a terminal |
+| Codex (CLI, app, IDE) | **Copy Codex config**, then paste it into `~/.codex/config.toml` |
 | Cursor | **Add to Cursor** |
 | VS Code | **Add to VS Code** |
 | Any MCP client | **Copy config JSON** (streamable HTTP + `Authorization: Bearer <token>`) |

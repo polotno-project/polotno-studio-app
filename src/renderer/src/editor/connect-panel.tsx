@@ -42,6 +42,15 @@ function claudeCodeCommand(status: McpStatus): string {
   return `claude mcp add --transport http polotno ${status.url} --header "Authorization: Bearer ${status.token}"`
 }
 
+// A config.toml block rather than `codex mcp add`: the CLI only takes the
+// token from an env var, which the Codex app and new shells would not have.
+// The CLI, the Codex app, and the IDE extension share ~/.codex/config.toml.
+function codexConfig(status: McpStatus): string {
+  return `[mcp_servers.polotno]
+url = "${status.url}"
+http_headers = { "Authorization" = "Bearer ${status.token}" }`
+}
+
 function rawConfig(status: McpStatus): string {
   return JSON.stringify(
     {
@@ -141,6 +150,10 @@ export function ConnectPanel(): React.JSX.Element {
               Add to VS Code
             </Button>
             <CopyRow label="Copy Claude Code command" value={claudeCodeCommand(status)} />
+            <CopyRow
+              label="Copy Codex config (paste into ~/.codex/config.toml)"
+              value={codexConfig(status)}
+            />
             <CopyRow label="Copy config JSON (any MCP client)" value={rawConfig(status)} />
             <Button
               variant="outline"
