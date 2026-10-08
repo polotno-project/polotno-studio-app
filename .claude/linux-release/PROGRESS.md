@@ -227,3 +227,27 @@ GNOME via `dnf install @workstation-product-environment`, graphical.target, GDM 
       Not bugs (my SSH launches): export named "download" = app started over SSH without LANG (from Activities
       the name is right); second-instance hang = XDG_SESSION_TYPE=tty (see 9.2).
 VMs: 109 and 110 shut down after testing; VM 108 (Ubuntu) left stopped.
+
+## Phase 10 — rpm/pacman in-app update rehearsal (2026-10-08, user: "test in-app updates in VMs")
+Same loopback-feed method as Phase 5 (docs/linux-testing.md › Rehearsing without a GitHub release):
+old 0.1.1 / new 0.1.2 rpm + pacman built with a generic provider http://127.0.0.1:8765.
+The cloud-image user has no password → polkit prompt can't be answered: first check the prompt appears
+and Cancel keeps the old version; then a VM-only polkit rule (/etc/polkit-1/rules.d/49-polotno-test.rules,
+pkexec for user polotno without auth) to exercise the real install path. Roll back to clean-install after.
+- [x] 10.1 Feed packages (scratchpad eb-feed.yml = config + generic provider + '!dist/**'): 0.1.1, 0.1.2, 0.1.3.
+- [x] 10.2 Fedora VM 109 (app launched from Activities; GNOME screen lock disabled + session unlocked via
+      `loginctl unlock-session`, the cloud user has no password):
+      0.1.1 checks the feed ~13 s after start, downloads the full rpm to ~/.cache/polotno-app-updater/pending,
+      "Polotno 0.1.2 is ready" dialog. Restart Now → GNOME polkit prompt "Authentication is needed to run
+      `/bin/bash -c dnf install --nogpgcheck … polotno-app-0.1.2.x86_64.rpm` as the super user" → Cancel: app
+      keeps running (same pid), 0.1.1 still installed, CLI works, download stays pending.
+      With the test polkit rule: Restart Now → dnf upgrade → app relaunches itself as 0.1.2 (mcp.json appVersion).
+      BUG found + fixed: after the upgrade /usr/bin/polotno was gone — rpm runs the new %post before the old
+      %postun, and electron-builder's stock after-remove does `update-alternatives --remove` unconditionally.
+      Fix: rpm.afterRemove = build/linux/rpm-after-remove.tpl (stock script + `exit 0` when $1 >= 1).
+      Re-run from clean-install with fixed 0.1.1/0.1.2: Restart Now → 0.1.2 relaunched 10:54:07, link intact,
+      CLI exit 2 on no inputs. Later + quit (0.1.2 → 0.1.3): installed on quit, app stays closed, link intact.
+      Fedora container smoke (uninstall still removes the link and /opt/Polotno) passes with the fix.
+      Console/journal: the app's console.log doesn't reach `journalctl --user` (only the unit start line);
+      the feed server's access log shows the requests instead.
+- [ ] 10.3 Arch VM 110: same with pacman -U

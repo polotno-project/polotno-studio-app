@@ -113,6 +113,8 @@ rpm:
   # this makes the rpm own the whole tree.
   fpm:
     - --directories=/opt/Polotno
+  # electron-builder's after-remove script plus an upgrade guard (see the file).
+  afterRemove: build/linux/rpm-after-remove.tpl
   # Library sonames instead of package names: Fedora and openSUSE name the
   # packages differently (gtk3 vs libgtk-3-0, nss vs mozilla-nss), but both
   # resolve the same sonames. Same set as the deb, plus ALSA and a font:
