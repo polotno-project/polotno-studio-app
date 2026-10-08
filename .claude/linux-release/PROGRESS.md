@@ -77,7 +77,7 @@ modes for AppImage vs deb, and deb checklist items (menu/dock grouping, .polotno
 - [ ] 4.4 X11 session ("Ubuntu on Xorg"): window, menu, Alt shows the menu bar, dialogs.
 - [ ] 4.5 Second instance: launching again focuses the first; opening a `.polotno` file adds
       a tab to the running app.
-- [ ] 4.6 Other distros smoke test: Fedora (GNOME, libfuse differences), maybe KDE.
+- [x] 4.6 Other distros smoke test: Fedora 44 + Arch GNOME VMs, see Phase 9 (KDE not tested).
 - [x] 4.7 deb on VM 108 (2026-09-29, over SSH + guest agent; VM NOT rolled back — the rollback was
       blocked by the permission classifier; leftovers: libfuse2t64, old AppImage, ~/.config):
       apt install OK (profile loaded, no "Skipping"), /usr/bin/polotno → /opt/Polotno/polotno,
@@ -183,7 +183,7 @@ needs a custom list. rpm default depends use Fedora names → soname requires wo
       build.yml runs scripts/linux-package-smoke.sh in fedora/opensuse/arch containers (script passes
       locally on all three); artifact includes *.rpm and *.pacman. latest-linux.yml lists all four files.
 - [x] 8.4 Docs: linux-install.md (table + rpm/pacman sections), linux-testing.md, README.
-- [ ] 8.5 Not rehearsed: in-app update for rpm (RpmUpdater → pkexec dnf/zypper) and pacman
+- [x] 8.5 (done in Phase 10) Not rehearsed: in-app update for rpm (RpmUpdater → pkexec dnf/zypper) and pacman
       (PacmanUpdater → pkexec pacman -U) — needs a desktop VM with a polkit agent (Fedora VM, like 5.5).
       Not checked on a real desktop: menu entry/dock icon on Fedora GNOME / openSUSE / Arch (4.6).
 
