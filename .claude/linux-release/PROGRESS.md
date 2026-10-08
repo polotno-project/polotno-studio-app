@@ -258,4 +258,8 @@ pkexec for user polotno without auth) to exercise the real install path. Roll ba
       With the rule: quitting the app (kill) with the update pending installed 0.1.2 on quit (pacman.log
       11:06:43); Restart Now 0.1.2 → 0.1.3: installed, relaunched 11:10:04 as 0.1.3. /usr/bin/polotno intact
       (pacman's .INSTALL has no post_upgrade/post_remove-on-upgrade, so no fix needed).
+      FIXED (user: "fix it here"): src/main/updater.ts overrides PacmanUpdater.installWithCommandRunner to run
+      only `pacman -U --noconfirm <file>`. Re-tested on VM 110 with rebuilt 0.1.1/0.1.2: Restart Now → one prompt
+      → Cancel → no second prompt, app keeps running 0.1.1, CLI ok, update stays pending; with the rule → Restart
+      Now → 0.1.2 installed, relaunched 11:42:06, appVersion 0.1.2, link intact, no `pacman -Sy` in pacman.log.
 VMs rolled back to clean-install and shut down afterwards.

@@ -438,9 +438,10 @@ feed builds):
 - The polkit prompt names the command ("…`/bin/bash -c dnf install
   --nogpgcheck … polotno-app-<v>.x86_64.rpm` as the super user"). **Cancel**
   keeps the old version running and installed; the download stays pending.
-- pacman only: after a failed or cancelled `pacman -U`, electron-updater
-  (6.8.9) asks a second time, for `pacman -Sy --noconfirm` (sync without
-  upgrade), then retries. See BACKLOG.md.
+- pacman: electron-updater (6.8.9) on its own retries a failed or cancelled
+  `pacman -U` after `pacman -Sy --noconfirm` (a second prompt; a sync without
+  upgrade). `src/main/updater.ts` overrides that to run only `pacman -U`, so a
+  Cancel ends it there.
 - The cloud-image test user has no password. To get past the prompt on a test
   VM, add `/etc/polkit-1/rules.d/49-polotno-test.rules` returning
   `polkit.Result.YES` for `org.freedesktop.policykit.exec` and that user, and
