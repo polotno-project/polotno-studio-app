@@ -61,15 +61,26 @@ function parseArgs(args: string[]): CliOptions {
         fail(2, `Unknown --format: ${value} (use ${Object.keys(EXPORT_EXTENSIONS).join(', ')})`)
       }
       options.format = value as ExportFormat
-    }
-    else if (arg === '--json') options.json = true
+    } else if (arg === '--json') options.json = true
     else if (arg.startsWith('-')) fail(2, `Unknown option: ${arg}`)
     else options.inputs.push(arg)
   }
   // ASCII only: Windows consoles default to a legacy code page and would show
   // UTF-8 punctuation as mojibake.
-  if (options.inputs.length === 0) fail(2, `Usage: polotno ${options.command} <design.json...> [-o out]`)
+  if (options.inputs.length === 0)
+    fail(2, `Usage: polotno ${options.command} <design.json...> [-o out]`)
   return options
+}
+
+// The hidden editor window needs a display. Without one (SSH, CI), Chromium
+// crashes on ready with a core dump (exit 139), so say so before it gets there.
+function requireDisplay(): void {
+  if (process.platform !== 'linux') return
+  if (process.env.DISPLAY || process.env.WAYLAND_DISPLAY) return
+  fail(
+    1,
+    'polotno needs a display (DISPLAY or WAYLAND_DISPLAY). Without one, run it under Xvfb: xvfb-run -a polotno ...'
+  )
 }
 
 async function waitForRenderer(timeoutMs = 30000): Promise<void> {
@@ -174,6 +185,7 @@ export function runCli(args: string[]): void {
   let options: CliOptions
   try {
     options = parseArgs(args)
+    requireDisplay()
   } catch (error) {
     if (error instanceof CliError) {
       console.error(error.message)

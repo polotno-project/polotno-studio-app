@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { observer } from 'mobx-react-lite'
-import { Toaster } from 'sonner'
+import { Toaster, toast } from 'sonner'
 import { PolotnoEditor } from './editor/polotno-editor'
 import { HiddenStages } from './editor/hidden-stages'
 import { TabStrip } from './editor/tab-strip'
@@ -42,9 +42,15 @@ const App = observer(function App(): React.JSX.Element {
     const offOpen = window.desktop.on('doc:openPath', ({ filePath }) => {
       void import('./editor/document').then(({ openPath }) => openPath(filePath))
     })
+    // Exports end in a save dialog; say where the file went (or that it failed).
+    const offDownload = window.desktop.on('export:downloadDone', ({ state, filePath }) => {
+      if (state === 'completed') toast.success(`Saved to ${filePath}`)
+      else if (state === 'interrupted') toast.error('The export could not be saved.')
+    })
     return () => {
       offMenu()
       offOpen()
+      offDownload()
     }
   }, [])
 

@@ -1,5 +1,13 @@
 import { app, dialog } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import { autoUpdater, PacmanUpdater } from 'electron-updater'
+
+// electron-updater retries any failed `pacman -U` (a cancelled password prompt
+// included) after `pacman -Sy`: the user gets a second prompt, and approving it
+// syncs the package database without upgrading, which Arch doesn't support.
+// Only install the downloaded package; a failure goes to the 'error' handler.
+PacmanUpdater.installWithCommandRunner = (installerPath, commandRunner) => {
+  commandRunner(['pacman', '-U', '--noconfirm', installerPath])
+}
 
 // Auto-update from GitHub Releases (differential downloads via blockmaps).
 // Checks shortly after startup and every 4 hours; downloads in the background;

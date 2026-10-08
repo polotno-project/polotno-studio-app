@@ -8,6 +8,8 @@ The app has a built-in MCP server. Any AI agent (Claude, Cursor, Codex, …) can
 create, edit, see, and export designs while you edit the same designs in the
 editor. Agent edits and your edits share one undo stack.
 
+Linux: `.deb`, `.rpm`, `.pacman` and AppImage, see [docs/linux-install.md](docs/linux-install.md).
+
 ## Development
 
 ```bash
@@ -55,6 +57,10 @@ Export menu and the `export_design` MCP tool use the same two names.
 
 Exit codes: 0 ok, 1 render failure, 2 bad arguments, 3 invalid design JSON,
 4 lint found errors.
+
+The CLI renders in a hidden window, so it needs a display. On a Linux machine
+without one (SSH, CI) it exits 1 with a hint; run it under Xvfb:
+`xvfb-run -a polotno render …`.
 
 ## File format
 
