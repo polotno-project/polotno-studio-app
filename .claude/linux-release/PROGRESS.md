@@ -250,4 +250,12 @@ pkexec for user polotno without auth) to exercise the real install path. Roll ba
       Fedora container smoke (uninstall still removes the link and /opt/Polotno) passes with the fix.
       Console/journal: the app's console.log doesn't reach `journalctl --user` (only the unit start line);
       the feed server's access log shows the requests instead.
-- [ ] 10.3 Arch VM 110: same with pacman -U
+- [x] 10.3 Arch VM 110 (snapshot needed `pacman -Syu` first: stale sync DB → noto-fonts 404; rebooted after):
+      0.1.1 downloads the 0.1.2 pacman, dialog. Restart Now without the polkit rule → prompt "`/bin/bash -c pacman -U
+      --noconfirm … polotno-app-0.1.2-x64.pacman`" → Cancel → SECOND prompt "`pacman -Sy --noconfirm`"
+      (electron-updater 6.8.9 PacmanUpdater retries any -U failure after a DB sync) → Cancel → app keeps running,
+      0.1.1 installed, CLI ok. → BACKLOG (confusing second prompt; -Sy without -u = Arch partial-upgrade hazard).
+      With the rule: quitting the app (kill) with the update pending installed 0.1.2 on quit (pacman.log
+      11:06:43); Restart Now 0.1.2 → 0.1.3: installed, relaunched 11:10:04 as 0.1.3. /usr/bin/polotno intact
+      (pacman's .INSTALL has no post_upgrade/post_remove-on-upgrade, so no fix needed).
+VMs rolled back to clean-install and shut down afterwards.

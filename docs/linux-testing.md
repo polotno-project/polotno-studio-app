@@ -426,6 +426,31 @@ beesu). If dpkg fails on dependencies it runs `apt-get install -f -y`.
    downloading the new deb and running `sudo apt install ./…deb` over the old
    one; settings and designs are kept.
 
+#### rpm and pacman
+
+Same mechanism: `resources/package-type` is `rpm` or `pacman`, the updater
+downloads that package from `latest-linux.yml` and installs it through pkexec
+(`dnf install --nogpgcheck` / `zypper` / `pacman -U --noconfirm`), on
+**Restart Now** (then relaunches) or on quit. Rehearsed on the Fedora 44 and
+Arch VMs (2026-10-08) with the loopback feed above (`rpm pacman` targets in the
+feed builds):
+
+- The polkit prompt names the command ("…`/bin/bash -c dnf install
+  --nogpgcheck … polotno-app-<v>.x86_64.rpm` as the super user"). **Cancel**
+  keeps the old version running and installed; the download stays pending.
+- pacman only: after a failed or cancelled `pacman -U`, electron-updater
+  (6.8.9) asks a second time, for `pacman -Sy --noconfirm` (sync without
+  upgrade), then retries. See BACKLOG.md.
+- The cloud-image test user has no password. To get past the prompt on a test
+  VM, add `/etc/polkit-1/rules.d/49-polotno-test.rules` returning
+  `polkit.Result.YES` for `org.freedesktop.policykit.exec` and that user, and
+  roll back to `clean-install` afterwards.
+- After an rpm upgrade check `readlink -f /usr/bin/polotno`: rpm runs the old
+  package's `%postun` after the new `%post`, which is why the rpm has its own
+  after-remove script (`build/linux/rpm-after-remove.tpl`).
+- Stopping the app (`kill`, or closing the window) with an update pending
+  installs it: that is the quit path, not a bug.
+
 ## 5. Reset the VM
 
 Roll back to `clean-install` after each test round, or before a new build, so
