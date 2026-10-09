@@ -63,6 +63,10 @@ export function registerIpcHandlers(): void {
     documents.close(docId)
     persistSession()
   })
+  handle('doc:reorder', (_event, { docIds }) => {
+    documents.reorder(docIds)
+    persistSession()
+  })
 
   handle('file:openDialog', (event) => showOpenDesignDialog(windowOf(event)))
   handle('file:read', (_event, { filePath }) => readDesignFile(filePath))

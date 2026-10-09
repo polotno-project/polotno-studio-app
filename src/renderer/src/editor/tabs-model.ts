@@ -97,6 +97,17 @@ class TabsModel {
     if (this.get(docId)) this.activeDocId = docId
   }
 
+  // Tab strip drag-to-reorder. Main keeps the same order, so the session
+  // restores tabs the way the user arranged them.
+  moveTab(docId: DocId, toIndex: number): void {
+    const from = this.tabs.findIndex((tab) => tab.docId === docId)
+    const to = Math.max(0, Math.min(toIndex, this.tabs.length - 1))
+    if (from === -1 || from === to) return
+    const [tab] = this.tabs.splice(from, 1)
+    this.tabs.splice(to, 0, tab)
+    void window.desktop.invoke('doc:reorder', { docIds: this.tabs.map((t) => t.docId) })
+  }
+
   setFilePath(docId: DocId, filePath: string): void {
     const tab = this.get(docId)
     if (!tab) return

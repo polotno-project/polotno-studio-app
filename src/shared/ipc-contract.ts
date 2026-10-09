@@ -23,6 +23,8 @@ export interface InvokeApi {
   'doc:register': (p: { docId: DocId; filePath: string | null }) => void
   'doc:setFilePath': (p: { docId: DocId; filePath: string }) => void
   'doc:close': (p: { docId: DocId }) => void
+  // Tab order after a drag in the tab strip; the session file follows it.
+  'doc:reorder': (p: { docIds: DocId[] }) => void
   'file:openDialog': () => { filePaths: string[] } | null
   'file:read': (p: { filePath: string }) => OpenedFile
   'file:readBase64': (p: { filePath: string }) => { filePath: string; base64: string }
