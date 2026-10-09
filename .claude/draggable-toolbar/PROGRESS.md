@@ -1,7 +1,9 @@
-# Draggable window by the toolbar under the tabs
+# Draggable window by the toolbar under the tabs + tab reordering
 
 Goal: the empty area of the Polotno toolbar (row under the tab strip) drags the window, like the tab strip.
+Follow-up (user request): drag a tab sideways to reorder tabs.
 
 - [x] CSS in src/renderer/src/index.css: `.polotno-toolbar` = drag; its controls (button/input/[role]/[tabindex]/…) = no-drag
-- [x] Verified over CDP in the dev app: toolbar computes `app-region: drag`; all controls in the page, text, figure and line toolbars compute `no-drag`, and no pointer-cursor element is left uncovered
-- [ ] Manual check of the physical window drag (synthetic CDP mouse events do not move the window)
+- [x] Verified over CDP: toolbar `app-region: drag`, every control `no-drag`; user confirmed real window drag works
+- [ ] Tab reorder: tabs.moveTab + pointer drag in tab-strip.tsx + `doc:reorder` IPC so session.json keeps the order
+- [ ] Verify reorder in the running app
