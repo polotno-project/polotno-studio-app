@@ -1,6 +1,6 @@
 {
   "name": "polotno-app",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Polotno App — free offline-first desktop design editor",
   "main": "./out/main/index.js",
   "author": "Polotno",
