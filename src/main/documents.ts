@@ -44,6 +44,19 @@ class DocumentRegistry {
     this.byId.delete(docId)
   }
 
+  // Map iteration follows insertion order, so re-inserting in the given order
+  // makes all() (and the persisted session) match the tab strip. Unknown ids
+  // are ignored; entries missing from the list keep their place at the end.
+  reorder(docIds: DocId[]): void {
+    const ordered = new Map<DocId, DocumentEntry>()
+    for (const docId of docIds) {
+      const entry = this.byId.get(docId)
+      if (entry) ordered.set(docId, entry)
+    }
+    for (const [docId, entry] of this.byId) if (!ordered.has(docId)) ordered.set(docId, entry)
+    this.byId = ordered
+  }
+
   all(): DocumentEntry[] {
     return [...this.byId.values()]
   }
