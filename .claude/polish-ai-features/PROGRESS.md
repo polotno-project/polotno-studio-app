@@ -34,3 +34,18 @@ Done:
 Verified in the dev app: API place_image as background and on a 400×1200 page (fit 400×250, centered); real Codex run "generate a background…" set the page background itself; card Background / Add to design / drop all work with the full 2.2 MB image.
 Not changed: the 30 s bridge timeout — a 2.2 MB image placed well within it.
 Next: 3.3 Polotno 4.15 upgrade + image-edit spike.
+
+## Phase 3.3 — canvas AI tools on the user's Codex (2026-10-14)
+Spike (codex app-server, ephemeral thread, `localImage` input, image_generation on; scripts in the session scratchpad):
+- Image + separate mask image: remove OK; replace and expand poor — the model reframes (replace shifted 16% and put the object outside the mask; expand duplicated the piano).
+- Cropping to the region: worse (model zoomed 1.24× and redrew).
+- **Image with the area painted solid magenta: works for remove, replace and expand** — framing kept (offset ≤1%), object inside the area.
+- Remove background via the image model: redraws a different object — not usable.
+- Each edit takes 40–60 s; about 1 in 6 turns ended without an image (retry once).
+Done:
+- polotno 4.14.1 → 4.15.3 (typecheck clean).
+- `src/renderer/src/editor/ai-image-tools.ts`: setReplaceObjectFunc / setRemoveObjectFunc / setExpandFunc. Paints the mask magenta (≤1536 px sent), IPC `codex:imageEdit`, then aligns the result to the original (scale/offset search on 128 px grayscale) and composites it only inside the mask with a soft edge (Expand also underlays the full result so the seam never shows the page). Opaque results are JPEG. No Codex → opens the AI panel, toast, AbortError (no error UI). Abort → `codex:imageEditCancel` → turn/interrupt.
+- `session.ts` `editImageWithCodex`: throwaway ephemeral thread without MCP servers, fixed instructions, temp PNG, retry once when no image, thread/unsubscribe after.
+- Upscale not registered (hidden); remove background left to Polotno (hidden here: Cloud not enabled).
+Verified in the dev app via `store.setTool`: replace (cat, 38 s), remove (43 s, one undo restores), expand 1080×607 → 1080×971 (55 s, no seams), cancel mid-run (rejects "canceled", image unchanged), AI edit menu shows Generative fill + Expand.
+Not verified: the "no Codex connected" path (needs signing out); the stock UI flow by mouse (same handlers as setTool).

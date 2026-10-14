@@ -5,12 +5,14 @@ import { localFileToURL } from 'polotno/utils/file'
 import App from './App'
 import { loadSystemLocaleTranslations } from './editor/i18n'
 import { installThemeSync } from './editor/theme'
+import { installAiImageTools } from './editor/ai-image-tools'
 import './editor/bridge'
 import './index.css'
 
 setAnimationsEnabled(true)
 installThemeSync()
 loadSystemLocaleTranslations()
+installAiImageTools()
 
 // A design is one self-contained file, so an uploaded asset becomes a data URL
 // inside it — the same thing a file drop on the canvas already does. This is

@@ -22,3 +22,4 @@
 - 2026-10-14 [claude-opus-5-5] reading a Notion page via MCP: 404 because the claude.ai Notion connector was authorized for the personal workspace, not the team one; re-auth via /mcp picking the right workspace fixed it
 - 2026-10-14 [claude-opus-5-5] testing the AI panel: every Codex turn failed with 400 because ~/.codex/config.toml sets model gpt-6.1-sol, which a ChatGPT login can't use; the app now falls back to model/list's default
 - 2026-10-14 [claude-opus-5-5] relaunching the dev app for CDP testing: pkill -f 'remoteDebuggingPort 9333' kills only the electron-vite wrapper, Electron keeps running (holds the port and single-instance lock) so the next launch exits silently; kill by the --user-data-dir path instead
+- 2026-10-14 [claude-opus-5-5] importing a polotno module from the dev renderer over CDP: '/@fs/...' and '/node_modules/.vite/deps/...' fail (Vite root is src/renderer); '/@id/polotno/utils/image-edit' works

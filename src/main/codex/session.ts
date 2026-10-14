@@ -27,6 +27,11 @@ const messageText = new Map<string, string>()
 // Where Codex saved each generated image, by feed entry id. The panel asks
 // for an image by entry id, so the renderer never names a file path.
 const imageFiles = new Map<string, string>()
+// Canvas AI tool requests (Generative fill, Expand) run in their own throwaway
+// threads, apart from the design conversation.
+type ImageEdit = { turnId?: string; savedPath?: string; finish: (status: string) => void }
+const editByThread = new Map<string, ImageEdit>()
+const threadByEdit = new Map<string, string>()
 // Designs with a run in flight, claimed before the first await so a double
 // submit cannot start two turns on one design.
 const busy = new Set<DocId>()
@@ -226,9 +231,18 @@ function onNotification(method: string, params: Record<string, unknown>): void {
   const threadId = params.threadId as string | undefined
   switch (method) {
     case 'item/started':
-    case 'item/completed':
+    case 'item/completed': {
+      const edit = threadId && editByThread.get(threadId)
+      if (edit) {
+        const item = params.item as Item
+        if (method === 'item/completed' && item.type === 'imageGeneration' && item.savedPath) {
+          edit.savedPath = item.savedPath
+        }
+        return
+      }
       if (threadId) onItem(threadId, params.item as Item, method === 'item/completed')
       return
+    }
     case 'item/agentMessage/delta': {
       const itemId = params.itemId as string
       const text = (messageText.get(itemId) ?? '') + (params.delta as string)
@@ -238,7 +252,9 @@ function onNotification(method: string, params: Record<string, unknown>): void {
     }
     case 'turn/started': {
       const turn = params.turn as { id: string }
-      if (threadId) turnByThread.set(threadId, turn.id)
+      const edit = threadId && editByThread.get(threadId)
+      if (edit) edit.turnId = turn.id
+      else if (threadId) turnByThread.set(threadId, turn.id)
       return
     }
     case 'turn/completed': {
@@ -248,6 +264,11 @@ function onNotification(method: string, params: Record<string, unknown>): void {
         error?: { message?: string } | null
       }
       if (!threadId) return
+      const edit = editByThread.get(threadId)
+      if (edit) {
+        edit.finish(turn.status)
+        return
+      }
       turnByThread.delete(threadId)
       if (turn.status === 'interrupted') {
         entry(threadId, { kind: 'message', id: `${turn.id}-stopped`, text: 'Stopped.', done: true })
@@ -343,7 +364,8 @@ async function threadModel(codex: AppServer, configured?: string): Promise<strin
 
 async function threadConfig(
   codex: AppServer,
-  mcp: { url: string; token: string }
+  // Without it the thread gets no MCP servers at all (image edits).
+  mcp: { url: string; token: string } | null
 ): Promise<{ model?: string; config: Record<string, unknown> }> {
   // Per-thread config merges into the user's own: switch off every MCP server
   // they configured for themselves, so it never joins a design conversation.
@@ -356,12 +378,14 @@ async function threadConfig(
     config: {
       mcp_servers: {
         ...Object.fromEntries(own.map((name) => [name, { enabled: false }])),
-        polotno: {
-          url: mcp.url,
-          http_headers: { Authorization: `Bearer ${mcp.token}` },
-          default_tools_approval_mode: 'approve',
-          tool_timeout_sec: 180
-        }
+        ...(mcp && {
+          polotno: {
+            url: mcp.url,
+            http_headers: { Authorization: `Bearer ${mcp.token}` },
+            default_tools_approval_mode: 'approve',
+            tool_timeout_sec: 180
+          }
+        })
       },
       'features.image_generation': true,
       web_search: 'disabled',
@@ -458,6 +482,88 @@ export async function codexImage(id: string): Promise<LocalImage> {
   const path = imageFiles.get(id)
   if (!path) throw new Error('This image is no longer available.')
   return readLocalImage(path)
+}
+
+const EDIT_INSTRUCTIONS = `You are an image editing tool inside a design
+editor, not a conversation. Use your image generation tool exactly once to
+produce the edited image from the attached one, then reply "done". Never ask
+questions. Keep the framing: no zoom, crop, or camera change.`
+
+// One canvas AI edit (Generative fill, Expand). The renderer sends the image
+// with the area to change painted solid magenta (image models follow a marked
+// area far better than a separate mask), and composites the result back
+// itself. Resolves with the generated image as a data URL.
+export async function editImageWithCodex(
+  id: string,
+  png: Uint8Array,
+  instruction: string
+): Promise<{ dataUrl: string }> {
+  const codex = await ensureServer()
+  if (!codex || status.state !== 'ready') throw new Error('Codex is not connected.')
+  const dir = join(app.getPath('temp'), 'polotno-image-edit')
+  await fs.mkdir(dir, { recursive: true })
+  const input = join(dir, `${id}.png`)
+  await fs.writeFile(input, png)
+  try {
+    // The image model now and then answers without generating: try twice.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const savedPath = await runImageEdit(codex, id, input, instruction)
+      if (savedPath) return { dataUrl: (await readLocalImage(savedPath)).dataUrl }
+      if (!threadByEdit.has(id)) break
+    }
+    throw new Error('Codex did not return an image.')
+  } finally {
+    threadByEdit.delete(id)
+    await fs.rm(input, { force: true })
+  }
+}
+
+async function runImageEdit(
+  codex: AppServer,
+  id: string,
+  input: string,
+  instruction: string
+): Promise<string | undefined> {
+  const cwd = join(app.getPath('userData'), 'codex-workspace')
+  await fs.mkdir(cwd, { recursive: true })
+  const { thread } = await codex.request<{ thread: { id: string } }>('thread/start', {
+    cwd,
+    sandbox: 'read-only',
+    approvalPolicy: 'never',
+    ephemeral: true,
+    serviceName: 'polotno_app',
+    developerInstructions: EDIT_INSTRUCTIONS,
+    ...(await threadConfig(codex, null))
+  })
+  let finish!: (status: string) => void
+  const done = new Promise<string>((resolve) => (finish = resolve))
+  const edit: ImageEdit = { finish }
+  editByThread.set(thread.id, edit)
+  threadByEdit.set(id, thread.id)
+  try {
+    const { turn } = await codex.request<{ turn: { id: string } }>('turn/start', {
+      threadId: thread.id,
+      input: [
+        { type: 'text', text: instruction },
+        { type: 'localImage', path: input }
+      ]
+    })
+    edit.turnId ??= turn.id
+    const result = await done
+    if (result === 'interrupted') throw Object.assign(new Error('Canceled'), { name: 'AbortError' })
+    if (result === 'failed' && !edit.savedPath) throw new Error('Codex could not edit the image.')
+    return edit.savedPath
+  } finally {
+    editByThread.delete(thread.id)
+    void codex.request('thread/unsubscribe', { threadId: thread.id }).catch(() => undefined)
+  }
+}
+
+export async function cancelImageEdit(id: string): Promise<void> {
+  const threadId = threadByEdit.get(id)
+  threadByEdit.delete(id)
+  const turnId = threadId && editByThread.get(threadId)?.turnId
+  if (server && threadId && turnId) await server.request('turn/interrupt', { threadId, turnId })
 }
 
 export async function stopCodex(docId: DocId): Promise<void> {

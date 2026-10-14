@@ -64,6 +64,11 @@ export interface InvokeApi {
   'codex:reset': (p: { docId: DocId }) => void
   // A generated image at full size, by feed entry id.
   'codex:image': (p: { id: string }) => { dataUrl: string; width: number; height: number }
+  // Canvas AI tools: edit an image (area to change painted magenta).
+  'codex:imageEdit': (p: { id: string; png: Uint8Array; instruction: string }) => {
+    dataUrl: string
+  }
+  'codex:imageEditCancel': (p: { id: string }) => void
 }
 
 export type MenuAction = 'newTab' | 'openFile' | 'save' | 'saveAs' | 'closeTab' | 'export'

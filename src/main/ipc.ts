@@ -19,7 +19,9 @@ import { markRendererReady } from './open-files'
 import { getMcpStatus, restartMcpServer } from './mcp/launcher'
 import { regenerateMcpToken } from './mcp/token'
 import {
+  cancelImageEdit,
   codexImage,
+  editImageWithCodex,
   getCodexStatus,
   resetAllCodex,
   resetCodex,
@@ -172,4 +174,8 @@ export function registerIpcHandlers(): void {
   handle('codex:stop', (_event, { docId }) => stopCodex(docId))
   handle('codex:reset', (_event, { docId }) => resetCodex(docId))
   handle('codex:image', (_event, { id }) => codexImage(id))
+  handle('codex:imageEdit', (_event, { id, png, instruction }) =>
+    editImageWithCodex(id, png, instruction)
+  )
+  handle('codex:imageEditCancel', (_event, { id }) => cancelImageEdit(id))
 }
