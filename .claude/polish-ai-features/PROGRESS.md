@@ -49,3 +49,9 @@ Done:
 - Upscale not registered (hidden); remove background left to Polotno (hidden here: Cloud not enabled).
 Verified in the dev app via `store.setTool`: replace (cat, 38 s), remove (43 s, one undo restores), expand 1080×607 → 1080×971 (55 s, no seams), cancel mid-run (rejects "canceled", image unchanged), AI edit menu shows Generative fill + Expand.
 Not verified: the "no Codex connected" path (needs signing out); the stock UI flow by mouse (same handlers as setTool).
+
+## Phase 3.3 follow-up — verified by mouse (2026-10-14)
+- Fixed: the 4.15.3 upgrade left two mobx copies (app pinned 7.0.3, polotno pins 7.0.6). App now pins mobx 7.0.6 → one copy.
+- Production build, mouse only: AI edit → Expand → drag frame → Generate with Codex signed out (CODEX_HOME=empty dir) → AI panel opens on "Sign in with ChatGPT", info toast, image unchanged, no error. AI edit → Generative fill → Remove → drag selection over the saxophone → Remove with real Codex → removed in ~45 s, rest of the image intact.
+- Dev server only: Polotno's canvas overlays (crop frame, expand frame, inpaint selection) don't draw. Production is fine. Logged in BACKLOG/PAPERCUTS.
+- Test driver: scratchpad flow.mjs (one CDP connection; Page.bringToFront first, otherwise the hidden window throttles timers and dropdowns close).
