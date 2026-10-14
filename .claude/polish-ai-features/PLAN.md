@@ -48,6 +48,8 @@ Goal: agent edits never overwrite user edits they didn't touch.
      b. Agent-backed: toolbar buttons on a selected image that send a scoped task to the agent ("remove background of element E") using Codex image edit.
    - Probe availability at startup; disabled buttons open an instructions dialog.
    - Needs a product decision (cost, which backend). Spike first.
+   - Codex `turn/start` input accepts `image`/`localImage`, so the agent route can send the selected image directly.
+   - Option c: remove background fully on-device (e.g. an in-browser segmentation model) — free, offline, fast; no equivalent for inpaint/expand.
 
 ## Phase 4 — Provider and model choice
 
@@ -55,7 +57,8 @@ Goal: agent edits never overwrite user edits they didn't touch.
 2. **Provider abstraction.** Extract an `AgentProvider` interface from session.ts (status, signIn, run, steer, stop, reset, listModels, events → shared `AgentEntry` feed); rename `codex:*` IPC to `agent:*`. Codex is provider #1.
 3. **Claude Code provider.** Candidates: Claude Agent SDK / `claude -p --output-format stream-json` with our MCP server injected via `--mcp-config`, tools locked to the polotno server. Then opencode (has a server/ACP mode). Consider ACP as the common protocol if both support it — verify current docs first.
 4. **Setup guidance.** Detect installed + signed-in per provider; empty state with install/login steps for each (the "missing"/"signedOut" states exist for Codex only).
-5. Licensing gates remain (BACKLOG: SIWC for Codex, Anthropic confirmation for spawning claude).
+5. **Decision 2026-10-14:** Claude is the next provider after Codex.
+6. Licensing gates remain (BACKLOG: SIWC for Codex, Anthropic confirmation for spawning claude).
 
 ## Phase 5 — Agent visibility (tldraw-style)
 
