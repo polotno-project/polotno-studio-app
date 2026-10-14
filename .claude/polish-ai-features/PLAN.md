@@ -42,14 +42,14 @@ Goal: agent edits never overwrite user edits they didn't touch.
 
 1. **Generated image → design.** Send `savedPath` (main side) with the image entry; `ImageCard` gets "Add to design" and "Set as background" actions (main reads the file via the existing local-image path into a data URL; set `page.background` or add a full-bleed image). Also make it draggable onto the canvas.
 2. **Agent placement.** Developer instructions: after `imageGeneration`, call `place_image` with the saved path (pass the path back to the model in context if the image item lacks it). Add an `as: 'background'` option to `place_image` and fix the per-page sizing (BACKLOG #12). Raise/stream the 30 s bridge timeout for big images.
-3. **Canvas AI tools (inpaint, expand, remove object, remove background).**
-   - Not in Polotno SDK 4.14.1 except remove-background (Polotno cloud). Two routes:
-     a. Polotno cloud (key + backend): enable `setRemoveBackgroundEnabled` / `setAiTextEnabled`; probe the API at startup.
-     b. Agent-backed: toolbar buttons on a selected image that send a scoped task to the agent ("remove background of element E") using Codex image edit.
-   - Probe availability at startup; disabled buttons open an instructions dialog.
-   - Needs a product decision (cost, which backend). Spike first.
-   - Codex `turn/start` input accepts `image`/`localImage`, so the agent route can send the selected image directly.
-   - Option c: remove background fully on-device (e.g. an in-browser segmentation model) — free, offline, fast; no equivalent for inpaint/expand.
+3. **Canvas AI tools — decision 2026-10-14: run them on the user's own agent.**
+   - Polotno ships the editor side since 4.15 (installed: 4.14.1 → upgrade). `polotno/config`: `setExpandFunc`, `setReplaceObjectFunc`, `setRemoveObjectFunc`, `setUpscaleFunc`, `setRemoveBackgroundFunc`; helpers in `polotno/utils/image-edit` (`prepareImageInput`, `padImageForFrame`, `formatMask`). The SDK does selection/frame UI, pixel prep, progress, one undo step, cancellation via `AbortSignal`. Handlers return `{ src }` (data URL ok, no blob:), aspect within 2%. Docs: https://polotno.com/docs/ai-image-tools
+   - Handler (renderer) → IPC `agent:imageEdit` → main writes image/mask PNGs to temp → provider runs a **separate ephemeral thread** (not the chat) with `localImage` inputs + a fixed instruction, image_generation on → reads the generated file → returns a data URL. `signal` abort → `turn/interrupt`.
+   - Main post-processes so results always fit: resize to the request size; for Replace/Remove composite the result back only inside the mask (pixels outside stay exact); for Expand pad with `padImageForFrame` and composite the original back. Image models output fixed sizes (e.g. 1024/1536), so this step is required to pass the 2% aspect check.
+   - Availability: always register the handlers; when no capable agent is ready, open the setup/instructions dialog and throw `AbortError` (SDK shows no error). Capability check: provider signed in + `modelProvider/capabilities/read` → `imageGeneration`.
+   - Per tool: Generative fill (replace/remove) and Expand — agent image edit. Remove background — try agent (transparent output), fall back to an on-device model if quality is poor. Upscale — image models can't truly upscale; hide unless a provider offers it.
+   - Claude has no image generation, so with Claude as the provider these tools stay on Codex (or are unavailable). Make the image-tool provider separate from the chat provider.
+   - Spike first: quality of mask adherence and remove-background with Codex's image tool.
 
 ## Phase 4 — Provider and model choice
 
