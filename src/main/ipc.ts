@@ -21,6 +21,8 @@ import { regenerateMcpToken } from './mcp/token'
 import {
   cancelImageEdit,
   codexImage,
+  getCodexModels,
+  setCodexModel,
   editImageWithCodex,
   getCodexStatus,
   resetAllCodex,
@@ -170,6 +172,8 @@ export function registerIpcHandlers(): void {
   })
   handle('codex:status', () => getCodexStatus())
   handle('codex:signIn', () => signInToCodex())
+  handle('codex:models', () => getCodexModels())
+  handle('codex:setModel', (_event, { model }) => setCodexModel(model))
   handle('codex:run', (_event, { docId, prompt }) => runCodex(docId, prompt))
   handle('codex:stop', (_event, { docId }) => stopCodex(docId))
   handle('codex:reset', (_event, { docId }) => resetCodex(docId))

@@ -32,6 +32,13 @@ export type CodexEntry =
     }
   | { kind: 'error'; id: string; text: string }
 
+// A model the user's Codex account can run, for the panel's model picker.
+export type CodexModelInfo = { id: string; name: string; description: string; isDefault: boolean }
+
+// `selected` is the user's pick; null means "whatever Codex runs by default"
+// (their config.toml model when the account can use it).
+export type CodexModels = { models: CodexModelInfo[]; selected: string | null }
+
 export type CodexTurnState = 'idle' | 'running'
 
 export type CodexEvent =

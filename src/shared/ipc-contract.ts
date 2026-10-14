@@ -1,6 +1,6 @@
 import type { BridgeRequest, BridgeResponse } from './bridge-protocol'
 import type { DocId, RecentEntry } from './types'
-import type { CodexEvent, CodexStatus } from './codex'
+import type { CodexEvent, CodexModels, CodexStatus } from './codex'
 
 // Single source of truth for every IPC channel. The preload derives the typed
 // window.desktop API from these interfaces; main registers handlers against
@@ -59,6 +59,8 @@ export interface InvokeApi {
   // In-app generation through the user's Codex install (src/main/codex).
   'codex:status': () => CodexStatus
   'codex:signIn': () => void
+  'codex:models': () => CodexModels
+  'codex:setModel': (p: { model: string | null }) => void
   'codex:run': (p: { docId: DocId; prompt: string }) => void
   'codex:stop': (p: { docId: DocId }) => void
   'codex:reset': (p: { docId: DocId }) => void

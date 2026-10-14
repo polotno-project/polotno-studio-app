@@ -1,5 +1,5 @@
 import { makeAutoObservable } from 'mobx'
-import type { CodexEntry, CodexEvent, CodexStatus } from '../../../shared/codex'
+import type { CodexEntry, CodexEvent, CodexModels, CodexStatus } from '../../../shared/codex'
 import type { DocId } from '../../../shared/types'
 import { tabs } from './tabs-model'
 
@@ -9,6 +9,7 @@ import { tabs } from './tabs-model'
 
 class CodexModel {
   status: CodexStatus = { state: 'starting' }
+  models: CodexModels = { models: [], selected: null }
   private feeds = new Map<DocId, CodexEntry[]>()
   private running = new Set<DocId>()
 
@@ -38,6 +39,26 @@ class CodexModel {
 
   setStatus(status: CodexStatus): void {
     this.status = status
+    if (status.state === 'ready' && !this.models.models.length) this.loadModels()
+  }
+
+  loadModels(): void {
+    void window.desktop.invoke('codex:models').then((models) => this.setModels(models))
+  }
+
+  setModels(models: CodexModels): void {
+    this.models = models
+  }
+
+  // The model that runs: the pick, or Codex's default.
+  get currentModel(): CodexModels['models'][number] | undefined {
+    const { models, selected } = this.models
+    return models.find((model) => model.id === selected) ?? models.find((model) => model.isDefault)
+  }
+
+  pickModel(id: string | null): void {
+    this.models = { ...this.models, selected: id }
+    void window.desktop.invoke('codex:setModel', { model: id })
   }
 
   clear(docId: DocId): void {
@@ -47,7 +68,7 @@ class CodexModel {
 
   apply(event: CodexEvent): void {
     if (event.type === 'status') {
-      this.status = event.status
+      this.setStatus(event.status)
     } else if (event.type === 'turn') {
       if (event.state === 'running') this.running.add(event.docId)
       else this.running.delete(event.docId)

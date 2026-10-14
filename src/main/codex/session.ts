@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process'
 import { promises as fs, constants as fsConstants } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
-import type { CodexEntry, CodexEvent, CodexStatus } from '../../shared/codex'
+import type { CodexEntry, CodexEvent, CodexModels, CodexStatus } from '../../shared/codex'
 import type { DocId } from '../../shared/types'
 import { getMcpStatus } from '../mcp/launcher'
 import { readLocalImage, type LocalImage } from '../../mcp-server/local-image'
@@ -349,17 +349,71 @@ const DISABLED_FEATURES = [
   'multi_agent'
 ]
 
-// The model from the user's config.toml, unless their account can't use it
-// (a ChatGPT login only serves some models): then Codex's default, so the
-// conversation runs instead of failing on its first turn.
+type ModelListEntry = {
+  id: string
+  displayName: string
+  description: string
+  hidden: boolean
+  isDefault: boolean
+}
+
+async function listModels(codex: AppServer): Promise<ModelListEntry[]> {
+  const { data } = await codex.request<{ data: ModelListEntry[] }>('model/list', {
+    includeHidden: true
+  })
+  return data
+}
+
+// The model picked in the panel, kept across launches. Null: Codex's own choice.
+const modelFile = (): string => join(app.getPath('userData'), 'codex-model.json')
+let pickedModel: string | null | undefined
+
+async function readPickedModel(): Promise<string | null> {
+  if (pickedModel === undefined) {
+    try {
+      pickedModel = JSON.parse(await fs.readFile(modelFile(), 'utf8')).model ?? null
+    } catch {
+      pickedModel = null
+    }
+  }
+  return pickedModel ?? null
+}
+
+// The picked model, or the one from the user's config.toml, unless their
+// account can't use it (a ChatGPT login only serves some models): then
+// Codex's default, so the conversation runs instead of failing on its first
+// turn.
 async function threadModel(codex: AppServer, configured?: string): Promise<string | undefined> {
-  if (!configured) return undefined
-  const { data } = await codex.request<{ data: { id: string; isDefault: boolean }[] }>(
-    'model/list',
-    { includeHidden: true }
-  )
-  if (data.some((model) => model.id === configured)) return configured
+  const wanted = (await readPickedModel()) ?? configured
+  if (!wanted) return undefined
+  const data = await listModels(codex)
+  if (data.some((model) => model.id === wanted)) return wanted
   return data.find((model) => model.isDefault)?.id
+}
+
+export async function getCodexModels(): Promise<CodexModels> {
+  const codex = await ensureServer()
+  if (!codex || status.state !== 'ready') return { models: [], selected: null }
+  const data = await listModels(codex)
+  const picked = await readPickedModel()
+  return {
+    models: data
+      .filter((model) => !model.hidden || model.id === picked)
+      .map((model) => ({
+        id: model.id,
+        name: model.displayName,
+        description: model.description,
+        isDefault: model.isDefault
+      })),
+    selected: data.some((model) => model.id === picked) ? picked : null
+  }
+}
+
+// Applies from the next message on, in every design's conversation (turn/start
+// carries the model, and Codex keeps it for later turns of that thread).
+export async function setCodexModel(model: string | null): Promise<void> {
+  pickedModel = model
+  await fs.writeFile(modelFile(), JSON.stringify({ model }), 'utf8')
 }
 
 async function threadConfig(
@@ -465,9 +519,13 @@ export async function runCodex(docId: DocId, prompt: string): Promise<void> {
 
     emit({ type: 'entry', docId, entry: { kind: 'prompt', id: crypto.randomUUID(), text: prompt } })
     emit({ type: 'turn', docId, state: 'running' })
+    // The picked model (if the account still serves it), so a pick made
+    // mid-conversation applies from this message on.
+    const model = (await readPickedModel()) && (await threadModel(codex))
     const { turn } = await codex.request<{ turn: { id: string } }>('turn/start', {
       threadId,
-      input: [{ type: 'text', text: prompt }]
+      input: [{ type: 'text', text: prompt }],
+      ...(model && { model })
     })
     turnByThread.set(threadId, turn.id)
     if (stopRequested.has(docId)) await stopCodex(docId)

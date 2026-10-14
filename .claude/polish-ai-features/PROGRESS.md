@@ -55,3 +55,11 @@ Not verified: the "no Codex connected" path (needs signing out); the stock UI fl
 - Production build, mouse only: AI edit → Expand → drag frame → Generate with Codex signed out (CODEX_HOME=empty dir) → AI panel opens on "Sign in with ChatGPT", info toast, image unchanged, no error. AI edit → Generative fill → Remove → drag selection over the saxophone → Remove with real Codex → removed in ~45 s, rest of the image intact.
 - Dev server only: Polotno's canvas overlays (crop frame, expand frame, inpaint selection) don't draw. Production is fine. Logged in BACKLOG/PAPERCUTS.
 - Test driver: scratchpad flow.mjs (one CDP connection; Page.bringToFront first, otherwise the hidden window throttles timers and dropdowns close).
+
+## Phase 4.1 — model picker (2026-10-14)
+Done:
+- Main: `getCodexModels` (model/list, hidden ones left out unless picked) and `setCodexModel`; the pick is saved in `<userData>/codex-model.json`. IPC `codex:models`, `codex:setModel`.
+- The pick goes on every `turn/start` (Codex keeps it for the thread), so a change mid-conversation applies from the next message; new threads start on it too. A pick the account no longer serves falls back to Codex's default (same check as the config.toml model).
+- Panel: model menu at the bottom left of the composer (name + description per model, check on the current one).
+Verified: probe against codex app-server — turn/start `model` is honoured (bogus id → 400, gpt-6-luna → answers). In the app (production build): menu lists the 7 account models, picking GPT-6-Luna saves it, a message runs and answers, the pick survives a restart.
+Next: 4.2 AgentProvider abstraction, then 4.3 Claude provider.

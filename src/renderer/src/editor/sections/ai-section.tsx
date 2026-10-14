@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  ChevronDown,
   ImageIcon,
   ImagePlus,
   RotateCcw,
@@ -19,6 +20,12 @@ import { toast } from 'sonner'
 import { useStickToBottom } from 'use-stick-to-bottom'
 import { Button } from 'polotno/primitives/button'
 import { Spinner } from 'polotno/primitives/spinner'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from 'polotno/primitives/dropdown-menu'
 import type { CodexEntry } from '../../../../shared/codex'
 import { codex } from '../codex-model'
 import { Markdown } from './ai-markdown'
@@ -193,6 +200,44 @@ const FeedEntry = observer(function FeedEntry({
   }
 })
 
+// Which Codex model answers. The pick is kept across launches and applies
+// from the next message on.
+const ModelPicker = observer(function ModelPicker(): React.JSX.Element | null {
+  const current = codex.currentModel
+  if (!current) return null
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="ghost" size="sm" title="Model" className="text-neutral-500">
+            {current.name}
+            <ChevronDown className="size-3.5" />
+          </Button>
+        }
+      />
+      <DropdownMenuContent align="start" className="w-64">
+        {codex.models.models.map((model) => (
+          <DropdownMenuItem
+            key={model.id}
+            onSelect={() => codex.pickModel(model.id)}
+            className="items-start"
+          >
+            <Check
+              className={`mt-0.5 size-3.5 shrink-0 ${model.id === current.id ? '' : 'invisible'}`}
+            />
+            <div className="min-w-0">
+              <div>{model.name}</div>
+              {model.description && (
+                <div className="text-xs text-neutral-500">{model.description}</div>
+              )}
+            </div>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+})
+
 const Composer = observer(function Composer({ docId }: { docId: string }): React.JSX.Element {
   const [prompt, setPrompt] = useState('')
   const running = codex.isRunning(docId)
@@ -228,7 +273,9 @@ const Composer = observer(function Composer({ docId }: { docId: string }): React
           }}
           className="max-h-40 min-h-12 resize-none bg-transparent px-3 pt-2 text-sm outline-none [field-sizing:content] placeholder:text-neutral-400"
         />
-        <div className="flex items-center justify-end gap-1 p-1.5">
+        <div className="flex items-center gap-1 p-1.5">
+          <ModelPicker />
+          <div className="flex-1" />
           {running && (
             <Button
               variant="ghost"
