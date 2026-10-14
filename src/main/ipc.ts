@@ -19,6 +19,7 @@ import { markRendererReady } from './open-files'
 import { getMcpStatus, restartMcpServer } from './mcp/launcher'
 import { regenerateMcpToken } from './mcp/token'
 import {
+  codexImage,
   getCodexStatus,
   resetAllCodex,
   resetCodex,
@@ -170,4 +171,5 @@ export function registerIpcHandlers(): void {
   handle('codex:run', (_event, { docId, prompt }) => runCodex(docId, prompt))
   handle('codex:stop', (_event, { docId }) => stopCodex(docId))
   handle('codex:reset', (_event, { docId }) => resetCodex(docId))
+  handle('codex:image', (_event, { id }) => codexImage(id))
 }

@@ -62,6 +62,8 @@ export interface InvokeApi {
   'codex:run': (p: { docId: DocId; prompt: string }) => void
   'codex:stop': (p: { docId: DocId }) => void
   'codex:reset': (p: { docId: DocId }) => void
+  // A generated image at full size, by feed entry id.
+  'codex:image': (p: { id: string }) => { dataUrl: string; width: number; height: number }
 }
 
 export type MenuAction = 'newTab' | 'openFile' | 'save' | 'saveAs' | 'closeTab' | 'export'

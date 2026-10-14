@@ -6,6 +6,7 @@ import { delimiter, dirname, join } from 'node:path'
 import type { CodexEntry, CodexEvent, CodexStatus } from '../../shared/codex'
 import type { DocId } from '../../shared/types'
 import { getMcpStatus } from '../mcp/launcher'
+import { readLocalImage, type LocalImage } from '../../mcp-server/local-image'
 import { AppServer } from './app-server'
 
 // In-app generation through the user's own Codex install: spawns
@@ -23,6 +24,9 @@ const threadByDoc = new Map<DocId, string>()
 const docByThread = new Map<string, DocId>()
 const turnByThread = new Map<string, string>()
 const messageText = new Map<string, string>()
+// Where Codex saved each generated image, by feed entry id. The panel asks
+// for an image by entry id, so the renderer never names a file path.
+const imageFiles = new Map<string, string>()
 // Designs with a run in flight, claimed before the first await so a double
 // submit cannot start two turns on one design.
 const busy = new Set<DocId>()
@@ -206,6 +210,7 @@ function onItem(threadId: string, item: Item, completed: boolean): void {
       })
       return
     case 'imageGeneration':
+      if (completed && item.savedPath) imageFiles.set(item.id, item.savedPath)
       entry(threadId, {
         kind: 'image',
         id: item.id,
@@ -295,8 +300,10 @@ looking at the design with designId "${docId}". Make every change to that
 design with the polotno MCP tools; do not create other designs unless asked.
 
 - Read the resource polotno://skill/SKILL.md once before your first edit.
-- For imagery, use your image generation tool, then put the saved file on the
-  page with place_image (absolute path). Do not copy or convert the file.
+- For imagery, use your image generation tool, then always put the saved file
+  on the page with place_image (absolute path); a generated image is not in
+  the design until you do. For a background use place_image with
+  as: "background". Do not copy or convert the file.
 - Check your work with render_page and lint_design and fix what they show.
 - Reply in one or two short sentences: what you changed. Markdown renders in
   the panel, but the panel is narrow: no headings, keep tables small.
@@ -444,6 +451,13 @@ export async function runCodex(docId: DocId, prompt: string): Promise<void> {
     finishRun(docId)
     throw error
   }
+}
+
+// The full-size generated image behind a feed entry, for "Add to design".
+export async function codexImage(id: string): Promise<LocalImage> {
+  const path = imageFiles.get(id)
+  if (!path) throw new Error('This image is no longer available.')
+  return readLocalImage(path)
 }
 
 export async function stopCodex(docId: DocId): Promise<void> {

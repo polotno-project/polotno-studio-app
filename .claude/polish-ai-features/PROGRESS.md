@@ -25,3 +25,12 @@ Done:
 - MCP instructions tell agents to pass baseRev.
 Verified in the dev app over the HTTP API + CDP: user move/retype between read and patch survive; same-prop conflict kept user value + reported; one undo reverts only the agent change; user-added element doesn't shift agent index paths and keeps its z-position. Real Codex theme change while editing text: user edits kept.
 Not done: update_element/set_page still overwrite blindly (they send only the props the agent names, so only same-prop races); rev still counts agent edits only.
+
+## Phase 3.1–3.2 — generated images reach the design (2026-10-14)
+Done:
+- Image cards in the AI panel: "Add to design" (Polotno `selectImage`), "Background" (`page.background`), and drag onto the canvas (`unstable_registerNextDomDrop`; dropping on an image replaces it, as in Polotno's photo panel). Main keeps entry id → `savedPath` and serves the full image over `codex:image`, so the renderer never passes file paths.
+- `place_image`: `as: "background"` sets the page background; fits/centers against the target page's own size (get_info now returns per-page width/height and activePageId); defaults to the page the user is on. BACKLOG #12 closed.
+- Instructions (Codex developer instructions + MCP server instructions): always place a generated image; use as: "background" for backgrounds.
+Verified in the dev app: API place_image as background and on a 400×1200 page (fit 400×250, centered); real Codex run "generate a background…" set the page background itself; card Background / Add to design / drop all work with the full 2.2 MB image.
+Not changed: the 30 s bridge timeout — a 2.2 MB image placed well within it.
+Next: 3.3 Polotno 4.15 upgrade + image-edit spike.

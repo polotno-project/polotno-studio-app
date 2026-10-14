@@ -308,11 +308,15 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'place_image',
     description:
-      'Place a local image file (PNG, JPEG, WebP, GIF or SVG — e.g. one you just generated) on a page. The file is embedded in the design, so it can be deleted afterwards. Without width/height it keeps its aspect ratio and fits inside the page; without x/y it is centered. Returns elementId plus the placed box.',
+      'Place a local image file (PNG, JPEG, WebP, GIF or SVG — e.g. one you just generated) on a page. The file is embedded in the design, so it can be deleted afterwards. Without width/height it keeps its aspect ratio and fits inside the page; without x/y it is centered. With as: "background" it becomes the page background instead (cover-fitted, not an element). Returns elementId plus the placed box.',
     schema: {
       designId,
-      pageId: z.string().optional(),
+      pageId: z.string().optional().describe('Defaults to the page the user is on'),
       filePath: z.string().describe('Absolute path to the image file'),
+      as: z
+        .enum(['element', 'background'])
+        .optional()
+        .describe('"background" sets the page background; default "element"'),
       x: z.number().optional(),
       y: z.number().optional(),
       width: z
@@ -335,6 +339,7 @@ export const TOOLS: ToolDef[] = [
       designId: id,
       pageId,
       filePath,
+      as,
       x,
       y,
       width,
@@ -343,7 +348,22 @@ export const TOOLS: ToolDef[] = [
       atIndex
     }: any) => {
       const image = await readLocalImage(filePath)
-      const page = (await exec(id, { type: 'get_info' })).value as { width: number; height: number }
+      const info = (await exec(id, { type: 'get_info' })).value as {
+        activePageId: string | null
+        pages: { id: string; width: number; height: number }[]
+      }
+      const page = info.pages.find((p) => p.id === (pageId ?? info.activePageId))
+      if (!page) throw new Error(`page_not_found: no page ${pageId}`)
+
+      if (as === 'background') {
+        const { rev } = await exec(id, {
+          type: 'set_page',
+          pageId: page.id,
+          props: { background: image.dataUrl }
+        })
+        return json({ ok: true, pageId: page.id, background: true, rev })
+      }
+
       const aspect = image.width / image.height
       if (width === undefined && height === undefined) {
         const scale = Math.min(1, page.width / image.width, page.height / image.height)
@@ -357,10 +377,15 @@ export const TOOLS: ToolDef[] = [
       y ??= (page.height - height) / 2
       const element = await checkedEdit(id, {
         add: { ...props, type: image.type, src: image.dataUrl, x, y, width, height },
-        pageId
+        pageId: page.id
       })
-      const { value, rev } = await exec(id, { type: 'add_element', pageId, element, atIndex })
-      return json({ ...(value as object), x, y, width, height, rev })
+      const { value, rev } = await exec(id, {
+        type: 'add_element',
+        pageId: page.id,
+        element,
+        atIndex
+      })
+      return json({ ...(value as object), pageId: page.id, x, y, width, height, rev })
     }
   },
   {

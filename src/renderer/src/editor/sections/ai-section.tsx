@@ -1,7 +1,20 @@
 import { useEffect, useState } from 'react'
 import { observer } from 'mobx-react-lite'
 import { SectionTab, type Section } from 'polotno/side-panel'
-import { ArrowDown, ArrowUp, Check, ImageIcon, RotateCcw, Sparkles, Square, X } from 'lucide-react'
+import { selectImage } from 'polotno/side-panel/select-image'
+import { unstable_registerNextDomDrop } from 'polotno/config'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ImageIcon,
+  ImagePlus,
+  RotateCcw,
+  Sparkles,
+  Square,
+  Wallpaper,
+  X
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { useStickToBottom } from 'use-stick-to-bottom'
 import { Button } from 'polotno/primitives/button'
@@ -67,6 +80,29 @@ const ToolRow = observer(function ToolRow({
   )
 })
 
+// The card shows a small preview; these fetch the full image from main.
+async function addImage(
+  id: string,
+  droppedPos?: { x: number; y: number },
+  targetElement?: Parameters<typeof selectImage>[0]['targetElement']
+): Promise<void> {
+  const store = tabs.active?.store
+  if (!store) return
+  const { dataUrl } = await window.desktop.invoke('codex:image', { id })
+  await selectImage({ src: dataUrl, store, droppedPos, targetElement })
+}
+
+async function setBackground(id: string): Promise<void> {
+  const page = tabs.active?.store.activePage
+  if (!page) return
+  const { dataUrl } = await window.desktop.invoke('codex:image', { id })
+  page.set({ background: dataUrl })
+}
+
+const failed = (error: Error): void => {
+  toast.error(`Could not add the image: ${error.message}`)
+}
+
 const ImageCard = observer(function ImageCard({
   entry
 }: {
@@ -79,7 +115,15 @@ const ImageCard = observer(function ImageCard({
           <img
             src={entry.preview}
             alt={entry.prompt ?? 'Generated image'}
-            className="h-full w-full object-cover"
+            title="Drag onto the design"
+            draggable
+            onDragStart={() =>
+              unstable_registerNextDomDrop((pos, element) =>
+                addImage(entry.id, pos, element).catch(failed)
+              )
+            }
+            onDragEnd={() => unstable_registerNextDomDrop(null)}
+            className="h-full w-full cursor-grab object-cover"
           />
         ) : entry.status === 'failed' ? (
           <X className="size-6 text-red-500" />
@@ -90,6 +134,28 @@ const ImageCard = observer(function ImageCard({
           </div>
         )}
       </div>
+      {entry.preview && (
+        <div className="flex gap-1 border-t border-neutral-200 p-1 dark:border-neutral-700">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1"
+            onClick={() => addImage(entry.id).catch(failed)}
+          >
+            <ImagePlus className="size-3.5" />
+            Add to design
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1"
+            onClick={() => setBackground(entry.id).catch(failed)}
+          >
+            <Wallpaper className="size-3.5" />
+            Background
+          </Button>
+        </div>
+      )}
       {entry.prompt && (
         <div className="flex gap-1.5 px-2 py-1.5 text-[11px] leading-snug text-neutral-500">
           <ImageIcon className="mt-0.5 size-3 shrink-0" />

@@ -80,8 +80,12 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
         unit: store.unit,
         dpi: store.dpi,
         pageCount: store.pages.length,
+        activePageId: store.activePage?.id ?? store.pages[0]?.id ?? null,
+        // A page may have its own size; these are resolved to numbers.
         pages: store.pages.map((page) => ({
           id: page.id,
+          width: page.computedWidth as number,
+          height: page.computedHeight as number,
           elementCount: page.children.length
         }))
       }
