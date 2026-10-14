@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+/* Streamdown (AI panel markdown) styles its output with Tailwind classes. */
+@source '../../../node_modules/streamdown/dist/*.js';
 
 html,
 body,
@@ -29,4 +31,16 @@ body {
    elsewhere this falls back to plain 0.5rem padding. */
 .window-controls-inset {
   padding-right: calc(100% - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100%) + 0.5rem);
+}
+
+/* AI panel replies: the panel is narrow, so tighten Streamdown's spacing and
+   let wide tables scroll inside the message. */
+.ai-markdown > * + * {
+  margin-top: 0.5rem;
+}
+.ai-markdown :where(ul, ol) {
+  padding-left: 1.1rem;
+}
+.ai-markdown :where(table) {
+  font-size: 0.75rem;
 }

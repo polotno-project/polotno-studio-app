@@ -298,7 +298,10 @@ design with the polotno MCP tools; do not create other designs unless asked.
 - For imagery, use your image generation tool, then put the saved file on the
   page with place_image (absolute path). Do not copy or convert the file.
 - Check your work with render_page and lint_design and fix what they show.
-- Reply in one or two short sentences: what you changed. No markdown headings.`
+- Reply in one or two short sentences: what you changed. Markdown renders in
+  the panel, but the panel is narrow: no headings, keep tables small.
+- If you need the user's input, ask and end your turn; their answer arrives as
+  the next message. The user may also add messages while you work.`
 }
 
 // Codex features a design conversation must not have. With these off, the
@@ -318,30 +321,45 @@ const DISABLED_FEATURES = [
   'multi_agent'
 ]
 
+// The model from the user's config.toml, unless their account can't use it
+// (a ChatGPT login only serves some models): then Codex's default, so the
+// conversation runs instead of failing on its first turn.
+async function threadModel(codex: AppServer, configured?: string): Promise<string | undefined> {
+  if (!configured) return undefined
+  const { data } = await codex.request<{ data: { id: string; isDefault: boolean }[] }>(
+    'model/list',
+    { includeHidden: true }
+  )
+  if (data.some((model) => model.id === configured)) return configured
+  return data.find((model) => model.isDefault)?.id
+}
+
 async function threadConfig(
   codex: AppServer,
   mcp: { url: string; token: string }
-): Promise<Record<string, unknown>> {
+): Promise<{ model?: string; config: Record<string, unknown> }> {
   // Per-thread config merges into the user's own: switch off every MCP server
   // they configured for themselves, so it never joins a design conversation.
-  const { config } = await codex.request<{ config: { mcp_servers?: Record<string, unknown> } }>(
-    'config/read',
-    {}
-  )
+  const { config } = await codex.request<{
+    config: { model?: string; mcp_servers?: Record<string, unknown> }
+  }>('config/read', {})
   const own = Object.keys(config.mcp_servers ?? {}).filter((name) => name !== 'polotno')
   return {
-    mcp_servers: {
-      ...Object.fromEntries(own.map((name) => [name, { enabled: false }])),
-      polotno: {
-        url: mcp.url,
-        http_headers: { Authorization: `Bearer ${mcp.token}` },
-        default_tools_approval_mode: 'approve',
-        tool_timeout_sec: 180
-      }
-    },
-    'features.image_generation': true,
-    web_search: 'disabled',
-    ...Object.fromEntries(DISABLED_FEATURES.map((feature) => [`features.${feature}`, false]))
+    model: await threadModel(codex, config.model),
+    config: {
+      mcp_servers: {
+        ...Object.fromEntries(own.map((name) => [name, { enabled: false }])),
+        polotno: {
+          url: mcp.url,
+          http_headers: { Authorization: `Bearer ${mcp.token}` },
+          default_tools_approval_mode: 'approve',
+          tool_timeout_sec: 180
+        }
+      },
+      'features.image_generation': true,
+      web_search: 'disabled',
+      ...Object.fromEntries(DISABLED_FEATURES.map((feature) => [`features.${feature}`, false]))
+    }
   }
 }
 
@@ -364,8 +382,31 @@ export async function signInToCodex(): Promise<void> {
   }
 }
 
+// A message sent while Codex is working joins the running turn (an answer to
+// its question, or a correction) instead of waiting for it to end.
+async function steerCodex(docId: DocId, prompt: string): Promise<void> {
+  const threadId = threadByDoc.get(docId)
+  const turnId = threadId && turnByThread.get(threadId)
+  if (!server || !threadId || !turnId) {
+    throw new Error('Codex is still starting this request. Send again in a moment.')
+  }
+  await server.request('turn/steer', {
+    threadId,
+    expectedTurnId: turnId,
+    input: [{ type: 'text', text: prompt }]
+  })
+  emit({ type: 'entry', docId, entry: { kind: 'prompt', id: crypto.randomUUID(), text: prompt } })
+}
+
 export async function runCodex(docId: DocId, prompt: string): Promise<void> {
-  if (busy.has(docId)) throw new Error('Codex is already working on this design.')
+  if (busy.has(docId)) {
+    try {
+      return await steerCodex(docId, prompt)
+    } catch (error) {
+      // The turn ended while the message was on its way: start a new one.
+      if (busy.has(docId)) throw error
+    }
+  }
   busy.add(docId)
   try {
     const codex = await ensureServer()
@@ -384,7 +425,7 @@ export async function runCodex(docId: DocId, prompt: string): Promise<void> {
         ephemeral: true,
         serviceName: 'polotno_app',
         developerInstructions: instructions(docId),
-        config: await threadConfig(codex, { url: mcp.url, token: mcp.token })
+        ...(await threadConfig(codex, { url: mcp.url, token: mcp.token }))
       })
       threadId = result.thread.id
       threadByDoc.set(docId, threadId)

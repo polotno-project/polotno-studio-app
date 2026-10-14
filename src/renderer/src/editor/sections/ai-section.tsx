@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { observer } from 'mobx-react-lite'
 import { SectionTab, type Section } from 'polotno/side-panel'
-import { Check, ImageIcon, RotateCcw, Sparkles, Square, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ImageIcon, RotateCcw, Sparkles, Square, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { useStickToBottom } from 'use-stick-to-bottom'
 import { Button } from 'polotno/primitives/button'
 import { Spinner } from 'polotno/primitives/spinner'
-import { Textarea } from 'polotno/primitives/textarea'
 import type { CodexEntry } from '../../../../shared/codex'
 import { codex } from '../codex-model'
+import { Markdown } from './ai-markdown'
 import { tabs } from '../tabs-model'
 
 // The AI side panel: a prompt box that runs Codex (through the user's own
@@ -107,14 +108,12 @@ const FeedEntry = observer(function FeedEntry({
   switch (entry.kind) {
     case 'prompt':
       return (
-        <div className="ml-6 self-end rounded-lg bg-neutral-900 px-3 py-2 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">
+        <div className="ml-6 self-end whitespace-pre-wrap rounded-lg bg-neutral-900 px-3 py-2 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900">
           {entry.text}
         </div>
       )
     case 'message':
-      return entry.text ? (
-        <div className="whitespace-pre-wrap px-1 text-sm leading-relaxed">{entry.text}</div>
-      ) : null
+      return entry.text ? <Markdown text={entry.text} streaming={!entry.done} /> : null
     case 'tool':
       return <ToolRow entry={entry} count={1} />
     case 'image':
@@ -131,63 +130,70 @@ const FeedEntry = observer(function FeedEntry({
 const Composer = observer(function Composer({ docId }: { docId: string }): React.JSX.Element {
   const [prompt, setPrompt] = useState('')
   const running = codex.isRunning(docId)
+  const started = codex.feed(docId).length > 0
 
-  const submit = (text: string): void => {
-    const value = text.trim()
-    if (!value || running) return
+  // While Codex works, a message joins the running turn (main steers it).
+  const submit = (): void => {
+    const value = prompt.trim()
+    if (!value) return
     setPrompt('')
-    window.desktop.invoke('codex:run', { docId, prompt: value }).catch((error: Error) => {
-      toast.error(`Codex could not start: ${error.message}`)
-    })
+    send(docId, value)
   }
 
+  const placeholder = running
+    ? 'Add to the request or answer Codex…'
+    : started
+      ? 'Reply or ask for a change…'
+      : 'Describe what to make or change…'
+
   return (
-    <div className="flex flex-col gap-2 border-t border-neutral-200 p-2 dark:border-neutral-700">
-      <Textarea
-        value={prompt}
-        rows={3}
-        placeholder="Describe what to make or change…"
-        onChange={(e) => setPrompt(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            submit(prompt)
-          }
-        }}
-        className="resize-none text-sm"
-      />
-      {running ? (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void window.desktop.invoke('codex:stop', { docId })}
-        >
-          <Square className="size-3.5" />
-          Stop
-        </Button>
-      ) : (
-        <Button size="sm" disabled={!prompt.trim()} onClick={() => submit(prompt)}>
-          <Sparkles className="size-3.5" />
-          Generate
-        </Button>
-      )}
-      {!running && codex.feed(docId).length === 0 && (
-        <div className="flex flex-col gap-1">
-          {SUGGESTIONS.map((suggestion) => (
-            <button
-              key={suggestion}
-              type="button"
-              className="rounded-md px-2 py-1 text-left text-xs text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              onClick={() => submit(suggestion)}
+    <div className="border-t border-neutral-200 p-2 dark:border-neutral-700">
+      <div className="flex flex-col rounded-lg border border-neutral-300 bg-white focus-within:border-neutral-500 dark:border-neutral-600 dark:bg-neutral-900 dark:focus-within:border-neutral-400">
+        <textarea
+          value={prompt}
+          rows={2}
+          placeholder={placeholder}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              submit()
+            }
+          }}
+          className="max-h-40 min-h-12 resize-none bg-transparent px-3 pt-2 text-sm outline-none [field-sizing:content] placeholder:text-neutral-400"
+        />
+        <div className="flex items-center justify-end gap-1 p-1.5">
+          {running && (
+            <Button
+              variant="ghost"
+              size="sm"
+              title="Stop"
+              onClick={() => void window.desktop.invoke('codex:stop', { docId })}
             >
-              {suggestion}
-            </button>
-          ))}
+              <Square className="size-3.5" />
+              Stop
+            </Button>
+          )}
+          <Button
+            size="icon-sm"
+            title="Send"
+            aria-label="Send"
+            disabled={!prompt.trim()}
+            onClick={submit}
+          >
+            <ArrowUp className="size-4" />
+          </Button>
         </div>
-      )}
+      </div>
     </div>
   )
 })
+
+function send(docId: string, prompt: string): void {
+  window.desktop.invoke('codex:run', { docId, prompt }).catch((error: Error) => {
+    toast.error(`Codex could not start: ${error.message}`)
+  })
+}
 
 // Consecutive calls of the same step ("Adding an element" eight times) read as
 // noise; show them as one row with a count, keyed by the latest call.
@@ -213,42 +219,71 @@ function collapseTools(feed: CodexEntry[]): { entry: CodexEntry; count: number }
 const Feed = observer(function Feed({ docId }: { docId: string }): React.JSX.Element {
   const feed = codex.feed(docId)
   const running = codex.isRunning(docId)
-  const end = useRef<HTMLDivElement>(null)
   const last = feed[feed.length - 1]
-  const lastSize = last?.kind === 'message' ? last.text.length : 0
-
-  useEffect(() => {
-    end.current?.scrollIntoView({ block: 'end' })
-  }, [feed.length, lastSize, running])
+  // Follows new text only while the user is at the bottom; scrolling up
+  // detaches it until they scroll back or press the arrow.
+  const { scrollRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom({
+    initial: 'instant',
+    resize: 'smooth'
+  })
 
   if (feed.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center text-sm text-neutral-500">
-        <Sparkles className="size-6 text-neutral-300" />
-        Codex edits this design live. It can write, lay out, and generate images.
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-8">
+        <div className="flex flex-col items-center gap-2 text-center text-sm text-neutral-500">
+          <Sparkles className="size-6 text-neutral-300" />
+          Codex edits this design live. It can write, lay out, and generate images.
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {SUGGESTIONS.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              className="rounded-md border border-neutral-200 px-3 py-2 text-left text-xs text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              onClick={() => send(docId, suggestion)}
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
       </div>
     )
   }
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
-      {/* shrink-0: in an overflowing flex column, entries would otherwise
-          squash (the image card collapsed to its border). */}
-      {collapseTools(feed).map(({ entry, count }) => (
-        <div key={entry.id} className="flex shrink-0 flex-col">
-          {entry.kind === 'tool' ? (
-            <ToolRow entry={entry} count={count} />
-          ) : (
-            <FeedEntry entry={entry} />
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+        <div ref={contentRef} className="flex flex-col gap-2 p-2">
+          {/* shrink-0: in an overflowing flex column, entries would otherwise
+              squash (the image card collapsed to its border). */}
+          {collapseTools(feed).map(({ entry, count }) => (
+            <div key={entry.id} className="flex shrink-0 flex-col">
+              {entry.kind === 'tool' ? (
+                <ToolRow entry={entry} count={count} />
+              ) : (
+                <FeedEntry entry={entry} />
+              )}
+            </div>
+          ))}
+          {running && last?.kind !== 'tool' && last?.kind !== 'image' && (
+            <div className="flex items-center gap-2 px-1 text-xs text-neutral-500">
+              <Spinner className="size-3" />
+              Working…
+            </div>
           )}
         </div>
-      ))}
-      {running && last?.kind !== 'tool' && last?.kind !== 'image' && (
-        <div className="flex items-center gap-2 px-1 text-xs text-neutral-500">
-          <Spinner className="size-3" />
-          Working…
-        </div>
+      </div>
+      {!isAtBottom && (
+        <Button
+          variant="outline"
+          size="icon-sm"
+          title="Jump to latest"
+          aria-label="Jump to latest"
+          className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-white shadow-md dark:bg-neutral-900"
+          onClick={() => void scrollToBottom()}
+        >
+          <ArrowDown className="size-4" />
+        </Button>
       )}
-      <div ref={end} />
     </div>
   )
 })
