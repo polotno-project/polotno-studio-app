@@ -1,4 +1,5 @@
 import type { DesignCommand } from '../../../shared/commands'
+import { applyChanges } from './apply-changes'
 import type { DesignStore } from './store'
 
 export class CommandError extends Error {
@@ -87,13 +88,16 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
 
     case 'load_json': {
       try {
-        store.loadJSON(command.json)
+        store.loadJSON(command.json, { keepHistory: true })
       } catch (error) {
         throw new CommandError('invalid_json', String(error))
       }
       await store.waitLoading()
       return null
     }
+
+    case 'apply_changes':
+      return applyChanges(store, command.changes)
 
     case 'set_size':
       store.setSize(command.width, command.height, command.magicResize ?? false)
@@ -168,7 +172,11 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
         pixelRatio,
         mimeType: command.mimeType ?? 'image/png'
       })
-      return { dataUrl, width: Math.round(store.width * pixelRatio), height: Math.round(store.height * pixelRatio) }
+      return {
+        dataUrl,
+        width: Math.round(store.width * pixelRatio),
+        height: Math.round(store.height * pixelRatio)
+      }
     }
 
     case 'lint': {

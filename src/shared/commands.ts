@@ -1,3 +1,5 @@
+import type { DesignChange } from './design-diff'
+
 // The single vocabulary for store operations. Every agent-visible edit (MCP
 // tools) and every internal bridge call maps to exactly one DesignCommand.
 // The executor lives in the renderer (src/renderer/src/editor/executor.ts) and
@@ -9,6 +11,8 @@ export type DesignCommand =
   | { type: 'get_json' }
   | { type: 'get_info' }
   | { type: 'load_json'; json: unknown }
+  // An agent's JSON Patch, diffed into per-id store operations (design-diff.ts).
+  | { type: 'apply_changes'; changes: DesignChange[] }
   | { type: 'set_size'; width: number; height: number; magicResize?: boolean }
   | { type: 'add_page'; background?: string; duration?: number }
   | { type: 'remove_page'; pageId: string }
@@ -78,6 +82,7 @@ export type BridgeCommand = DesignCommand | AppCommand
 // Commands that change the document (drive the per-design rev counter).
 export const MUTATING_COMMANDS: ReadonlySet<DesignCommand['type']> = new Set([
   'load_json',
+  'apply_changes',
   'set_size',
   'add_page',
   'remove_page',
@@ -102,5 +107,4 @@ export interface CommandFailure {
 }
 
 export type CommandResult =
-  | { ok: true; value?: unknown; rev?: number }
-  | { ok: false; error: CommandFailure }
+  { ok: true; value?: unknown; rev?: number } | { ok: false; error: CommandFailure }

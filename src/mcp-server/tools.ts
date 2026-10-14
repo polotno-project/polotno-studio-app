@@ -5,6 +5,7 @@ import { validateDesign } from '@polotno/schema'
 import { rpc } from './bridge-client'
 import { readLocalImage } from './local-image'
 import { elideDataUrls, hasDataRefs, restoreDataUrls } from './data-urls'
+import { diffDesign, isEqual } from '../shared/design-diff'
 import {
   EXPORT_EXTENSIONS,
   type CommandResult,
@@ -121,6 +122,22 @@ async function checkedEdit(
 }
 
 const designId = z.string().describe('The design id (from list_designs or create_design)')
+
+// The designs agents last read, by rev. A patch's index paths ("/pages/0/
+// children/3") mean what they meant in the copy the agent read; the user may
+// have added, removed, or edited elements since. Patching that copy and
+// diffing it keeps the edit pointed at the right elements.
+const READS_KEPT = 4
+const reads = new Map<string, Map<number, unknown>>()
+
+function rememberRead(id: string, rev: number | undefined, value: unknown): void {
+  if (rev === undefined) return
+  const byRev = reads.get(id) ?? new Map<number, unknown>()
+  byRev.delete(rev)
+  byRev.set(rev, value)
+  while (byRev.size > READS_KEPT) byRev.delete(byRev.keys().next().value as number)
+  reads.set(id, byRev)
+}
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export const TOOLS: ToolDef[] = [
@@ -389,13 +406,14 @@ export const TOOLS: ToolDef[] = [
     schema: { designId },
     handler: async ({ designId: id }: any) => {
       const { value, rev } = await exec(id, { type: 'get_json' })
+      rememberRead(id, rev, value)
       return json({ rev, json: elideDataUrls(value) })
     }
   },
   {
     name: 'patch_design_json',
     description:
-      'Apply an RFC 6902 JSON Patch — the escape hatch for bulk/structural edits. Pass baseRev for optimistic concurrency; the result is schema-validated before it touches the design.',
+      'Apply an RFC 6902 JSON Patch — the escape hatch for bulk/structural edits. Pass the baseRev of the get_design_json you based the paths on: the patch applies to that copy, and only what it changes reaches the live design, so the user can keep editing meanwhile. Properties the user changed since your read keep their value and come back as "skipped". The result is schema-validated before it touches the design.',
     schema: {
       designId,
       patch: z.array(z.record(z.string(), z.unknown())).describe('RFC 6902 operations'),
@@ -403,18 +421,20 @@ export const TOOLS: ToolDef[] = [
     },
     handler: async ({ designId: id, patch, baseRev }: any) => {
       const current = await exec(id, { type: 'get_json' })
-      if (baseRev !== undefined && current.rev !== undefined && baseRev !== current.rev) {
+      const read = baseRev === undefined ? undefined : reads.get(id)?.get(baseRev)
+      if (!read && baseRev !== undefined && current.rev !== undefined && baseRev !== current.rev) {
         throw new Error(
           `rev_conflict: design is at rev ${current.rev}, you based the patch on rev ${baseRev}. Re-read with get_design_json.`
         )
       }
+      const base = (read ?? current.value) as any
       // Elision only rewrites leaf strings, so the agent's paths address the
       // full design unchanged; only references inside op values need restoring.
-      const ops = restoreDataUrls(patch, current.value)
-      let patched: unknown
+      const ops = restoreDataUrls(patch, base)
+      let patched: any
       try {
         patched = applyPatch(
-          structuredClone(current.value),
+          structuredClone(base),
           ops as unknown as Operation[],
           true,
           false
@@ -428,8 +448,31 @@ export const TOOLS: ToolDef[] = [
           `invalid_result: the patched design fails schema validation: ${JSON.stringify(check.errors?.slice(0, 5))}`
         )
       }
-      const { rev } = await exec(id, { type: 'load_json', json: patched })
-      return json({ ok: true, rev })
+
+      const diff = diffDesign(base, patched)
+      if ('fallback' in diff) {
+        // Loading the whole patched copy would undo anything changed since the
+        // read, so it is only safe when nothing was.
+        if (!isEqual(base, current.value)) {
+          throw new Error(
+            `rev_conflict: this patch can't be merged into a design that changed since your read (${diff.fallback}). Re-read with get_design_json and patch again.`
+          )
+        }
+        const { rev } = await exec(id, { type: 'load_json', json: patched })
+        return json({ ok: true, rev })
+      }
+      const { value, rev } = await exec(id, { type: 'apply_changes', changes: diff.changes })
+      const { skipped } = value as { skipped: unknown[] }
+      return json(
+        skipped.length
+          ? {
+              ok: true,
+              rev,
+              skipped,
+              note: 'The user changed these while you worked; their values were kept. Re-read before changing them again.'
+            }
+          : { ok: true, rev }
+      )
     }
   },
   {

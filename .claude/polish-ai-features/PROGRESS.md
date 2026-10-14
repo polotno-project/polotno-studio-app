@@ -14,3 +14,14 @@ Done and verified in the dev app over CDP with a real Codex run (codex 0.155.0):
 - AI Elements itself not copied in: tied to the Vercel `ai` SDK types; took its two building blocks instead.
 - Extra fix: if config.toml's model isn't served to the account (user had `gpt-6.1-sol` → 400 on every turn), the thread uses Codex's default from `model/list`.
 Not checked: dark mode look of the new composer/markdown.
+
+## Phase 2 — concurrent editing (2026-10-14)
+Cause: patch_design_json reloaded the whole design (`store.loadJSON`), rebuilding every element (resets a drag or text edit in progress, wiped undo history).
+Done:
+- `src/shared/design-diff.ts`: diff before/after a patch into per-id ops (set props with the value the agent saw, add/remove/order elements, pages, size). Unit tests: `npm test` (scripts/design-diff.test.mjs, 11 pass).
+- MCP `get_design_json` remembers the last 4 reads per design by rev; `patch_design_json` applies the patch to the copy at `baseRev` (index paths stay right even if the user added/removed elements), diffs it, sends `apply_changes`.
+- Renderer `apply-changes.ts`: applies by id in one `history.transaction` (one undo step). A prop the user changed since the read keeps the user's value and is returned as `skipped` with a note. Reorders only shuffle the agent's own slots.
+- Fallback (type change, move between parents, add inside a group, root keys like unit/fonts): whole load with keepHistory, refused with rev_conflict if the design changed since the read.
+- MCP instructions tell agents to pass baseRev.
+Verified in the dev app over the HTTP API + CDP: user move/retype between read and patch survive; same-prop conflict kept user value + reported; one undo reverts only the agent change; user-added element doesn't shift agent index paths and keeps its z-position. Real Codex theme change while editing text: user edits kept.
+Not done: update_element/set_page still overwrite blindly (they send only the props the agent names, so only same-prop races); rev still counts agent edits only.
