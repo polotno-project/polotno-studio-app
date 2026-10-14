@@ -63,3 +63,24 @@ Done:
 - Panel: model menu at the bottom left of the composer (name + description per model, check on the current one).
 Verified: probe against codex app-server — turn/start `model` is honoured (bogus id → 400, gpt-6-luna → answers). In the app (production build): menu lists the 7 account models, picking GPT-6-Luna saves it, a message runs and answers, the pick survives a restart.
 Next: 4.2 AgentProvider abstraction, then 4.3 Claude provider.
+
+## Phase 4.2 — provider abstraction (2026-10-15)
+Done:
+- `src/main/agents/provider.ts`: `AgentProvider` interface (getStatus, signIn, getModels, setModel, run (steers while a turn runs), stop, reset, resetAll, image, shutdown) + `emitAgentEvent`.
+- `src/main/agents/index.ts`: registry (only Codex; `active` is fixed until 4.3). stop/reset/resetAll/image fan out to every provider, so a design's conversation is handled by whichever agent has it.
+- Codex moved to `src/main/agents/codex/{provider,app-server}.ts`, exported as `codexProvider`.
+- Shared types `src/shared/agent.ts` (AgentStatus/AgentEntry/AgentModels/AgentEvent; status events carry `agent`).
+- IPC renamed: `codex:*` → `agent:*` (+ `agent:list`), event `agent:event`. The canvas AI tools get their own `imageEdit:status|run|cancel`, always on Codex (image generation), independent of the chat agent.
+- Renderer: `agent-model.ts` (`agent`), panel header/empty state/placeholder/toast use the agent's name. Setup screens (missing/signedOut) still Codex-only → 4.4.
+Verified in the dev app: agent:list/status/models, real run via the composer (background changed, reply shown), Stop mid-run ("Stopped."), New chat, imageEdit:run + cancel (AbortError after 6 s), agent:image unknown id → clear error.
+
+### Notes for 4.3 (Claude), from current docs (code.claude.com/docs, agent-sdk 0.3.300)
+- Agent SDK bundles a native claude binary (optional dep per platform); `pathToClaudeCodeExecutable` can point at the user's own `claude`.
+- Policy (legal-and-compliance): third parties may not offer Claude.ai login or route Free/Pro/Max credentials for their users; "Nor does it prevent an end user from signing in to the unmodified Claude Code binary with their own Claude subscription". → spawn the user's own installed `claude`, never handle tokens; still needs Anthropic confirmation (BACKLOG licensing gate).
+- Detect: `claude --version`; `claude auth status` (JSON, exit 0 when logged in, `authMethod`). SDK `accountInfo()` → {email, organization, subscriptionType…}.
+- Lockdown: `settingSources: []`, `strictMcpConfig: true`, `tools: []`, `allowedTools: ['mcp__polotno__*']`, `permissionMode: 'dontAsk'`, http MCP with Bearer header. Verify the init message's `tools` list.
+- Streaming input (AsyncIterable) keeps one session per tab; mid-turn messages are queued for the next turn (not injected) → "steer" = queue; `interrupt()`, `setModel()`, `supportedModels()` ({value, displayName, description}).
+- Stream: `includePartialMessages` → stream_event content_block_delta text_delta; assistant tool_use blocks; result subtypes success/error_*.
+- systemPrompt: preset `claude_code` + `append`, or own string (then add a line on system reminders).
+- CLI alternative: `claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --strict-mcp-config --mcp-config … --tools "" --allowedTools "mcp__polotno__*" --permission-mode dontAsk`.
+Next: 4.3.

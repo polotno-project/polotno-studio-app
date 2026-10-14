@@ -19,18 +19,18 @@ import { markRendererReady } from './open-files'
 import { getMcpStatus, restartMcpServer } from './mcp/launcher'
 import { regenerateMcpToken } from './mcp/token'
 import {
-  cancelImageEdit,
-  codexImage,
-  getCodexModels,
-  setCodexModel,
-  editImageWithCodex,
-  getCodexStatus,
-  resetAllCodex,
-  resetCodex,
-  runCodex,
-  signInToCodex,
-  stopCodex
-} from './codex/session'
+  agentImage,
+  getAgentModels,
+  getAgentStatus,
+  listAgents,
+  resetAgent,
+  resetAllAgents,
+  runAgent,
+  setAgentModel,
+  signInToAgent,
+  stopAgent
+} from './agents'
+import { cancelImageEdit, editImageWithCodex, getCodexStatus } from './agents/codex/provider'
 import {
   readDesignFile,
   readDesignFileBase64,
@@ -72,9 +72,9 @@ export function registerIpcHandlers(): void {
     persistSession()
   })
   handle('doc:close', (_event, { docId }) => {
-    // A Codex run on a closed design would keep spending usage on edits that
+    // An agent run on a closed design would keep spending usage on edits that
     // can no longer land.
-    resetCodex(docId)
+    resetAgent(docId)
     unwatchDocument(docId)
     documents.close(docId)
     persistSession()
@@ -141,7 +141,7 @@ export function registerIpcHandlers(): void {
   handle('mcp:regenerateToken', () => {
     const token = regenerateMcpToken()
     restartMcpServer()
-    resetAllCodex()
+    resetAllAgents()
     return { token }
   })
   handle('mcp:saveMcpb', async (event) => {
@@ -170,16 +170,18 @@ export function registerIpcHandlers(): void {
     if (!/^(https?|cursor|vscode):/.test(url)) throw new Error(`Refusing to open ${url}`)
     void shell.openExternal(url)
   })
-  handle('codex:status', () => getCodexStatus())
-  handle('codex:signIn', () => signInToCodex())
-  handle('codex:models', () => getCodexModels())
-  handle('codex:setModel', (_event, { model }) => setCodexModel(model))
-  handle('codex:run', (_event, { docId, prompt }) => runCodex(docId, prompt))
-  handle('codex:stop', (_event, { docId }) => stopCodex(docId))
-  handle('codex:reset', (_event, { docId }) => resetCodex(docId))
-  handle('codex:image', (_event, { id }) => codexImage(id))
-  handle('codex:imageEdit', (_event, { id, png, instruction }) =>
+  handle('agent:list', () => listAgents())
+  handle('agent:status', () => getAgentStatus())
+  handle('agent:signIn', () => signInToAgent())
+  handle('agent:models', () => getAgentModels())
+  handle('agent:setModel', (_event, { model }) => setAgentModel(model))
+  handle('agent:run', (_event, { docId, prompt }) => runAgent(docId, prompt))
+  handle('agent:stop', (_event, { docId }) => stopAgent(docId))
+  handle('agent:reset', (_event, { docId }) => resetAgent(docId))
+  handle('agent:image', (_event, { id }) => agentImage(id))
+  handle('imageEdit:status', () => getCodexStatus())
+  handle('imageEdit:run', (_event, { id, png, instruction }) =>
     editImageWithCodex(id, png, instruction)
   )
-  handle('codex:imageEditCancel', (_event, { id }) => cancelImageEdit(id))
+  handle('imageEdit:cancel', (_event, { id }) => cancelImageEdit(id))
 }

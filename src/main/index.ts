@@ -6,7 +6,7 @@ import { registerIpcHandlers } from './ipc'
 import { collectOpenablePaths, requestOpenPath } from './open-files'
 import { initBridgeRouter } from './bridge-router'
 import { startMcpServer, stopMcpServer } from './mcp/launcher'
-import { shutdownCodex } from './codex/session'
+import { shutdownAgents } from './agents'
 import { runCli } from './cli'
 import { initUpdater } from './updater'
 import { migrateDraftsToLibrary } from './library'
@@ -75,7 +75,7 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
   })
 
   app.on('will-quit', () => {
-    shutdownCodex()
+    shutdownAgents()
     stopMcpServer()
   })
 }

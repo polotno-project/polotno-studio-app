@@ -1,7 +1,6 @@
 import { setExpandFunc, setRemoveObjectFunc, setReplaceObjectFunc } from 'polotno/config'
 import { padImageForFrame, prepareImageInput } from 'polotno/utils/image-edit'
 import { toast } from 'sonner'
-import { codex } from './codex-model'
 import { tabs } from './tabs-model'
 
 // Polotno's canvas AI tools (Generative fill: replace / remove, and Expand)
@@ -183,8 +182,7 @@ async function composite(
 
 // No connected Codex: show where to connect it instead of an error.
 async function ensureCodex(): Promise<void> {
-  const status = await window.desktop.invoke('codex:status')
-  codex.setStatus(status)
+  const status = await window.desktop.invoke('imageEdit:status')
   if (status.state === 'ready') return
   tabs.active?.store.openSidePanel('ai')
   toast.info('AI edits run on your Codex. Connect it in the AI panel to use them.')
@@ -204,10 +202,10 @@ async function run(
   if (signal.aborted) throw abortError()
 
   const id = crypto.randomUUID()
-  const cancel = (): void => void window.desktop.invoke('codex:imageEditCancel', { id })
+  const cancel = (): void => void window.desktop.invoke('imageEdit:cancel', { id })
   signal.addEventListener('abort', cancel, { once: true })
   try {
-    const { dataUrl } = await window.desktop.invoke('codex:imageEdit', { id, png, instruction })
+    const { dataUrl } = await window.desktop.invoke('imageEdit:run', { id, png, instruction })
     if (signal.aborted) throw abortError()
     return { src: await composite(original, dataUrl, area, underlay) }
   } catch (error) {

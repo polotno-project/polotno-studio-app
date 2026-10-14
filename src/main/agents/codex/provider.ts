@@ -1,12 +1,13 @@
-import { app, BrowserWindow, nativeImage, shell } from 'electron'
+import { app, nativeImage, shell } from 'electron'
 import { execFile } from 'node:child_process'
 import { promises as fs, constants as fsConstants } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
-import type { CodexEntry, CodexEvent, CodexModels, CodexStatus } from '../../shared/codex'
-import type { DocId } from '../../shared/types'
-import { getMcpStatus } from '../mcp/launcher'
-import { readLocalImage, type LocalImage } from '../../mcp-server/local-image'
+import type { AgentEntry, AgentEvent, AgentModels, AgentStatus } from '../../../shared/agent'
+import type { DocId } from '../../../shared/types'
+import { getMcpStatus } from '../../mcp/launcher'
+import { readLocalImage, type LocalImage } from '../../../mcp-server/local-image'
+import { emitAgentEvent, type AgentProvider } from '../provider'
 import { AppServer } from './app-server'
 
 // In-app generation through the user's own Codex install: spawns
@@ -17,7 +18,7 @@ import { AppServer } from './app-server'
 
 let server: AppServer | null = null
 let starting: Promise<AppServer | null> | null = null
-let status: CodexStatus = { state: 'starting' }
+let status: AgentStatus = { state: 'starting' }
 let version: string | null = null
 
 const threadByDoc = new Map<DocId, string>()
@@ -44,16 +45,16 @@ function finishRun(docId: DocId): void {
   emit({ type: 'turn', docId, state: 'idle' })
 }
 
-function emit(event: CodexEvent): void {
-  for (const win of BrowserWindow.getAllWindows()) win.webContents.send('codex:event', event)
+function emit(event: AgentEvent): void {
+  emitAgentEvent(event)
 }
 
-function setStatus(next: CodexStatus): void {
+function setStatus(next: AgentStatus): void {
   status = next
-  emit({ type: 'status', status })
+  emit({ type: 'status', agent: 'codex', status })
 }
 
-function entry(threadId: string, value: CodexEntry): void {
+function entry(threadId: string, value: AgentEntry): void {
   const docId = docByThread.get(threadId)
   if (docId) emit({ type: 'entry', docId, entry: value })
 }
@@ -391,7 +392,7 @@ async function threadModel(codex: AppServer, configured?: string): Promise<strin
   return data.find((model) => model.isDefault)?.id
 }
 
-export async function getCodexModels(): Promise<CodexModels> {
+async function getModels(): Promise<AgentModels> {
   const codex = await ensureServer()
   if (!codex || status.state !== 'ready') return { models: [], selected: null }
   const data = await listModels(codex)
@@ -411,7 +412,7 @@ export async function getCodexModels(): Promise<CodexModels> {
 
 // Applies from the next message on, in every design's conversation (turn/start
 // carries the model, and Codex keeps it for later turns of that thread).
-export async function setCodexModel(model: string | null): Promise<void> {
+async function setModel(model: string | null): Promise<void> {
   pickedModel = model
   await fs.writeFile(modelFile(), JSON.stringify({ model }), 'utf8')
 }
@@ -448,12 +449,12 @@ async function threadConfig(
   }
 }
 
-export async function getCodexStatus(): Promise<CodexStatus> {
+export async function getCodexStatus(): Promise<AgentStatus> {
   await ensureServer()
   return status
 }
 
-export async function signInToCodex(): Promise<void> {
+async function signIn(): Promise<void> {
   const codex = await ensureServer()
   if (!codex) return
   const result = await codex.request<{ type: string; authUrl?: string }>('account/login/start', {
@@ -469,7 +470,7 @@ export async function signInToCodex(): Promise<void> {
 
 // A message sent while Codex is working joins the running turn (an answer to
 // its question, or a correction) instead of waiting for it to end.
-async function steerCodex(docId: DocId, prompt: string): Promise<void> {
+async function steer(docId: DocId, prompt: string): Promise<void> {
   const threadId = threadByDoc.get(docId)
   const turnId = threadId && turnByThread.get(threadId)
   if (!server || !threadId || !turnId) {
@@ -483,10 +484,10 @@ async function steerCodex(docId: DocId, prompt: string): Promise<void> {
   emit({ type: 'entry', docId, entry: { kind: 'prompt', id: crypto.randomUUID(), text: prompt } })
 }
 
-export async function runCodex(docId: DocId, prompt: string): Promise<void> {
+async function run(docId: DocId, prompt: string): Promise<void> {
   if (busy.has(docId)) {
     try {
-      return await steerCodex(docId, prompt)
+      return await steer(docId, prompt)
     } catch (error) {
       // The turn ended while the message was on its way: start a new one.
       if (busy.has(docId)) throw error
@@ -528,7 +529,7 @@ export async function runCodex(docId: DocId, prompt: string): Promise<void> {
       ...(model && { model })
     })
     turnByThread.set(threadId, turn.id)
-    if (stopRequested.has(docId)) await stopCodex(docId)
+    if (stopRequested.has(docId)) await stop(docId)
   } catch (error) {
     finishRun(docId)
     throw error
@@ -536,10 +537,9 @@ export async function runCodex(docId: DocId, prompt: string): Promise<void> {
 }
 
 // The full-size generated image behind a feed entry, for "Add to design".
-export async function codexImage(id: string): Promise<LocalImage> {
+async function image(id: string): Promise<LocalImage | null> {
   const path = imageFiles.get(id)
-  if (!path) throw new Error('This image is no longer available.')
-  return readLocalImage(path)
+  return path ? readLocalImage(path) : null
 }
 
 const EDIT_INSTRUCTIONS = `You are an image editing tool inside a design
@@ -624,7 +624,7 @@ export async function cancelImageEdit(id: string): Promise<void> {
   if (server && threadId && turnId) await server.request('turn/interrupt', { threadId, turnId })
 }
 
-export async function stopCodex(docId: DocId): Promise<void> {
+async function stop(docId: DocId): Promise<void> {
   const threadId = threadByDoc.get(docId)
   const turnId = threadId && turnByThread.get(threadId)
   if (server && threadId && turnId) {
@@ -637,8 +637,8 @@ export async function stopCodex(docId: DocId): Promise<void> {
 
 // Forget the design's conversation; the next prompt starts a fresh one. A
 // run in flight is interrupted first (the tab closed, or the token changed).
-export function resetCodex(docId: DocId): void {
-  if (busy.has(docId)) void stopCodex(docId).catch(() => undefined)
+function reset(docId: DocId): void {
+  if (busy.has(docId)) void stop(docId).catch(() => undefined)
   const threadId = threadByDoc.get(docId)
   if (!threadId) return
   threadByDoc.delete(docId)
@@ -649,10 +649,10 @@ export function resetCodex(docId: DocId): void {
 
 // The MCP token was rotated: every conversation still holds the old one in its
 // thread config, so all of them start over with the next prompt.
-export function resetAllCodex(): void {
+function resetAll(): void {
   for (const docId of [...threadByDoc.keys()]) {
     const hadThread = threadByDoc.has(docId)
-    resetCodex(docId)
+    reset(docId)
     if (hadThread) {
       emit({
         type: 'entry',
@@ -668,7 +668,21 @@ export function resetAllCodex(): void {
   }
 }
 
-export function shutdownCodex(): void {
+function shutdown(): void {
   server?.stop()
   server = null
+}
+
+export const codexProvider: AgentProvider = {
+  info: { id: 'codex', name: 'Codex' },
+  getStatus: getCodexStatus,
+  signIn,
+  getModels,
+  setModel,
+  run,
+  stop,
+  reset,
+  resetAll,
+  image,
+  shutdown
 }

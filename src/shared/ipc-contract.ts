@@ -1,6 +1,6 @@
 import type { BridgeRequest, BridgeResponse } from './bridge-protocol'
 import type { DocId, RecentEntry } from './types'
-import type { CodexEvent, CodexModels, CodexStatus } from './codex'
+import type { AgentEvent, AgentId, AgentInfo, AgentModels, AgentStatus } from './agent'
 
 // Single source of truth for every IPC channel. The preload derives the typed
 // window.desktop API from these interfaces; main registers handlers against
@@ -56,21 +56,25 @@ export interface InvokeApi {
   'mcp:saveMcpb': () => { filePath: string } | null
   'mcp:installSkill': () => { path: string }
   'shell:openExternal': (p: { url: string }) => void
-  // In-app generation through the user's Codex install (src/main/codex).
-  'codex:status': () => CodexStatus
-  'codex:signIn': () => void
-  'codex:models': () => CodexModels
-  'codex:setModel': (p: { model: string | null }) => void
-  'codex:run': (p: { docId: DocId; prompt: string }) => void
-  'codex:stop': (p: { docId: DocId }) => void
-  'codex:reset': (p: { docId: DocId }) => void
+  // In-app generation through the user's own agent install (src/main/agents).
+  // Every call goes to the agent the panel runs.
+  'agent:list': () => { active: AgentId; agents: AgentInfo[] }
+  'agent:status': () => AgentStatus
+  'agent:signIn': () => void
+  'agent:models': () => AgentModels
+  'agent:setModel': (p: { model: string | null }) => void
+  'agent:run': (p: { docId: DocId; prompt: string }) => void
+  'agent:stop': (p: { docId: DocId }) => void
+  'agent:reset': (p: { docId: DocId }) => void
   // A generated image at full size, by feed entry id.
-  'codex:image': (p: { id: string }) => { dataUrl: string; width: number; height: number }
-  // Canvas AI tools: edit an image (area to change painted magenta).
-  'codex:imageEdit': (p: { id: string; png: Uint8Array; instruction: string }) => {
+  'agent:image': (p: { id: string }) => { dataUrl: string; width: number; height: number }
+  // Canvas AI tools: edit an image (area to change painted magenta). They
+  // need image generation, so they run on Codex whichever agent chats.
+  'imageEdit:status': () => AgentStatus
+  'imageEdit:run': (p: { id: string; png: Uint8Array; instruction: string }) => {
     dataUrl: string
   }
-  'codex:imageEditCancel': (p: { id: string }) => void
+  'imageEdit:cancel': (p: { id: string }) => void
 }
 
 export type MenuAction = 'newTab' | 'openFile' | 'save' | 'saveAs' | 'closeTab' | 'export'
@@ -83,7 +87,7 @@ export interface MainEvents {
   // The window is closing: save everything, then answer with app:flushDone.
   'app:flushRequest': Record<string, never>
   'bridge:request': BridgeRequest
-  'codex:event': CodexEvent
+  'agent:event': AgentEvent
   // The MCP server started listening or went away (Connect panel stays live).
   'mcp:status': McpStatus
 }

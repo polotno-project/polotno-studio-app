@@ -26,14 +26,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from 'polotno/primitives/dropdown-menu'
-import type { CodexEntry } from '../../../../shared/codex'
-import { codex } from '../codex-model'
+import type { AgentEntry } from '../../../../shared/agent'
+import { agent } from '../agent-model'
 import { Markdown } from './ai-markdown'
 import { tabs } from '../tabs-model'
 
-// The AI side panel: a prompt box that runs Codex (through the user's own
-// Codex install and ChatGPT sign-in) against the active design, and a feed of
-// what Codex is doing. The edits themselves show up live on the canvas.
+// The AI side panel: a prompt box that runs the user's own agent (their own
+// install and sign-in, see src/main/agents) against the active design, and a
+// feed of what the agent is doing. The edits themselves show up live on the
+// canvas.
 
 const TOOL_LABELS: Record<string, string> = {
   read_mcp_resource: 'Reading the design guide',
@@ -69,7 +70,7 @@ const ToolRow = observer(function ToolRow({
   entry,
   count
 }: {
-  entry: Extract<CodexEntry, { kind: 'tool' }>
+  entry: Extract<AgentEntry, { kind: 'tool' }>
   count: number
 }): React.JSX.Element {
   return (
@@ -95,14 +96,14 @@ async function addImage(
 ): Promise<void> {
   const store = tabs.active?.store
   if (!store) return
-  const { dataUrl } = await window.desktop.invoke('codex:image', { id })
+  const { dataUrl } = await window.desktop.invoke('agent:image', { id })
   await selectImage({ src: dataUrl, store, droppedPos, targetElement })
 }
 
 async function setBackground(id: string): Promise<void> {
   const page = tabs.active?.store.activePage
   if (!page) return
-  const { dataUrl } = await window.desktop.invoke('codex:image', { id })
+  const { dataUrl } = await window.desktop.invoke('agent:image', { id })
   page.set({ background: dataUrl })
 }
 
@@ -113,7 +114,7 @@ const failed = (error: Error): void => {
 const ImageCard = observer(function ImageCard({
   entry
 }: {
-  entry: Extract<CodexEntry, { kind: 'image' }>
+  entry: Extract<AgentEntry, { kind: 'image' }>
 }): React.JSX.Element {
   return (
     <div className="overflow-hidden rounded-md border border-neutral-200 dark:border-neutral-700">
@@ -176,7 +177,7 @@ const ImageCard = observer(function ImageCard({
 const FeedEntry = observer(function FeedEntry({
   entry
 }: {
-  entry: CodexEntry
+  entry: AgentEntry
 }): React.JSX.Element | null {
   switch (entry.kind) {
     case 'prompt':
@@ -200,10 +201,10 @@ const FeedEntry = observer(function FeedEntry({
   }
 })
 
-// Which Codex model answers. The pick is kept across launches and applies
+// Which model answers. The pick is kept across launches and applies
 // from the next message on.
 const ModelPicker = observer(function ModelPicker(): React.JSX.Element | null {
-  const current = codex.currentModel
+  const current = agent.currentModel
   if (!current) return null
   return (
     <DropdownMenu>
@@ -216,10 +217,10 @@ const ModelPicker = observer(function ModelPicker(): React.JSX.Element | null {
         }
       />
       <DropdownMenuContent align="start" className="w-64">
-        {codex.models.models.map((model) => (
+        {agent.models.models.map((model) => (
           <DropdownMenuItem
             key={model.id}
-            onSelect={() => codex.pickModel(model.id)}
+            onSelect={() => agent.pickModel(model.id)}
             className="items-start"
           >
             <Check
@@ -240,10 +241,10 @@ const ModelPicker = observer(function ModelPicker(): React.JSX.Element | null {
 
 const Composer = observer(function Composer({ docId }: { docId: string }): React.JSX.Element {
   const [prompt, setPrompt] = useState('')
-  const running = codex.isRunning(docId)
-  const started = codex.feed(docId).length > 0
+  const running = agent.isRunning(docId)
+  const started = agent.feed(docId).length > 0
 
-  // While Codex works, a message joins the running turn (main steers it).
+  // While the agent works, a message joins the running turn.
   const submit = (): void => {
     const value = prompt.trim()
     if (!value) return
@@ -252,7 +253,7 @@ const Composer = observer(function Composer({ docId }: { docId: string }): React
   }
 
   const placeholder = running
-    ? 'Add to the request or answer Codex…'
+    ? `Add to the request or answer ${agent.name}…`
     : started
       ? 'Reply or ask for a change…'
       : 'Describe what to make or change…'
@@ -281,7 +282,7 @@ const Composer = observer(function Composer({ docId }: { docId: string }): React
               variant="ghost"
               size="sm"
               title="Stop"
-              onClick={() => void window.desktop.invoke('codex:stop', { docId })}
+              onClick={() => void window.desktop.invoke('agent:stop', { docId })}
             >
               <Square className="size-3.5" />
               Stop
@@ -303,15 +304,15 @@ const Composer = observer(function Composer({ docId }: { docId: string }): React
 })
 
 function send(docId: string, prompt: string): void {
-  window.desktop.invoke('codex:run', { docId, prompt }).catch((error: Error) => {
-    toast.error(`Codex could not start: ${error.message}`)
+  window.desktop.invoke('agent:run', { docId, prompt }).catch((error: Error) => {
+    toast.error(`${agent.name} could not start: ${error.message}`)
   })
 }
 
 // Consecutive calls of the same step ("Adding an element" eight times) read as
 // noise; show them as one row with a count, keyed by the latest call.
-function collapseTools(feed: CodexEntry[]): { entry: CodexEntry; count: number }[] {
-  const rows: { entry: CodexEntry; count: number }[] = []
+function collapseTools(feed: AgentEntry[]): { entry: AgentEntry; count: number }[] {
+  const rows: { entry: AgentEntry; count: number }[] = []
   for (const entry of feed) {
     const previous = rows[rows.length - 1]
     if (
@@ -330,8 +331,8 @@ function collapseTools(feed: CodexEntry[]): { entry: CodexEntry; count: number }
 }
 
 const Feed = observer(function Feed({ docId }: { docId: string }): React.JSX.Element {
-  const feed = codex.feed(docId)
-  const running = codex.isRunning(docId)
+  const feed = agent.feed(docId)
+  const running = agent.isRunning(docId)
   const last = feed[feed.length - 1]
   // Follows new text only while the user is at the bottom; scrolling up
   // detaches it until they scroll back or press the arrow.
@@ -345,7 +346,7 @@ const Feed = observer(function Feed({ docId }: { docId: string }): React.JSX.Ele
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-8">
         <div className="flex flex-col items-center gap-2 text-center text-sm text-neutral-500">
           <Sparkles className="size-6 text-neutral-300" />
-          Codex edits this design live. It can write, lay out, and generate images.
+          {agent.name} edits this design live. It can write, lay out, and generate images.
         </div>
         <div className="flex flex-col gap-1.5">
           {SUGGESTIONS.map((suggestion) => (
@@ -418,14 +419,14 @@ const StatusMessage = observer(function StatusMessage({
 
 const Panel = observer(function Panel(): React.JSX.Element {
   const docId = tabs.activeDocId
-  const status = codex.status
+  const status = agent.status
 
   useEffect(() => {
-    codex.refreshStatus()
+    agent.refreshStatus()
   }, [])
 
   const retry = (
-    <Button variant="outline" size="sm" onClick={() => codex.refreshStatus()}>
+    <Button variant="outline" size="sm" onClick={() => agent.refreshStatus()}>
       <RotateCcw className="size-3.5" />
       Try again
     </Button>
@@ -436,7 +437,7 @@ const Panel = observer(function Panel(): React.JSX.Element {
     body = (
       <StatusMessage>
         <Spinner className="size-5" />
-        Starting Codex…
+        Starting {agent.name}…
       </StatusMessage>
     )
   } else if (status.state === 'missing') {
@@ -452,7 +453,7 @@ const Panel = observer(function Panel(): React.JSX.Element {
     body = (
       <StatusMessage
         action={
-          <Button size="sm" onClick={() => void window.desktop.invoke('codex:signIn')}>
+          <Button size="sm" onClick={() => void window.desktop.invoke('agent:signIn')}>
             Sign in with ChatGPT
           </Button>
         }
@@ -485,19 +486,19 @@ const Panel = observer(function Panel(): React.JSX.Element {
       <div className="flex items-center gap-2 border-b border-neutral-200 px-3 py-2 dark:border-neutral-700">
         <Sparkles className="size-4" />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium">Codex</div>
+          <div className="text-sm font-medium">{agent.name}</div>
           {status.state === 'ready' && (
             <div className="truncate text-[11px] text-neutral-500">
               {[status.email, status.plan && `ChatGPT ${status.plan}`].filter(Boolean).join(' · ')}
             </div>
           )}
         </div>
-        {status.state === 'ready' && docId && codex.feed(docId).length > 0 && (
+        {status.state === 'ready' && docId && agent.feed(docId).length > 0 && (
           <Button
             variant="ghost"
             size="sm"
-            disabled={codex.isRunning(docId)}
-            onClick={() => codex.clear(docId)}
+            disabled={agent.isRunning(docId)}
+            onClick={() => agent.clear(docId)}
           >
             New chat
           </Button>
