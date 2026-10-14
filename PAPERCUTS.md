@@ -19,3 +19,4 @@
 - 2026-10-05 [claude-opus-5-5] npm install @modelcontextprotocol/node@^2.3.1 failed (ETARGET): the v2 MCP packages are versioned independently — server is 2.3.1 but node is 2.1.1; check each with npm view first
 - 2026-10-05 [claude-opus-5-5] Playwright _electron app.close() hung on the Polotno app (driver answered /quit but Electron kept running), so the next launch silently exited on the single-instance lock; kill app.process().pid after a timeout
 - 2026-10-05 [claude-opus-5-5] codex review --base origin/master "<instructions>" exits 2: '--base cannot be used with [PROMPT]' (despite the usage line showing both); use codex exec with a review prompt for a focused branch review
+- 2026-10-14 [claude-opus-5-5] reading a Notion page via MCP: 404 because the claude.ai Notion connector was authorized for the personal workspace, not the team one; re-auth via /mcp picking the right workspace fixed it
