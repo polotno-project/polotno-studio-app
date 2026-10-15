@@ -244,7 +244,9 @@ function rememberRead(id: string, rev: number | undefined, value: unknown): void
 }
 
 // Above this (characters of compact JSON) agents' tool-result limits cut the
-// read off; Claude Code could not read a 54 KB design.
+// read off: Claude Code saves a text result over 50,000 characters to a file
+// in ~/.claude/projects (no setting turns that off) and hands the model a
+// pointer, so the design would land on disk outside the app.
 const FULL_DESIGN_LIMIT = 40_000
 
 const OUTLINE_NOTE =
@@ -571,11 +573,18 @@ export const TOOLS: ToolDef[] = [
       const design = elideDataUrls(await compact(id, value))
       if (pages?.length) {
         const wanted = new Set<unknown>(pages)
-        return json({
-          rev,
-          json: outlineDesign(design, (pageId, index) => wanted.has(pageId) || wanted.has(index)),
-          note: OUTLINE_NOTE
-        })
+        const isWanted = (pageId: string, index: number): boolean =>
+          wanted.has(pageId) || wanted.has(index)
+        let picked = outlineDesign(design, isWanted)
+        if (JSON.stringify(picked).length > FULL_DESIGN_LIMIT) {
+          picked = outlineDesign(design, isWanted, { brief: true })
+        }
+        if (pages.length > 1 && JSON.stringify(picked).length > FULL_DESIGN_LIMIT) {
+          throw new Error(
+            'too_large: these pages together are too large to read at once. Ask for fewer pages.'
+          )
+        }
+        return json({ rev, json: picked, note: OUTLINE_NOTE })
       }
       if (JSON.stringify(design).length <= FULL_DESIGN_LIMIT) return json({ rev, json: design })
       // Too big for one tool result: the page the user is on in full, the
