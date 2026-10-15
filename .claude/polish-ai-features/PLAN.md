@@ -66,7 +66,7 @@ Goal: agent edits never overwrite user edits they didn't touch.
 2. Status chip on the canvas ("Codex is editing 'Title'…").
 3. Respect reduced motion.
 
-## Phase 6 — Token/speed optimizations (validate each with a measured before/after run)
+## Phase 6 — Token/speed optimizations (validate each with a measured before/after run) (done 2026-10-16, see PROGRESS)
 
 From the agent's own list, the ones that look valid and cheap:
 - Compact `get_design_json`: omit Polotno default values (the schema knows defaults), keep ids stable. Keep full JSON behind a flag.

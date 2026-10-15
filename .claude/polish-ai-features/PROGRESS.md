@@ -110,3 +110,21 @@ Done:
 - Hooked in `bridge.ts` (plan → execute → show).
 Verified (dev app): Claude run (title white, then circles one by one) → cursor over the title with "Claude · Editing …", then each circle, read sweep over the page for get_json/render/lint, fades after the turn. Outside MCP client (ext.mjs, @modelcontextprotocol/sdk): add_element/update_element (rotated, outline is the rotated bbox)/remove_element (outline where it was) labelled "AI agent". Reduced motion emulated: transition only opacity, no scan animation. Typecheck, eslint (only old errors/warnings in untouched files), tests 11/11, production build.
 Next per plan: Phase 6 (token optimizations, measured), Phase 7 (multiple chats); non-AI track.
+
+## Phase 6 — token/speed optimizations, measured (2026-10-16)
+Benchmark: scratchpad `bench/bench.mts` runs Claude Code (same lockdown as the panel, Haiku 5.5) against the running dev app's MCP server on a fixed fixture, recording result.usage, cost, turns, time and each tool result's size. Fixtures: src/renderer/src/templates/social-media-post.json (1 page, 9 els) and welcome.json (4 pages, 47 els).
+Baseline finding: welcome.json's get_design_json was 54–62 KB; Claude Code rejects MCP results over its token limit and saves them to ~/.claude/projects/…/tool-results with "read the file", but the panel agent has no file tool → it never saw the design and guessed from renders (14–20 turns). A wrong patch path also returned the whole design tree in the error (10 KB).
+Done:
+1. Compact get_design_json (`src/shared/compact-design.ts`): props at Polotno's default dropped (defaults read from a throwaway store per element type, renderer `element-defaults.ts`, DesignCommand `get_defaults`, asked once by the MCP server), fractions rounded to 2 decimals; id/type/box/text always kept. Patches still apply to the full read copy; only leaf keys dropped so paths match (tested: add and replace of an omitted prop). welcome: 62 KB → 15.6 KB; social post: 9.3 KB → 3.5 KB.
+2. invalid_patch errors name the failing operation only.
+3. `check: true` on patch_design_json / update_element / add_element / set_page / remove_element returns the render of the changed page + lint findings (all touched pages) with the edit (MCP: text + image content; HTTP: `render` field).
+4. Instructions: start from get_design_json for edits; read archetypes/rubric (design-format) only for new designs/redesigns (no SKILL.md read every conversation); one patch for several changes; check: true on the last edit.
+5. Panel agents don't get list_designs/create_design/open_design/save_design (`PANEL_HIDDEN_TOOLS`; Claude `disallowedTools`, Codex `mcp_servers.polotno.disabled_tools`): −690 tokens per model call.
+Results (Haiku, input tokens incl. cache / turns / time / cost, mean):
+- Headline + gradient on social post: base 81.6k / 9 / 16.9 s / $0.0050 (3 runs) → final 52.3k / 5.3 / 11.8 s / $0.0029 (3 runs): −36% tokens, −42% cost.
+- Fonts on all 4 pages of welcome: base 132k / 17 / 45 s / $0.0070, design never read (2 runs) → final 34.8k / 3 / 9.4 s / $0.0030 (3 runs, identical): −74% tokens, −57% cost, 5× faster, one patch.
+- Add a CTA (final only): 40.3k / 4 / 20 s.
+- Fixed per-call overhead ("hi", no tools): 6.7k → 6.4k.
+Verified in the app: Codex lists 16 polotno tools (hidden 4 gone), Codex edit = read + one edit with check, reply cites lint; Claude edit in the panel = read + edits with check, no guide read. Typecheck, eslint, prettier, tests 14/14 (new compact-design tests), production build + MCP server build. Benchmark designs (saved into ~/Documents/Polotno by create_design) deleted.
+Not measured: Codex token usage (no usage capture in the app); same tool changes apply to it.
+Next per plan: Phase 7 (multiple chats, exploration), non-AI track (side-panel tab per design, templates panel).

@@ -7,7 +7,12 @@ export function designInstructions(docId: DocId, { images }: { images: boolean }
 looking at the design with designId "${docId}". Make every change to that
 design with the polotno MCP tools; do not create other designs unless asked.
 
-- Read the resource polotno://skill/SKILL.md once before your first edit.
+- For changes to the design, start with get_design_json. For a new design
+  or a redesign, first read these resources:
+  polotno://skill/reference/archetypes.md
+  polotno://skill/reference/rubric.md
+  (polotno://skill/reference/design-format.md has the JSON shape).
+- Several changes at once: one patch_design_json beats many small calls.
 ${
   images
     ? `- For imagery, use your image generation tool, then always put the saved file
@@ -18,7 +23,8 @@ ${
   already in the design. If the user asks for a generated image, say that
   Codex can make one (they can switch to it in the AI panel).`
 }
-- Check your work with render_page and lint_design and fix what they show.
+- Check your work: pass check: true on your last edit to get the page's
+  render and lint findings back with it, and fix what they show.
 - Reply in one or two short sentences: what you changed. Markdown renders in
   the panel, but the panel is narrow: no headings, keep tables small.
 - If you need the user's input, ask and end your turn; their answer arrives as

@@ -1,5 +1,11 @@
 import type { DesignChange } from './design-diff'
 
+// What Polotno fills in for a page and for each element type (get_defaults).
+export type DesignDefaults = {
+  page: Record<string, unknown>
+  elements: Record<string, Record<string, unknown>>
+}
+
 // The single vocabulary for store operations. Every agent-visible edit (MCP
 // tools) and every internal bridge call maps to exactly one DesignCommand.
 // The executor lives in the renderer (src/renderer/src/editor/executor.ts) and
@@ -9,6 +15,8 @@ import type { DesignChange } from './design-diff'
 export type DesignCommand =
   | { type: 'ping' }
   | { type: 'get_json' }
+  // Polotno's default page and per-type element values (compact-design.ts).
+  | { type: 'get_defaults' }
   | { type: 'get_info' }
   | { type: 'load_json'; json: unknown }
   // An agent's JSON Patch, diffed into per-id store operations (design-diff.ts).

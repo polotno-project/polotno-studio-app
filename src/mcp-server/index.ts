@@ -137,7 +137,7 @@ app.post('/api/call/:verb', (req, res) => {
       }
       return
     }
-    res.json(result.value)
+    res.json(result.image ? { ...(result.value as object), render: result.image } : result.value)
   })().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error)
     res

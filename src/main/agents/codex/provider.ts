@@ -7,7 +7,7 @@ import { getMcpStatus } from '../../mcp/launcher'
 import { readLocalImage, type LocalImage } from '../../../mcp-server/local-image'
 import { findBinary } from '../find-binary'
 import { designInstructions } from '../instructions'
-import { emitAgentEvent, type AgentProvider } from '../provider'
+import { emitAgentEvent, PANEL_HIDDEN_TOOLS, type AgentProvider } from '../provider'
 import { AppServer } from './app-server'
 
 // In-app generation through the user's own Codex install: spawns
@@ -381,6 +381,7 @@ async function threadConfig(
             url: mcp.url,
             http_headers: { Authorization: `Bearer ${mcp.token}` },
             default_tools_approval_mode: 'approve',
+            disabled_tools: PANEL_HIDDEN_TOOLS,
             tool_timeout_sec: 180
           }
         })

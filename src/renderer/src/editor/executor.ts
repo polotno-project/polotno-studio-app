@@ -73,6 +73,11 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
     case 'get_json':
       return store.toJSON()
 
+    case 'get_defaults': {
+      const { designDefaults } = await import('./element-defaults')
+      return designDefaults()
+    }
+
     case 'get_info':
       return {
         width: store.width,

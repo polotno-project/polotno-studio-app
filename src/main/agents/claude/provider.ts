@@ -14,7 +14,7 @@ import type { DocId } from '../../../shared/types'
 import { getMcpStatus } from '../../mcp/launcher'
 import { findBinary } from '../find-binary'
 import { designInstructions } from '../instructions'
-import { emitAgentEvent, type AgentProvider } from '../provider'
+import { emitAgentEvent, PANEL_HIDDEN_TOOLS, type AgentProvider } from '../provider'
 import { readSetting, writeSetting } from '../settings'
 
 // In-app generation through the user's own Claude Code install. The Agent SDK
@@ -237,6 +237,7 @@ async function startSession(docId: DocId, mcp: { url: string; token: string }): 
         // guide), next to its own tools.
         tools: RESOURCE_TOOLS,
         allowedTools: ['mcp__polotno__*', ...RESOURCE_TOOLS],
+        disallowedTools: PANEL_HIDDEN_TOOLS.map((tool) => `mcp__polotno__${tool}`),
         includePartialMessages: true,
         systemPrompt: designInstructions(docId, { images: false }),
         ...(model && { model })

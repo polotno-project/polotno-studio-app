@@ -6,10 +6,12 @@ import { rpc } from './bridge-client'
 import { readLocalImage } from './local-image'
 import { elideDataUrls, hasDataRefs, restoreDataUrls } from './data-urls'
 import { diffDesign, isEqual } from '../shared/design-diff'
+import { compactDesign } from '../shared/compact-design'
 import {
   EXPORT_EXTENSIONS,
   type CommandResult,
   type DesignCommand,
+  type DesignDefaults,
   type ExportFormat
 } from '../shared/commands'
 
@@ -18,7 +20,9 @@ import {
 // Typed tools for targeted edits, raw JSON get/patch as the universal escape
 // hatch, render + lint as the agent's eyes.
 
-export type ToolResult = { kind: 'json'; value: unknown } | { kind: 'image'; dataUrl: string }
+// A json result may carry a render of the page it changed (check: true).
+export type ToolResult =
+  { kind: 'json'; value: unknown; image?: string } | { kind: 'image'; dataUrl: string }
 
 export interface ToolDef {
   name: string
@@ -119,6 +123,52 @@ async function checkedEdit(
     )
   }
   return result
+}
+
+// Polotno's defaults don't change while the app runs; asked once.
+let defaults: Promise<DesignDefaults> | null = null
+
+async function compact(id: string, design: unknown): Promise<unknown> {
+  defaults ??= exec(id, { type: 'get_defaults' }).then(({ value }) => value as DesignDefaults)
+  try {
+    return compactDesign(design, await defaults)
+  } catch {
+    defaults = null
+    return design
+  }
+}
+
+// The page an id belongs to: a page id itself, or the page holding that
+// element (at any depth).
+function pageFor(design: DesignJson, id: string | undefined): string | undefined {
+  if (!id) return undefined
+  return design.pages.find((page) => page.id === id || findElement(page.children, id))?.id
+}
+
+const check = z
+  .boolean()
+  .optional()
+  .describe(
+    'Also return the render of the changed page and its lint findings, instead of calling render_page and lint_design'
+  )
+
+// The edit's result, plus the page's render and lint findings when asked.
+// Renders the first page touched; lints all of them (the whole design when
+// the edit spans pages).
+async function checked(
+  id: string,
+  wanted: boolean | undefined,
+  value: Json,
+  targets: (string | undefined)[] = []
+): Promise<ToolResult> {
+  if (!wanted) return json(value)
+  const design = (await exec(id, { type: 'get_json' })).value as DesignJson
+  const pages = [...new Set(targets.map((target) => pageFor(design, target)).filter(Boolean))]
+  const pageId = pages[0]
+  const render = (await exec(id, { type: 'render', pageId })).value as { dataUrl: string }
+  const findings = (await exec(id, { type: 'lint', pageId: pages.length > 1 ? undefined : pageId }))
+    .value
+  return { kind: 'json', value: { ...value, findings }, image: render.dataUrl }
 }
 
 const designId = z.string().describe('The design id (from list_designs or create_design)')
@@ -273,14 +323,14 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'set_page',
     description: 'Set page properties (background color/image URL, duration, width/height, …).',
-    schema: { designId, pageId: z.string(), props: z.record(z.string(), z.unknown()) },
-    handler: async ({ designId: id, pageId, props }: any) => {
+    schema: { designId, pageId: z.string(), props: z.record(z.string(), z.unknown()), check },
+    handler: async ({ designId: id, pageId, props, check: wanted }: any) => {
       const { rev } = await exec(id, {
         type: 'set_page',
         pageId,
         props: await withAssets(id, props)
       })
-      return json({ ok: true, rev })
+      return checked(id, wanted, { ok: true, rev }, [pageId])
     }
   },
   {
@@ -293,16 +343,18 @@ export const TOOLS: ToolDef[] = [
       element: z
         .object({ type: z.enum(['text', 'image', 'svg', 'figure', 'line', 'video', 'group']) })
         .catchall(z.unknown()),
-      atIndex: z.number().optional().describe('Z-order index to insert at')
+      atIndex: z.number().optional().describe('Z-order index to insert at'),
+      check
     },
-    handler: async ({ designId: id, pageId, element, atIndex }: any) => {
+    handler: async ({ designId: id, pageId, element, atIndex, check: wanted }: any) => {
       const { value, rev } = await exec(id, {
         type: 'add_element',
         pageId,
         element: await checkedEdit(id, { add: element, pageId }),
         atIndex
       })
-      return json({ ...(value as object), rev })
+      const { elementId } = value as { elementId: string }
+      return checked(id, wanted, { elementId, rev }, [elementId])
     }
   },
   {
@@ -391,23 +443,30 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'update_element',
     description: 'Update properties of an element by id.',
-    schema: { designId, elementId: z.string(), props: z.record(z.string(), z.unknown()) },
-    handler: async ({ designId: id, elementId, props }: any) => {
+    schema: {
+      designId,
+      elementId: z.string(),
+      props: z.record(z.string(), z.unknown()),
+      check
+    },
+    handler: async ({ designId: id, elementId, props, check: wanted }: any) => {
       const { rev } = await exec(id, {
         type: 'update_element',
         elementId,
         props: await checkedEdit(id, { update: props, elementId })
       })
-      return json({ ok: true, rev })
+      return checked(id, wanted, { ok: true, rev }, [elementId])
     }
   },
   {
     name: 'remove_element',
     description: 'Remove elements by id.',
-    schema: { designId, elementIds: z.array(z.string()) },
-    handler: async ({ designId: id, elementIds }: any) => {
+    schema: { designId, elementIds: z.array(z.string()), check },
+    handler: async ({ designId: id, elementIds, check: wanted }: any) => {
+      const before = wanted && ((await exec(id, { type: 'get_json' })).value as DesignJson)
+      const pageId = before ? pageFor(before, elementIds[0]) : undefined
       const { rev } = await exec(id, { type: 'remove_elements', elementIds })
-      return json({ ok: true, rev })
+      return checked(id, wanted, { ok: true, rev }, [pageId])
     }
   },
   {
@@ -427,12 +486,12 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'get_design_json',
     description:
-      'Full design JSON (store.toJSON() shape) with the current rev. Use rev as baseRev when patching. Embedded assets (long data: URLs) are shortened to "data-elided:<mime>;bytes=…;sha=…" references; keep or copy a reference as-is (in patches, add_element, update_element) and it resolves to the original asset.',
+      'Design JSON (store.toJSON() shape) with the current rev. Use rev as baseRev when patching. Properties at their Polotno default are left out (an element without "opacity" has opacity 1); set them like any other, "add" or "replace" both work. Fractions are rounded to 2 decimals. Embedded assets (long data: URLs) are shortened to "data-elided:<mime>;bytes=…;sha=…" references; keep or copy a reference as-is (in patches, add_element, update_element) and it resolves to the original asset.',
     schema: { designId },
     handler: async ({ designId: id }: any) => {
       const { value, rev } = await exec(id, { type: 'get_json' })
       rememberRead(id, rev, value)
-      return json({ rev, json: elideDataUrls(value) })
+      return json({ rev, json: elideDataUrls(await compact(id, value)) })
     }
   },
   {
@@ -442,9 +501,10 @@ export const TOOLS: ToolDef[] = [
     schema: {
       designId,
       patch: z.array(z.record(z.string(), z.unknown())).describe('RFC 6902 operations'),
-      baseRev: z.number().optional()
+      baseRev: z.number().optional(),
+      check
     },
-    handler: async ({ designId: id, patch, baseRev }: any) => {
+    handler: async ({ designId: id, patch, baseRev, check: wanted }: any) => {
       const current = await exec(id, { type: 'get_json' })
       const read = baseRev === undefined ? undefined : reads.get(id)?.get(baseRev)
       if (!read && baseRev !== undefined && current.rev !== undefined && baseRev !== current.rev) {
@@ -465,7 +525,18 @@ export const TOOLS: ToolDef[] = [
           false
         ).newDocument
       } catch (error) {
-        throw new Error(`invalid_patch: ${String(error)}`)
+        // fast-json-patch's message embeds the whole document; name the
+        // failing operation only.
+        const { name, index, operation } = error as {
+          name?: string
+          index?: number
+          operation?: unknown
+        }
+        throw new Error(
+          name && operation
+            ? `invalid_patch: ${name} at operation ${index}: ${JSON.stringify(operation)}. Paths address the design you read with get_design_json; re-read it if it changed.`
+            : `invalid_patch: ${(error as Error).message}`
+        )
       }
       const check = validateDesign(patched)
       if (!check.valid) {
@@ -484,11 +555,18 @@ export const TOOLS: ToolDef[] = [
           )
         }
         const { rev } = await exec(id, { type: 'load_json', json: patched })
-        return json({ ok: true, rev })
+        return checked(id, wanted, { ok: true, rev })
       }
       const { value, rev } = await exec(id, { type: 'apply_changes', changes: diff.changes })
       const { skipped } = value as { skipped: unknown[] }
-      return json(
+      // The pages changed, for check.
+      const targets = diff.changes.map((change) => {
+        const { id: target, parentId } = change as { id?: string; parentId?: string }
+        return target ?? parentId
+      })
+      return checked(
+        id,
+        wanted,
         skipped.length
           ? {
               ok: true,
@@ -496,7 +574,8 @@ export const TOOLS: ToolDef[] = [
               skipped,
               note: 'The user changed these while you worked; their values were kept. Re-read before changing them again.'
             }
-          : { ok: true, rev }
+          : { ok: true, rev },
+        targets
       )
     }
   },
@@ -574,12 +653,14 @@ export function toCallToolResult(result: ToolResult): CallToolResult {
     const mimeType = /data:([^;]+)/.exec(meta)?.[1] ?? 'image/png'
     return { content: [{ type: 'image', data, mimeType }] }
   }
+  const text = typeof result.value === 'string' ? result.value : JSON.stringify(result.value)
+  if (!result.image) return { content: [{ type: 'text', text }] }
+  const [meta, data] = result.image.split(',')
+  const mimeType = /data:([^;]+)/.exec(meta)?.[1] ?? 'image/png'
   return {
     content: [
-      {
-        type: 'text',
-        text: typeof result.value === 'string' ? result.value : JSON.stringify(result.value)
-      }
+      { type: 'text', text },
+      { type: 'image', data, mimeType }
     ]
   }
 }
