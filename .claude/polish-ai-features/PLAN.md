@@ -80,7 +80,7 @@ From the agent's own list, the ones that look valid and cheap:
 
 Codex threads are already per doc; multiple chats = list of threads per docId with a chat switcher in the panel header (thread/list, thread/name/set exist), and persistence via thread resume (BACKLOG: conversations are ephemeral). Two agents editing one design at once makes Phase 2 mandatory. Recommend: chat history/resume first, parallel chats later if wanted.
 
-## Non-AI items (separate track)
+## Non-AI items (separate track) (done 2026-10-16, see PROGRESS)
 
 1. **Side panel selection per tab:** save `store.openedSidePanel` per docId on change, pass it as `defaultSection` on remount (or stop remounting the SidePanel). Lift Templates' Library/My designs toggle into a per-app store.
 2. **Templates panel:**

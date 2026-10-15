@@ -9,7 +9,7 @@ import { startMcpServer, stopMcpServer } from './mcp/launcher'
 import { shutdownAgents } from './agents'
 import { runCli } from './cli'
 import { initUpdater } from './updater'
-import { migrateDraftsToLibrary } from './library'
+import { migrateDraftsToLibrary, watchLibrary } from './library'
 
 // Headless CLI subcommands (stage 3) branch before any window or lock exists,
 // so the GUI path and the CLI path never fight.
@@ -54,6 +54,7 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
     initBridgeRouter()
     installAppMenu()
     void migrateDraftsToLibrary()
+    void watchLibrary()
     createEditorWindow()
     startMcpServer()
     initUpdater()

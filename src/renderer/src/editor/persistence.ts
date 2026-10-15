@@ -142,7 +142,10 @@ export async function save(docId: DocId): Promise<boolean> {
   if (!tab) return false
   await materialize(tab)
   if (!tab.filePath) return false // no longer tracked
-  return writeTo(tab, tab.filePath)
+  await writeTo(tab, tab.filePath)
+  // My designs shows the design as saved.
+  void writePreview(tab)
+  return true
 }
 
 export async function saveAs(docId: DocId): Promise<boolean> {
@@ -162,7 +165,6 @@ async function autosave(tab: DesignTab): Promise<void> {
   if (!states.has(tab.docId)) return // detached meanwhile
   try {
     await save(tab.docId)
-    await writePreview(tab)
   } catch (error) {
     console.error('Autosave failed for tab', tab.name, error)
     const state = states.get(tab.docId)

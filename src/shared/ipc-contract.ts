@@ -110,6 +110,9 @@ export interface MainEvents {
   'app:flushRequest': Record<string, never>
   'bridge:request': BridgeRequest
   'agent:event': AgentEvent
+  // A design in the library folder (or its thumbnail) was added, changed,
+  // renamed or removed.
+  'library:changed': Record<string, never>
   // The MCP server started listening or went away (Connect panel stays live).
   'mcp:status': McpStatus
 }

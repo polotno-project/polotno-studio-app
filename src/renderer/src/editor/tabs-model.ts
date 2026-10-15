@@ -117,11 +117,15 @@ class TabsModel {
     // Before the tab leaves the list, so pending autosaves are cancelled while
     // the tab is still resolvable.
     for (const listener of this.closeListeners) listener(docId)
-    releaseDesignStore(this.tabs[index].store)
+    const closing = this.tabs[index].store
+    releaseDesignStore(closing)
     runInAction(() => {
       this.tabs.splice(index, 1)
       if (this.activeDocId === docId) {
         const next = this.tabs[index] ?? this.tabs[index - 1] ?? null
+        // The user didn't pick the next tab: its side panel stays on the
+        // section they were in (deleting designs from My designs, say).
+        if (next && closing.openedSidePanel) next.store.openSidePanel(closing.openedSidePanel)
         this.activeDocId = next?.docId ?? null
       }
     })

@@ -1,5 +1,6 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { DragEvent } from 'react'
+import { reaction } from 'mobx'
 import { observer } from 'mobx-react-lite'
 import { PolotnoContainer, SidePanelWrap, WorkspaceWrap } from 'polotno'
 import { Workspace } from 'polotno/canvas/workspace'
@@ -29,11 +30,31 @@ const SECTIONS = [
   ...DEFAULT_SECTIONS.filter((section) => section.name !== 'templates')
 ] as Section[]
 
+// The editor remounts per tab, and Polotno's SidePanel opens its default
+// section on mount. Each tab reopens the section it had (kept in its store);
+// a new tab opens the one the user was last in.
+let lastSection = 'photos'
+
 export const PolotnoEditor = observer(function PolotnoEditor({
   store
 }: {
   store: DesignStore
 }): React.JSX.Element {
+  const [section] = useState(() => store.openedSidePanel || lastSection)
+  // Tracked as it changes: a new tab's editor renders before this one's
+  // cleanup would run.
+  useEffect(
+    () =>
+      reaction(
+        () => store.openedSidePanel,
+        (opened) => {
+          if (opened) lastSection = opened
+        },
+        { fireImmediately: true }
+      ),
+    [store]
+  )
+
   const onGlobalDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     if (e.dataTransfer.types.includes('Files')) e.preventDefault()
   }, [])
@@ -84,7 +105,7 @@ export const PolotnoEditor = observer(function PolotnoEditor({
     <div className="h-full w-full" onDragOver={onGlobalDragOver} onDrop={onGlobalDrop}>
       <PolotnoContainer style={{ width: '100%', height: '100%' }}>
         <SidePanelWrap>
-          <SidePanel store={store} sections={SECTIONS} />
+          <SidePanel store={store} sections={SECTIONS} defaultSection={section} />
         </SidePanelWrap>
         <WorkspaceWrap>
           <Toolbar store={store} />
