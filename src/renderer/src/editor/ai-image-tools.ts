@@ -1,6 +1,7 @@
 import { setExpandFunc, setRemoveObjectFunc, setReplaceObjectFunc } from 'polotno/config'
 import { padImageForFrame, prepareImageInput } from 'polotno/utils/image-edit'
 import { toast } from 'sonner'
+import { agent } from './agent-model'
 import { tabs } from './tabs-model'
 
 // Polotno's canvas AI tools (Generative fill: replace / remove, and Expand)
@@ -185,7 +186,11 @@ async function ensureCodex(): Promise<void> {
   const status = await window.desktop.invoke('imageEdit:status')
   if (status.state === 'ready') return
   tabs.active?.store.openSidePanel('ai')
-  toast.info('AI edits run on your Codex. Connect it in the AI panel to use them.')
+  toast.info(
+    agent.active === 'codex'
+      ? 'AI edits run on your Codex. Connect it in the AI panel to use them.'
+      : 'AI edits run on your Codex. Switch the AI panel to Codex to connect it.'
+  )
   throw abortError()
 }
 

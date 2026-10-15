@@ -59,6 +59,8 @@ export interface InvokeApi {
   // In-app generation through the user's own agent install (src/main/agents).
   // Every call goes to the agent the panel runs.
   'agent:list': () => { active: AgentId; agents: AgentInfo[] }
+  // Switching ends the open conversations (the new agent can't see them).
+  'agent:setActive': (p: { agent: AgentId }) => void
   'agent:status': () => AgentStatus
   'agent:signIn': () => void
   'agent:models': () => AgentModels

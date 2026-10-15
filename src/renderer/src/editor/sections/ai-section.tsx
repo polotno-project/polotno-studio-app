@@ -26,7 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from 'polotno/primitives/dropdown-menu'
-import type { AgentEntry } from '../../../../shared/agent'
+import type { AgentEntry, AgentId } from '../../../../shared/agent'
 import { agent } from '../agent-model'
 import { Markdown } from './ai-markdown'
 import { tabs } from '../tabs-model'
@@ -40,6 +40,8 @@ const TOOL_LABELS: Record<string, string> = {
   read_mcp_resource: 'Reading the design guide',
   'codex.list_mcp_resources': 'Reading the design guide',
   'codex.list_mcp_resource_templates': 'Reading the design guide',
+  ListMcpResourcesTool: 'Reading the design guide',
+  ReadMcpResourceTool: 'Reading the design guide',
   list_designs: 'Looking at open designs',
   get_design_info: 'Reading the design',
   get_design_json: 'Reading the design',
@@ -58,11 +60,24 @@ const TOOL_LABELS: Record<string, string> = {
   shell: 'Running a command'
 }
 
-const SUGGESTIONS = [
-  'Make a poster for a jazz night on Friday at 9 pm',
-  'Generate a background image that fits this design',
-  'Improve the typography and spacing'
-]
+// Only Codex generates images.
+const SUGGESTIONS: Record<AgentId, string[]> = {
+  codex: [
+    'Make a poster for a jazz night on Friday at 9 pm',
+    'Generate a background image that fits this design',
+    'Improve the typography and spacing'
+  ],
+  claude: [
+    'Make a poster for a jazz night on Friday at 9 pm',
+    'Suggest a color palette and apply it',
+    'Improve the typography and spacing'
+  ]
+}
+
+const ABILITIES: Record<AgentId, string> = {
+  codex: 'It can write, lay out, and generate images.',
+  claude: 'It can write and lay out; it does not generate images.'
+}
 
 const toolLabel = (tool: string): string => TOOL_LABELS[tool] ?? tool
 
@@ -346,10 +361,10 @@ const Feed = observer(function Feed({ docId }: { docId: string }): React.JSX.Ele
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-8">
         <div className="flex flex-col items-center gap-2 text-center text-sm text-neutral-500">
           <Sparkles className="size-6 text-neutral-300" />
-          {agent.name} edits this design live. It can write, lay out, and generate images.
+          {agent.name} edits this design live. {ABILITIES[agent.active]}
         </div>
         <div className="flex flex-col gap-1.5">
-          {SUGGESTIONS.map((suggestion) => (
+          {SUGGESTIONS[agent.active].map((suggestion) => (
             <button
               key={suggestion}
               type="button"
@@ -402,6 +417,83 @@ const Feed = observer(function Feed({ docId }: { docId: string }): React.JSX.Ele
   )
 })
 
+// Which agent runs: the user's own Codex or Claude Code. Switching starts a
+// new conversation in every design.
+const AgentPicker = observer(function AgentPicker(): React.JSX.Element {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            title="Choose the AI agent"
+            className="flex items-center gap-1 rounded text-sm font-medium hover:text-neutral-600 dark:hover:text-neutral-300"
+          >
+            {agent.name}
+            <ChevronDown className="size-3.5" />
+          </button>
+        }
+      />
+      <DropdownMenuContent align="start" className="w-56">
+        {agent.agents.map((item) => (
+          <DropdownMenuItem key={item.id} onSelect={() => agent.setActive(item.id)}>
+            <Check className={`size-3.5 ${item.id === agent.active ? '' : 'invisible'}`} />
+            {item.name}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+})
+
+const Command = observer(function Command({ children }: { children: string }): React.JSX.Element {
+  return (
+    <code className="select-text rounded bg-neutral-100 px-2 py-1 text-xs dark:bg-neutral-800">
+      {children}
+    </code>
+  )
+})
+
+const isWindows = navigator.userAgent.includes('Windows')
+
+// What to do when the agent isn't installed or signed in, per agent.
+const SETUP: Record<
+  AgentId,
+  { install: React.ReactNode; signIn: React.ReactNode; signInAction?: boolean }
+> = {
+  codex: {
+    install: (
+      <>
+        <p>Polotno generates with your own Codex. Install the Codex CLI, then try again:</p>
+        <Command>npm install -g @openai/codex</Command>
+      </>
+    ),
+    signIn: 'Codex uses your ChatGPT plan. Sign in once; Codex keeps you signed in.',
+    signInAction: true
+  },
+  claude: {
+    install: (
+      <>
+        <p>Polotno generates with your own Claude Code. Install it, then try again:</p>
+        <Command>
+          {isWindows
+            ? 'irm https://claude.ai/install.ps1 | iex'
+            : 'curl -fsSL https://claude.ai/install.sh | bash'}
+        </Command>
+      </>
+    ),
+    signIn: (
+      <>
+        <p>
+          Claude Code uses your Claude plan (Pro, Max, Team or Enterprise). Sign in once in a
+          terminal, then try again:
+        </p>
+        <Command>claude auth login</Command>
+      </>
+    )
+  }
+}
+
 const StatusMessage = observer(function StatusMessage({
   children,
   action
@@ -441,24 +533,22 @@ const Panel = observer(function Panel(): React.JSX.Element {
       </StatusMessage>
     )
   } else if (status.state === 'missing') {
-    body = (
-      <StatusMessage action={retry}>
-        <p>Polotno generates with your own Codex. Install the Codex CLI, then try again:</p>
-        <code className="rounded bg-neutral-100 px-2 py-1 text-xs dark:bg-neutral-800">
-          npm install -g @openai/codex
-        </code>
-      </StatusMessage>
-    )
+    body = <StatusMessage action={retry}>{SETUP[agent.active].install}</StatusMessage>
   } else if (status.state === 'signedOut') {
+    const setup = SETUP[agent.active]
     body = (
       <StatusMessage
         action={
-          <Button size="sm" onClick={() => void window.desktop.invoke('agent:signIn')}>
-            Sign in with ChatGPT
-          </Button>
+          setup.signInAction ? (
+            <Button size="sm" onClick={() => void window.desktop.invoke('agent:signIn')}>
+              Sign in with ChatGPT
+            </Button>
+          ) : (
+            retry
+          )
         }
       >
-        Codex uses your ChatGPT plan. Sign in once; Codex keeps you signed in.
+        {setup.signIn}
       </StatusMessage>
     )
   } else if (status.state === 'signingIn') {
@@ -486,10 +576,10 @@ const Panel = observer(function Panel(): React.JSX.Element {
       <div className="flex items-center gap-2 border-b border-neutral-200 px-3 py-2 dark:border-neutral-700">
         <Sparkles className="size-4" />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium">{agent.name}</div>
+          <AgentPicker />
           {status.state === 'ready' && (
             <div className="truncate text-[11px] text-neutral-500">
-              {[status.email, status.plan && `ChatGPT ${status.plan}`].filter(Boolean).join(' · ')}
+              {[status.email, status.plan].filter(Boolean).join(' · ')}
             </div>
           )}
         </div>

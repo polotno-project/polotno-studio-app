@@ -21,8 +21,8 @@ export interface AgentProvider {
   // Forgets the design's conversation (interrupting a run in flight); the
   // next message starts a fresh one.
   reset(docId: DocId): void
-  // The MCP token changed: every conversation holds the old one.
-  resetAll(): void
+  // Designs that have a conversation with this agent.
+  conversations(): DocId[]
   // A generated image at full size by feed entry id, or null if not this
   // agent's.
   image(id: string): Promise<LocalImage | null>

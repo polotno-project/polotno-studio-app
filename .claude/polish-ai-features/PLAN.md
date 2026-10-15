@@ -51,7 +51,7 @@ Goal: agent edits never overwrite user edits they didn't touch.
    - Claude has no image generation, so with Claude as the provider these tools stay on Codex (or are unavailable). Make the image-tool provider separate from the chat provider.
    - Spike first: quality of mask adherence and remove-background with Codex's image tool.
 
-## Phase 4 — Provider and model choice
+## Phase 4 — Provider and model choice (done 2026-10-15, see PROGRESS)
 
 1. **Model picker.** `model/list` → dropdown in the panel header; pass `model` on `turn/start`; remember per app (and show which model is in use).
 2. **Provider abstraction.** Extract an `AgentProvider` interface from session.ts (status, signIn, run, steer, stop, reset, listModels, events → shared `AgentEntry` feed); rename `codex:*` IPC to `agent:*`. Codex is provider #1.

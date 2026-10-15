@@ -1,12 +1,12 @@
 import { app, nativeImage, shell } from 'electron'
-import { execFile } from 'node:child_process'
-import { promises as fs, constants as fsConstants } from 'node:fs'
-import { homedir } from 'node:os'
+import { promises as fs } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 import type { AgentEntry, AgentEvent, AgentModels, AgentStatus } from '../../../shared/agent'
 import type { DocId } from '../../../shared/types'
 import { getMcpStatus } from '../../mcp/launcher'
 import { readLocalImage, type LocalImage } from '../../../mcp-server/local-image'
+import { findBinary } from '../find-binary'
+import { designInstructions } from '../instructions'
 import { emitAgentEvent, type AgentProvider } from '../provider'
 import { AppServer } from './app-server'
 
@@ -59,46 +59,6 @@ function entry(threadId: string, value: AgentEntry): void {
   if (docId) emit({ type: 'entry', docId, entry: value })
 }
 
-// --- finding the binary -----------------------------------------------------
-
-async function isExecutable(path: string): Promise<boolean> {
-  try {
-    await fs.access(path, fsConstants.X_OK)
-    return true
-  } catch {
-    return false
-  }
-}
-
-// GUI apps on macOS don't inherit the shell PATH, so ask the user's login
-// shell where codex is, then fall back to the usual install locations.
-function fromLoginShell(): Promise<string | null> {
-  if (process.platform === 'win32') return Promise.resolve(null)
-  const shellPath = process.env.SHELL || '/bin/zsh'
-  return new Promise((resolve) => {
-    execFile(shellPath, ['-ilc', 'command -v codex'], { timeout: 5000 }, (error, stdout) => {
-      const line = stdout.trim().split('\n').pop()?.trim()
-      resolve(!error && line?.startsWith('/') ? line : null)
-    })
-  })
-}
-
-async function findCodex(): Promise<string | null> {
-  const candidates = [
-    process.env.POLOTNO_CODEX_BIN,
-    await fromLoginShell(),
-    ...(process.env.PATH ?? '').split(delimiter).map((dir) => join(dir, 'codex')),
-    '/opt/homebrew/bin/codex',
-    '/usr/local/bin/codex',
-    join(homedir(), '.local/bin/codex'),
-    join(homedir(), '.npm-global/bin/codex')
-  ]
-  for (const candidate of candidates) {
-    if (candidate && (await isExecutable(candidate))) return candidate
-  }
-  return null
-}
-
 // --- server lifecycle -------------------------------------------------------
 
 async function readAccount(codex: AppServer): Promise<void> {
@@ -113,14 +73,14 @@ async function readAccount(codex: AppServer): Promise<void> {
   setStatus({
     state: 'ready',
     email: result.account?.email ?? null,
-    plan: result.account?.planType ?? null,
+    plan: result.account?.planType ? `ChatGPT ${result.account.planType}` : null,
     version
   })
 }
 
 async function start(): Promise<AppServer | null> {
   setStatus({ state: 'starting' })
-  const binary = await findCodex()
+  const binary = await findBinary('codex', { envOverride: 'POLOTNO_CODEX_BIN' })
   if (!binary) {
     setStatus({ state: 'missing' })
     return null
@@ -316,23 +276,6 @@ async function onRequest(method: string): Promise<unknown> {
 
 // --- public API (IPC) -------------------------------------------------------
 
-function instructions(docId: DocId): string {
-  return `You are the AI designer built into the Polotno desktop editor. The user is
-looking at the design with designId "${docId}". Make every change to that
-design with the polotno MCP tools; do not create other designs unless asked.
-
-- Read the resource polotno://skill/SKILL.md once before your first edit.
-- For imagery, use your image generation tool, then always put the saved file
-  on the page with place_image (absolute path); a generated image is not in
-  the design until you do. For a background use place_image with
-  as: "background". Do not copy or convert the file.
-- Check your work with render_page and lint_design and fix what they show.
-- Reply in one or two short sentences: what you changed. Markdown renders in
-  the panel, but the panel is narrow: no headings, keep tables small.
-- If you need the user's input, ask and end your turn; their answer arrives as
-  the next message. The user may also add messages while you work.`
-}
-
 // Codex features a design conversation must not have. With these off, the
 // polotno MCP tools and image generation are the whole toolbox: no shell or
 // file viewer that could read the user's files on behalf of a prompt that
@@ -510,7 +453,7 @@ async function run(docId: DocId, prompt: string): Promise<void> {
         approvalPolicy: 'never',
         ephemeral: true,
         serviceName: 'polotno_app',
-        developerInstructions: instructions(docId),
+        developerInstructions: designInstructions(docId, { images: true }),
         ...(await threadConfig(codex, { url: mcp.url, token: mcp.token }))
       })
       threadId = result.thread.id
@@ -647,25 +590,9 @@ function reset(docId: DocId): void {
   finishRun(docId)
 }
 
-// The MCP token was rotated: every conversation still holds the old one in its
-// thread config, so all of them start over with the next prompt.
-function resetAll(): void {
-  for (const docId of [...threadByDoc.keys()]) {
-    const hadThread = threadByDoc.has(docId)
-    reset(docId)
-    if (hadThread) {
-      emit({
-        type: 'entry',
-        docId,
-        entry: {
-          kind: 'message',
-          id: crypto.randomUUID(),
-          text: 'The connection token changed, so the next prompt starts a new conversation.',
-          done: true
-        }
-      })
-    }
-  }
+// Designs that have a conversation with Codex.
+function conversations(): DocId[] {
+  return [...threadByDoc.keys()]
 }
 
 function shutdown(): void {
@@ -682,7 +609,7 @@ export const codexProvider: AgentProvider = {
   run,
   stop,
   reset,
-  resetAll,
+  conversations,
   image,
   shutdown
 }

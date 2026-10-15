@@ -84,3 +84,20 @@ Verified in the dev app: agent:list/status/models, real run via the composer (ba
 - systemPrompt: preset `claude_code` + `append`, or own string (then add a line on system reminders).
 - CLI alternative: `claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --strict-mcp-config --mcp-config … --tools "" --allowedTools "mcp__polotno__*" --permission-mode dontAsk`.
 Next: 4.3.
+
+## Phase 4.3 + 4.4 — Claude provider, agent switcher, setup per agent (2026-10-15)
+Done:
+- `src/main/agents/claude/provider.ts`: Agent SDK (`@anthropic-ai/claude-agent-sdk` 0.3.300, devDependency → bundled into main) with `pathToClaudeCodeExecutable` = the user's installed `claude` (never the SDK's bundled binary; their own login, the app never touches credentials).
+  - Status: `claude --version` + `claude auth status` (JSON; exit 1 when signed out), re-checked on each status call. Plan shows as "Claude Max".
+  - Sign-in: not in-app (policy: login must go through Anthropic's flow; the paste-code flow would put us in the middle). Panel shows `claude auth login` + Try again.
+  - Session per design: streaming input queue; `settingSources: []`, `strictMcpConfig`, `skills: []`, `permissionMode: 'dontAsk'`, `persistSession: false`, tools = only ListMcpResourcesTool/ReadMcpResourceTool (design guide) + `mcp__polotno__*`. Verified the init tool list is exactly those.
+  - Feed from stream events (text deltas per content block, tool_use start) + tool_result frames; API-error assistant frames → error rows.
+  - Turn state: each sent message has a uuid; Claude folds mid-turn messages into the running turn (or runs them next); `user_message_uuids` on assistant/result frames say which were taken; the turn is over when a result leaves none pending.
+  - Models: `supportedModels()` from a throwaway session (cached); aliases only (default/opus/fable/sonnet/haiku), pinned versions hidden unless picked; pick in `<userData>/claude-model.json`, applied to live sessions with `setModel`.
+  - Stop → `interrupt()` → "Stopped."; the session keeps going for the next message.
+- Shared: `find-binary.ts` (Codex + Claude), `instructions.ts` (images on/off), `settings.ts`. Provider interface: `conversations()` replaces `resetAll` (registry adds the notes).
+- Registry: active agent kept in `<userData>/agent.json`; `agent:setActive` ends that agent's open conversations with a note "Switched to X. The next message starts a new conversation."
+- Panel: agent picker in the header (Codex / Claude), per-agent install / sign-in screens (Codex: npm + Sign in with ChatGPT; Claude: install.sh / install.ps1 + `claude auth login`), per-agent empty-state copy and suggestions (Claude: no image generation). Canvas AI tools keep running on Codex; their toast says to switch the panel to Codex when Claude is active.
+Verified (dev app, real Claude Max account, Haiku 5.5): models menu (5 aliases), pick persists; prompt → tools run live, subtitle added, reply streamed; mid-run "make the remaining circles gold" folded into the same turn and applied; Stop mid-run → "Stopped.", next message answered; switch to Codex via header menu → note in the feed, Codex status/models back; Claude signed out (CLAUDE_CONFIG_DIR empty) → sign-in screen; no claude on PATH → install screen. Production build: Claude status/models/run OK. Typecheck, eslint (only the old export-menu error), prettier, npm test 11/11.
+Gotcha: a query() cwd that doesn't exist fails as "native binary … failed to launch … libc" (PAPERCUTS).
+Next per plan: Phase 5 (agent cursor visuals), Phase 6 (token optimizations), Phase 7 (multiple chats); non-AI track (side-panel tab per design, templates panel).

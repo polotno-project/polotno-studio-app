@@ -16,7 +16,10 @@ import { tabs } from './tabs-model'
 
 class AgentModel {
   active: AgentId = 'codex'
-  agents: AgentInfo[] = [{ id: 'codex', name: 'Codex' }]
+  agents: AgentInfo[] = [
+    { id: 'codex', name: 'Codex' },
+    { id: 'claude', name: 'Claude' }
+  ]
   status: AgentStatus = { state: 'starting' }
   models: AgentModels = { models: [], selected: null }
   private feeds = new Map<DocId, AgentEntry[]>()
@@ -30,8 +33,21 @@ class AgentModel {
   }
 
   setAgents({ active, agents }: { active: AgentId; agents: AgentInfo[] }): void {
-    this.active = active
     this.agents = agents
+    if (active === this.active) return
+    this.active = active
+    this.models = { models: [], selected: null }
+    this.refreshStatus()
+  }
+
+  // Ends the open conversations (main adds a note to each); the new agent
+  // starts fresh with the next message.
+  setActive(id: AgentId): void {
+    if (id === this.active) return
+    this.active = id
+    this.status = { state: 'starting' }
+    this.models = { models: [], selected: null }
+    void window.desktop.invoke('agent:setActive', { agent: id }).then(() => this.refreshStatus())
   }
 
   // The agent's display name ("Codex").

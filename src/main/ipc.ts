@@ -26,6 +26,7 @@ import {
   resetAgent,
   resetAllAgents,
   runAgent,
+  setActiveAgent,
   setAgentModel,
   signInToAgent,
   stopAgent
@@ -171,6 +172,7 @@ export function registerIpcHandlers(): void {
     void shell.openExternal(url)
   })
   handle('agent:list', () => listAgents())
+  handle('agent:setActive', (_event, { agent }) => setActiveAgent(agent))
   handle('agent:status', () => getAgentStatus())
   handle('agent:signIn', () => signInToAgent())
   handle('agent:models', () => getAgentModels())

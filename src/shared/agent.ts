@@ -1,10 +1,10 @@
 import type { DocId } from './types'
 
 // The in-app AI agents as the renderer sees them. Main owns each agent's
-// process (the user's own Codex, …) and translates its protocol into these
-// shapes, so the panel works the same whichever agent runs.
+// process (the user's own Codex or Claude Code) and translates its protocol
+// into these shapes, so the panel works the same whichever agent runs.
 
-export type AgentId = 'codex'
+export type AgentId = 'codex' | 'claude'
 
 export type AgentInfo = { id: AgentId; name: string }
 
