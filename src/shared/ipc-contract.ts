@@ -55,6 +55,8 @@ export interface InvokeApi {
   'library:delete': (p: { filePath: string }) => void
   // Thumbnail sidecar for the doc's file (shown in My designs).
   'design:writePreview': (p: { docId: DocId; dataUrl: string }) => void
+  // Thumbnail of a library design that isn't open (drawn in the background).
+  'library:writePreview': (p: { filePath: string; dataUrl: string }) => void
   // Files that were open when the app last closed.
   'session:list': () => { filePaths: string[] }
   'dialog:confirm': (p: { message: string; detail?: string; confirmLabel: string }) => boolean

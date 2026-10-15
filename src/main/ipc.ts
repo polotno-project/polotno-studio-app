@@ -1,6 +1,6 @@
 import { app, ipcMain, dialog, shell, BrowserWindow, Menu } from 'electron'
 import { promises as fs } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import type { InvokeApi } from '../shared/ipc-contract'
 import { documents } from './documents'
@@ -11,7 +11,8 @@ import {
   renameLibraryDesign,
   duplicateLibraryDesign,
   deleteLibraryDesign,
-  writePreview
+  writePreview,
+  libraryDir
 } from './library'
 import { persistSession, loadSession } from './session-store'
 import { listRecent, addRecent } from './recent'
@@ -117,6 +118,11 @@ export function registerIpcHandlers(): void {
   handle('design:writePreview', (_event, { docId, dataUrl }) => {
     const entry = documents.get(docId)
     if (entry?.filePath) void writePreview(entry.filePath, dataUrl)
+  })
+  handle('library:writePreview', async (_event, { filePath, dataUrl }) => {
+    // Only for files in the library folder, which the list came from.
+    if (dirname(filePath) !== libraryDir()) throw new Error('Not a library design.')
+    await writePreview(filePath, dataUrl)
   })
   handle('session:list', async () => ({ filePaths: await loadSession() }))
 

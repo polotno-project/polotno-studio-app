@@ -13,7 +13,7 @@ import { tabs, designSnapshot, type DesignTab } from './tabs-model'
 const DIRTY_DEBOUNCE_MS = 400
 const AUTOSAVE_DEBOUNCE_MS = 1000
 const AUTOSAVE_RETRY_MS = 5000
-const PREVIEW_WIDTH = 240
+export const PREVIEW_WIDTH = 240
 
 interface PersistenceState {
   // Serialized design at last load/save; dirty = snapshot differs from it.

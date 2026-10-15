@@ -21,6 +21,7 @@ import type { DesignStore } from '../store'
 import { tabs } from '../tabs-model'
 import { openPath } from '../document'
 import { SegmentedTabs } from './segmented-tabs'
+import { renderMissingThumbnails } from '../thumbnails'
 
 // Which half of the panel shows (Library or My designs). The editor remounts
 // per tab, so this lives outside the panel: switching or opening tabs keeps it.
@@ -200,6 +201,7 @@ const MyDesignsPanel = observer(function MyDesignsPanel(): React.JSX.Element {
   const refresh = useCallback(() => {
     void window.desktop.invoke('library:list').then((list) => {
       setEntries(list)
+      renderMissingThumbnails(list)
       // Forget selected designs that are gone.
       setSelected((current) => {
         const present = new Set(list.map((entry) => entry.filePath))
