@@ -44,6 +44,26 @@ body {
 .ai-markdown :where(table) {
   font-size: 0.75rem;
 }
+/* Streamdown colors tables and inline code with shadcn tokens (border-border,
+   bg-muted, bg-sidebar) this app doesn't define: borders fell back to the text
+   color (white in dark mode) and the table got a second, outer frame. One
+   neutral frame, a tinted header, and a tinted chip for code instead. */
+.ai-markdown [data-streamdown='table-wrapper'] {
+  @apply my-0 border-0 bg-transparent p-0;
+}
+.ai-markdown [data-streamdown='table-wrapper'] > div,
+.ai-markdown [data-streamdown='table-wrapper'] :where(table, thead, tbody, tr) {
+  @apply border-neutral-200 bg-transparent dark:border-neutral-700;
+}
+.ai-markdown [data-streamdown='table-header'] {
+  @apply bg-neutral-50 dark:bg-neutral-800/60;
+}
+.ai-markdown :where(td, th) {
+  @apply px-2.5 py-1.5 text-xs;
+}
+.ai-markdown :not(pre) > code {
+  @apply bg-neutral-100 text-[0.85em] dark:bg-neutral-800;
+}
 
 /* The agent's cursor on the canvas (agent-cursor.tsx): it glides between
    targets, and outlines what it changed (or sweeps over what it read). */

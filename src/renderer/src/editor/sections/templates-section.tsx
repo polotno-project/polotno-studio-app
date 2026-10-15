@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { observable, runInAction } from 'mobx'
 import { observer } from 'mobx-react-lite'
 import {
@@ -49,7 +49,8 @@ const DesignCard = observer(function DesignCard({
   selected: boolean
   // Some designs are selected: a click selects instead of opening.
   selecting: boolean
-  onToggle: () => void
+  // range: shift-click, selects every design from the last one clicked.
+  onToggle: (range: boolean) => void
 }): React.JSX.Element {
   const [renaming, setRenaming] = useState(false)
   const [draftName, setDraftName] = useState(entry.name)
@@ -102,10 +103,11 @@ const DesignCard = observer(function DesignCard({
     >
       <button
         onClick={(event) => {
-          if (selecting || event.metaKey || event.ctrlKey) onToggle()
-          else void openPath(entry.filePath)
+          if (selecting || event.metaKey || event.ctrlKey || event.shiftKey) {
+            onToggle(event.shiftKey)
+          } else void openPath(entry.filePath)
         }}
-        title={selecting ? undefined : 'Open (⌘/Ctrl-click to select)'}
+        title={selecting ? undefined : 'Open (⌘/Ctrl-click to select, Shift-click for a range)'}
         className="flex aspect-square w-full items-center justify-center bg-neutral-50 dark:bg-neutral-900"
       >
         {entry.preview ? (
@@ -123,7 +125,7 @@ const DesignCard = observer(function DesignCard({
         role="checkbox"
         aria-checked={selected}
         title={selected ? 'Deselect' : 'Select'}
-        onClick={onToggle}
+        onClick={(event) => onToggle(event.shiftKey)}
         className={
           'absolute top-1.5 left-1.5 flex size-5 items-center justify-center rounded border shadow-sm transition-opacity ' +
           (selected
@@ -193,6 +195,8 @@ const DesignCard = observer(function DesignCard({
 const MyDesignsPanel = observer(function MyDesignsPanel(): React.JSX.Element {
   const [entries, setEntries] = useState<LibraryEntry[]>([])
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
+  // The design clicked last: where a shift-click range starts.
+  const anchor = useRef<string | null>(null)
   const refresh = useCallback(() => {
     void window.desktop.invoke('library:list').then((list) => {
       setEntries(list)
@@ -210,12 +214,26 @@ const MyDesignsPanel = observer(function MyDesignsPanel(): React.JSX.Element {
     return window.desktop.on('library:changed', refresh)
   }, [refresh])
 
-  const toggle = (filePath: string): void =>
+  const toggle = (filePath: string, range: boolean): void => {
+    const from =
+      range && anchor.current ? entries.findIndex((e) => e.filePath === anchor.current) : -1
+    anchor.current = filePath
     setSelected((current) => {
       const next = new Set(current)
-      if (!next.delete(filePath)) next.add(filePath)
+      if (from >= 0) {
+        // A range only adds: designs already selected stay selected.
+        const to = entries.findIndex((e) => e.filePath === filePath)
+        const [start, end] = from < to ? [from, to] : [to, from]
+        for (const entry of entries.slice(start, end + 1)) next.add(entry.filePath)
+      } else if (!next.delete(filePath)) next.add(filePath)
       return next
     })
+  }
+
+  const clearSelection = (): void => {
+    anchor.current = null
+    setSelected(new Set())
+  }
 
   const removeSelected = async (): Promise<void> => {
     const count = selected.size
@@ -231,7 +249,7 @@ const MyDesignsPanel = observer(function MyDesignsPanel(): React.JSX.Element {
       console.error('Delete failed', error)
       toast.error('Could not delete every design.')
     }
-    setSelected(new Set())
+    clearSelection()
     refresh()
   }
 
@@ -240,7 +258,16 @@ const MyDesignsPanel = observer(function MyDesignsPanel(): React.JSX.Element {
       {selected.size > 0 ? (
         <div className="flex h-8 items-center gap-2 text-xs">
           <span className="flex-1 font-medium">{selected.size} selected</span>
-          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+          {selected.size < entries.length && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelected(new Set(entries.map((entry) => entry.filePath)))}
+            >
+              Select all
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={clearSelection}>
             Cancel
           </Button>
           <Button size="sm" variant="destructive" onClick={() => void removeSelected()}>
@@ -264,7 +291,7 @@ const MyDesignsPanel = observer(function MyDesignsPanel(): React.JSX.Element {
             onChanged={refresh}
             selected={selected.has(entry.filePath)}
             selecting={selected.size > 0}
-            onToggle={() => toggle(entry.filePath)}
+            onToggle={(range) => toggle(entry.filePath, range)}
           />
         ))}
         {entries.length === 0 && (
