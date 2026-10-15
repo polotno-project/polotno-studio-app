@@ -122,3 +122,48 @@ test('unknown element types and non-design values pass through', () => {
   assert.deepEqual(compactDesign(odd, defaults), odd)
   assert.equal(compactDesign('x', defaults), 'x')
 })
+
+test('outlineDesign keeps chosen pages whole and outlines the rest in place', async () => {
+  const { outlineDesign } = await import('../src/shared/compact-design.ts')
+  const design = {
+    width: 100,
+    height: 100,
+    pages: [
+      {
+        id: 'p1',
+        background: 'red',
+        children: [
+          {
+            id: 'a',
+            type: 'text',
+            text: '<b>Hello</b>   world',
+            x: 1.4,
+            y: 2,
+            width: 50,
+            height: 10,
+            fill: 'blue'
+          }
+        ]
+      },
+      {
+        id: 'p2',
+        children: [
+          { id: 'b', type: 'image', src: 'x', x: 0, y: 0, width: 10, height: 10 },
+          { id: 'g', type: 'group', children: [{ id: 'c', type: 'svg' }] }
+        ]
+      }
+    ]
+  }
+  const out = outlineDesign(design, (id) => id === 'p2')
+  assert.deepEqual(out.pages[1], design.pages[1])
+  assert.deepEqual(out.pages[0], {
+    id: 'p1',
+    background: 'red',
+    outlined: true,
+    outline: ['a text 1,2 50x10 "Hello world"']
+  })
+  const byIndex = outlineDesign(design, (_id, index) => index === 0)
+  assert.deepEqual(byIndex.pages[1].outline, ['b image 0,0 10x10', 'g group 0,0 0x0 (1 elements)'])
+  const brief = outlineDesign(design, () => false, { brief: true })
+  assert.deepEqual(brief.pages[1], { id: 'p2', outlined: true, elementCount: 2 })
+})

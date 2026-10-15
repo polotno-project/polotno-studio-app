@@ -6,7 +6,7 @@ import { rpc } from './bridge-client'
 import { readLocalImage } from './local-image'
 import { elideDataUrls, hasDataRefs, restoreDataUrls } from './data-urls'
 import { diffDesign, isEqual } from '../shared/design-diff'
-import { compactDesign } from '../shared/compact-design'
+import { compactDesign, outlineDesign } from '../shared/compact-design'
 import {
   EXPORT_EXTENSIONS,
   type CommandResult,
@@ -242,6 +242,13 @@ function rememberRead(id: string, rev: number | undefined, value: unknown): void
   while (byRev.size > READS_KEPT) byRev.delete(byRev.keys().next().value as number)
   reads.set(id, byRev)
 }
+
+// Above this (characters of compact JSON) agents' tool-result limits cut the
+// read off; Claude Code could not read a 54 KB design.
+const FULL_DESIGN_LIMIT = 40_000
+
+const OUTLINE_NOTE =
+  'Pages with "outlined": true list their elements under "outline" in children order, one line each ("<id> <type> <x>,<y> <width>x<height> \\"text\\""), or only an elementCount; read them in full with get_design_json({pages: [index]}). Patch paths (/pages/i/children/j) address the full design either way.'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export const TOOLS: ToolDef[] = [
@@ -548,12 +555,44 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'get_design_json',
     description:
-      'Design JSON (store.toJSON() shape) with the current rev. Use rev as baseRev when patching. Properties at their Polotno default are left out (an element without "opacity" has opacity 1); set them like any other, "add" or "replace" both work. Fractions are rounded to 2 decimals. Embedded assets (long data: URLs) are shortened to "data-elided:<mime>;bytes=…;sha=…" references; keep or copy a reference as-is (in patches, add_element, update_element) and it resolves to the original asset.',
-    schema: { designId },
-    handler: async ({ designId: id }: any) => {
+      'Design JSON (store.toJSON() shape) with the current rev. Use rev as baseRev when patching. Properties at their Polotno default are left out (an element without "opacity" has opacity 1); set them like any other, "add" or "replace" both work. Fractions are rounded to 2 decimals. A very large design comes back with only the current page in full and the others outlined. Embedded assets (long data: URLs) are shortened to "data-elided:<mime>;bytes=…;sha=…" references; keep or copy a reference as-is (in patches, add_element, update_element) and it resolves to the original asset.',
+    schema: {
+      designId,
+      pages: z
+        .array(z.union([z.number(), z.string()]))
+        .optional()
+        .describe(
+          'Only these pages in full (index or page id); the others come as outlines. Omit for the whole design.'
+        )
+    },
+    handler: async ({ designId: id, pages }: any) => {
       const { value, rev } = await exec(id, { type: 'get_json' })
       rememberRead(id, rev, value)
-      return json({ rev, json: elideDataUrls(await compact(id, value)) })
+      const design = elideDataUrls(await compact(id, value))
+      if (pages?.length) {
+        const wanted = new Set<unknown>(pages)
+        return json({
+          rev,
+          json: outlineDesign(design, (pageId, index) => wanted.has(pageId) || wanted.has(index)),
+          note: OUTLINE_NOTE
+        })
+      }
+      if (JSON.stringify(design).length <= FULL_DESIGN_LIMIT) return json({ rev, json: design })
+      // Too big for one tool result: the page the user is on in full, the
+      // others outlined (or, for very many pages, only counted).
+      const { value: info } = await exec(id, { type: 'get_info' })
+      const active = (info as { activePageId: string | null }).activePageId
+      const isActive = (pageId: string, index: number): boolean =>
+        active ? pageId === active : index === 0
+      let outlined = outlineDesign(design, isActive)
+      if (JSON.stringify(outlined).length > FULL_DESIGN_LIMIT) {
+        outlined = outlineDesign(design, isActive, { brief: true })
+      }
+      return json({
+        rev,
+        json: outlined,
+        note: `This design is too large to read whole. ${OUTLINE_NOTE}`
+      })
     }
   },
   {

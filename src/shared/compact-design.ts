@@ -52,3 +52,49 @@ export function compactDesign<T>(design: T, defaults: DesignDefaults): T {
   })
   return { ...full, pages } as T
 }
+
+// A design too big for one tool result (many pages) is read a few pages at a
+// time: the pages asked for come in full, every other page as an outline
+// under `outline` instead of `children`, one line per element in children
+// order: "<id> <type> <x>,<y> <width>x<height> \"text…\"". Pages keep their
+// array positions, so a patch path like /pages/3/children/2 still means the
+// same element. With `brief`, outlined pages only count their elements.
+
+const SNIPPET = 40
+
+function outlineElement(element: Json): string {
+  const parts = [element.id, element.type]
+  // Polotno's own names ("text-4") say nothing the type doesn't.
+  if (typeof element.name === 'string' && element.name && !/^[a-z]+-\d+$/.test(element.name)) {
+    parts.push(`[${element.name}]`)
+  }
+  const box = ['x', 'y', 'width', 'height'].map((key) => Math.round(Number(element[key]) || 0))
+  parts.push(`${box[0]},${box[1]}`, `${box[2]}x${box[3]}`)
+  if (Array.isArray(element.children)) parts.push(`(${element.children.length} elements)`)
+  if (typeof element.text === 'string') {
+    const text = element.text
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    parts.push(JSON.stringify(text.length > SNIPPET ? `${text.slice(0, SNIPPET)}…` : text))
+  }
+  return parts.join(' ')
+}
+
+export function outlineDesign<T>(
+  design: T,
+  fullPages: (pageId: string, index: number) => boolean,
+  { brief = false }: { brief?: boolean } = {}
+): T {
+  const full = design as Json & { pages?: Json[] }
+  if (!Array.isArray(full.pages)) return design
+  const pages = full.pages.map((page, index) => {
+    if (fullPages(page.id as string, index)) return page
+    const { children, ...rest } = page
+    const elements = Array.isArray(children) ? (children as Json[]) : []
+    return brief
+      ? { ...rest, outlined: true, elementCount: elements.length }
+      : { ...rest, outlined: true, outline: elements.map(outlineElement) }
+  })
+  return { ...full, pages } as T
+}
