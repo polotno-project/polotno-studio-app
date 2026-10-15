@@ -180,7 +180,61 @@ const designId = z.string().describe('The design id (from list_designs or create
 const READS_KEPT = 4
 const reads = new Map<string, Map<number, unknown>>()
 
+// What agents last saw of each page and element, by id: the latest read,
+// plus what they changed themselves since. update_element and set_page
+// compare against it, like a patch does against its read, so a property the
+// user changed meanwhile keeps the user's value. Nodes the agents never saw
+// (no read yet) are set directly.
+const seen = new Map<string, Map<string, Json>>()
+
+function rememberSeen(id: string, design: unknown): void {
+  const nodes = new Map<string, Json>()
+  const walk = (items: Json[]): void => {
+    for (const item of items) {
+      nodes.set(item.id as string, item)
+      if (Array.isArray(item.children)) walk(item.children as Json[])
+    }
+  }
+  const pages = (design as DesignJson | undefined)?.pages ?? []
+  for (const page of pages) nodes.set(page.id, page as unknown as Json)
+  walk(pages.flatMap((page) => page.children))
+  seen.set(id, nodes)
+}
+
+function sawChange(id: string, nodeId: string, props: Json): void {
+  const node = seen.get(id)?.get(nodeId)
+  if (node) Object.assign(node, structuredClone(props))
+}
+
+// Sets props on a page or element as one undo step, keeping the ones the user
+// changed since the agent saw them. Returns what was kept, if anything.
+async function setSeen(
+  id: string,
+  target: 'element' | 'page',
+  nodeId: string,
+  props: Json
+): Promise<{ rev?: number; skipped?: unknown[] } | null> {
+  const known = seen.get(id)?.get(nodeId)
+  if (!known) return null
+  const base = Object.fromEntries(Object.keys(props).map((key) => [key, known[key]]))
+  const { value, rev } = await exec(id, {
+    type: 'apply_changes',
+    changes: [{ kind: 'set', target, id: nodeId, props, base }]
+  })
+  const { skipped } = value as { skipped: { reason: string; props?: string[] }[] }
+  if (skipped.some((item) => !item.props)) {
+    throw new Error(`${target}_not_found: ${nodeId} (${skipped[0].reason})`)
+  }
+  const kept = new Set(skipped.flatMap((item) => item.props ?? []))
+  sawChange(id, nodeId, Object.fromEntries(Object.entries(props).filter(([key]) => !kept.has(key))))
+  return { rev, skipped: skipped.length ? skipped : undefined }
+}
+
+const KEPT_NOTE =
+  'The user changed these while you worked; their values were kept. Re-read before changing them again.'
+
 function rememberRead(id: string, rev: number | undefined, value: unknown): void {
+  rememberSeen(id, value)
   if (rev === undefined) return
   const byRev = reads.get(id) ?? new Map<number, unknown>()
   byRev.delete(rev)
@@ -325,11 +379,15 @@ export const TOOLS: ToolDef[] = [
     description: 'Set page properties (background color/image URL, duration, width/height, …).',
     schema: { designId, pageId: z.string(), props: z.record(z.string(), z.unknown()), check },
     handler: async ({ designId: id, pageId, props, check: wanted }: any) => {
-      const { rev } = await exec(id, {
-        type: 'set_page',
-        pageId,
-        props: await withAssets(id, props)
-      })
+      const resolved = await withAssets(id, props)
+      const merged = await setSeen(id, 'page', pageId, resolved)
+      if (merged?.skipped) {
+        const { rev, skipped } = merged
+        return checked(id, wanted, { ok: true, rev, skipped, note: KEPT_NOTE }, [pageId])
+      }
+      const rev = merged
+        ? merged.rev
+        : (await exec(id, { type: 'set_page', pageId, props: resolved })).rev
       return checked(id, wanted, { ok: true, rev }, [pageId])
     }
   },
@@ -450,11 +508,15 @@ export const TOOLS: ToolDef[] = [
       check
     },
     handler: async ({ designId: id, elementId, props, check: wanted }: any) => {
-      const { rev } = await exec(id, {
-        type: 'update_element',
-        elementId,
-        props: await checkedEdit(id, { update: props, elementId })
-      })
+      const resolved = await checkedEdit(id, { update: props, elementId })
+      const merged = await setSeen(id, 'element', elementId, resolved)
+      if (merged?.skipped) {
+        const { rev, skipped } = merged
+        return checked(id, wanted, { ok: true, rev, skipped, note: KEPT_NOTE }, [elementId])
+      }
+      const rev = merged
+        ? merged.rev
+        : (await exec(id, { type: 'update_element', elementId, props: resolved })).rev
       return checked(id, wanted, { ok: true, rev }, [elementId])
     }
   },
@@ -555,10 +617,13 @@ export const TOOLS: ToolDef[] = [
           )
         }
         const { rev } = await exec(id, { type: 'load_json', json: patched })
+        rememberSeen(id, patched)
         return checked(id, wanted, { ok: true, rev })
       }
       const { value, rev } = await exec(id, { type: 'apply_changes', changes: diff.changes })
       const { skipped } = value as { skipped: unknown[] }
+      // The agent now knows the design as it patched it.
+      rememberSeen(id, patched)
       // The pages changed, for check.
       const targets = diff.changes.map((change) => {
         const { id: target, parentId } = change as { id?: string; parentId?: string }
@@ -572,7 +637,7 @@ export const TOOLS: ToolDef[] = [
               ok: true,
               rev,
               skipped,
-              note: 'The user changed these while you worked; their values were kept. Re-read before changing them again.'
+              note: KEPT_NOTE
             }
           : { ok: true, rev },
         targets
