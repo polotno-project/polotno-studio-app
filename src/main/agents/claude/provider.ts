@@ -13,6 +13,7 @@ import type { DocId } from '../../../shared/types'
 import { getMcpStatus } from '../../mcp/launcher'
 import { findBinary, isBatchFile, loginShellEnv, runBinary } from '../find-binary'
 import { designInstructions } from '../instructions'
+import { CLAUDE_RESOURCE_TOOLS } from '../lockdown'
 import { emitAgentEvent, PANEL_HIDDEN_TOOLS, type AgentProvider } from '../provider'
 import { readSetting, writeSetting } from '../settings'
 
@@ -233,8 +234,6 @@ type Session = {
 
 const sessions = new Map<DocId, Session>()
 
-const RESOURCE_TOOLS = ['ListMcpResourcesTool', 'ReadMcpResourceTool']
-
 function workspace(): string {
   return join(app.getPath('userData'), 'claude-workspace')
 }
@@ -278,8 +277,8 @@ async function startSession(
         },
         // Only the tools that read our MCP server's resources (the design
         // guide), next to its own tools.
-        tools: RESOURCE_TOOLS,
-        allowedTools: ['mcp__polotno__*', ...RESOURCE_TOOLS],
+        tools: CLAUDE_RESOURCE_TOOLS,
+        allowedTools: ['mcp__polotno__*', ...CLAUDE_RESOURCE_TOOLS],
         disallowedTools: PANEL_HIDDEN_TOOLS.map((tool) => `mcp__polotno__${tool}`),
         includePartialMessages: true,
         systemPrompt: [designInstructions(docId, { images: false }), context]

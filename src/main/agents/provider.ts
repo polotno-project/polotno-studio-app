@@ -32,9 +32,7 @@ export interface AgentProvider {
   shutdown(): void
 }
 
-// The panel's agent works on the design the user has open: the tools that
-// list, open, create or save designs only cost tokens on every call.
-export const PANEL_HIDDEN_TOOLS = ['list_designs', 'create_design', 'open_design', 'save_design']
+export { PANEL_HIDDEN_TOOLS } from './lockdown'
 
 // Feed entries also land in the design's open chat (chats.ts).
 export function emitAgentEvent(event: AgentEvent): void {

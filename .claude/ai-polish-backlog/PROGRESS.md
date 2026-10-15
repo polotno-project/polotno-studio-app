@@ -13,7 +13,7 @@ Items added to BACKLOG.md during .claude/polish-ai-features (2026-10-14..16).
 - [x] 32 tools.ts `seen` map (read + agent edits) → update_element/set_page go through apply_changes with base; verified via ext.mjs: user fill/background kept + reported, agent fontSize/duration applied, agent re-edit of own value OK, re-read clears, undo is one step, missing element still element_not_found
 - [x] 40 get_design_json: `pages` param; over 40k chars → active page full, others one-line outlines (brief counts if still too big). 12 pages/240 texts: 22 KB. Verified: patch into an outlined page; Codex and Claude both edited an element on an outlined page
 - [x] 44 thumbnails.ts: hidden store + off-screen WorkspaceCanvas (HiddenStages), one at a time, library:writePreview (library folder only). Verified: 13 of 14 missing thumbnails appeared within ~15 s of opening My designs; the 14th is a file the app rejects as invalid-project (opening it fails too)
-- [ ] 41 Token benchmark as repo script (+ Codex usage)
+- [x] 41 scripts/agent-bench.mts (npm run bench:agents): panel setup from src/main/agents/lockdown.ts + instructions.ts, MCP via mcp.json; Codex usage from thread/tokenUsage/updated. Verified: welcome.json "title red" — Claude haiku 34k in/$0.0026/6 s; Codex 74k in/11 s
 - [x] 39 Docs: >50,000-char text results always go to a file, no off switch. get_design_json keeps under 40k (explicit pages: brief outlines, else too_large). Verified: 12 pages requested → too_large; 1 page → 21.6 KB
 - [x] 35 Dev-only overlay bug = StrictMode remount + react-konva-utils Portal cleanup destroying the group; StrictMode removed (verified: crop grid + generative fill selection draw in dev)
 - [ ] 42 Parallel chats

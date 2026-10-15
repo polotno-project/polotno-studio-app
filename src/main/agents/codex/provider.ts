@@ -6,6 +6,7 @@ import type { DocId } from '../../../shared/types'
 import { getMcpStatus } from '../../mcp/launcher'
 import { readLocalImage, type LocalImage } from '../../../mcp-server/local-image'
 import { keepChatImage } from '../chats'
+import { CODEX_DISABLED_FEATURES } from '../lockdown'
 import { findBinary } from '../find-binary'
 import { designInstructions } from '../instructions'
 import { emitAgentEvent, PANEL_HIDDEN_TOOLS, type AgentProvider } from '../provider'
@@ -282,23 +283,6 @@ async function onRequest(method: string): Promise<unknown> {
 
 // --- public API (IPC) -------------------------------------------------------
 
-// Codex features a design conversation must not have. With these off, the
-// polotno MCP tools and image generation are the whole toolbox: no shell or
-// file viewer that could read the user's files on behalf of a prompt that
-// arrived inside a design, no web, browser, connectors, or plugins. (Codex's
-// own `exec` stays: it only chains these tools and has no file access.)
-const DISABLED_FEATURES = [
-  'shell_tool',
-  'unified_exec',
-  'view_image',
-  'apps',
-  'plugins',
-  'browser_use',
-  'browser_use_external',
-  'computer_use',
-  'multi_agent'
-]
-
 type ModelListEntry = {
   id: string
   displayName: string
@@ -394,7 +378,9 @@ async function threadConfig(
       },
       'features.image_generation': true,
       web_search: 'disabled',
-      ...Object.fromEntries(DISABLED_FEATURES.map((feature) => [`features.${feature}`, false]))
+      ...Object.fromEntries(
+        CODEX_DISABLED_FEATURES.map((feature) => [`features.${feature}`, false])
+      )
     }
   }
 }
