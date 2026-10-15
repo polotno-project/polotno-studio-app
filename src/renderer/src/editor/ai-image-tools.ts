@@ -209,6 +209,13 @@ async function run(
   const id = crypto.randomUUID()
   const cancel = (): void => void window.desktop.invoke('imageEdit:cancel', { id })
   signal.addEventListener('abort', cancel, { once: true })
+  // Polotno's own progress shows no time, and an edit takes 40–60 s: say
+  // which agent works on it and for about how long.
+  toast.loading('Codex is editing the image', {
+    id,
+    description: 'This takes about a minute.',
+    duration: Infinity
+  })
   try {
     const { dataUrl } = await window.desktop.invoke('imageEdit:run', { id, png, instruction })
     if (signal.aborted) throw abortError()
@@ -218,6 +225,7 @@ async function run(
     if ((error as { userMessage?: string }).userMessage) throw error
     throw failure('Codex could not edit the image. Try again.', error)
   } finally {
+    toast.dismiss(id)
     signal.removeEventListener('abort', cancel)
   }
 }

@@ -1,4 +1,3 @@
-import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { setAnimationsEnabled, setUploadFunc } from 'polotno/config'
 import { localFileToURL } from 'polotno/utils/file'
@@ -35,8 +34,8 @@ void import('./editor/tabs-model').then(({ tabs }) => {
   })
 })
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-)
+// No React.StrictMode: its dev-only unmount/remount rehearsal breaks Polotno's
+// canvas overlays (crop frame, Expand frame, Generative fill selection). They
+// render through react-konva-utils' Portal, whose cleanup destroys the moved
+// group for good, so in `electron-vite dev` they never drew.
+ReactDOM.createRoot(document.getElementById('root')!).render(<App />)
