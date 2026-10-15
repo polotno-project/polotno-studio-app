@@ -5,6 +5,7 @@ import type { AgentEntry, AgentEvent, AgentModels, AgentStatus } from '../../../
 import type { DocId } from '../../../shared/types'
 import { getMcpStatus } from '../../mcp/launcher'
 import { readLocalImage, type LocalImage } from '../../../mcp-server/local-image'
+import { keepChatImage } from '../chats'
 import { findBinary } from '../find-binary'
 import { designInstructions } from '../instructions'
 import { emitAgentEvent, PANEL_HIDDEN_TOOLS, type AgentProvider } from '../provider'
@@ -176,7 +177,12 @@ function onItem(threadId: string, item: Item, completed: boolean): void {
       })
       return
     case 'imageGeneration':
-      if (completed && item.savedPath) imageFiles.set(item.id, item.savedPath)
+      if (completed && item.savedPath) {
+        imageFiles.set(item.id, item.savedPath)
+        void keepChatImage(item.id, item.savedPath).catch((error) =>
+          console.error('Keeping the generated image failed:', error)
+        )
+      }
       entry(threadId, {
         kind: 'image',
         id: item.id,

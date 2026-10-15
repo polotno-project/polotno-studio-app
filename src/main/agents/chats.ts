@@ -1,9 +1,10 @@
 import { app } from 'electron'
 import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
-import { join } from 'node:path'
+import { extname, join } from 'node:path'
 import type { AgentEntry, AgentEvent, ChatSummary } from '../../shared/agent'
 import type { DocId } from '../../shared/types'
+import { readLocalImage, type LocalImage } from '../../mcp-server/local-image'
 import { documents } from '../documents'
 
 // The AI panel's chats, per design: each one the feed the user saw (prompts,
@@ -36,6 +37,40 @@ let listener: ((docId: DocId) => void) | null = null
 const dir = (): string => join(app.getPath('userData'), 'chats')
 const fileFor = (filePath: string): string =>
   join(dir(), `${createHash('sha1').update(filePath).digest('hex')}.json`)
+
+// Generated images are copied next to the chats, one file per feed entry, so
+// "Add to design" still works in a chat reopened after a restart (the agent's
+// own copy lives in its memory or a folder it may clear).
+const imagesDir = (): string => join(dir(), 'images')
+const imageBase = (entryId: string): string =>
+  createHash('sha1').update(entryId).digest('hex').slice(0, 32)
+
+export async function keepChatImage(entryId: string, path: string): Promise<void> {
+  await fs.mkdir(imagesDir(), { recursive: true })
+  await fs.copyFile(path, join(imagesDir(), imageBase(entryId) + extname(path).toLowerCase()))
+}
+
+async function imageFile(entryId: string): Promise<string | null> {
+  const base = imageBase(entryId)
+  const names = await fs.readdir(imagesDir()).catch(() => [] as string[])
+  const name = names.find((item) => item.startsWith(base + '.'))
+  return name ? join(imagesDir(), name) : null
+}
+
+export async function chatImage(entryId: string): Promise<LocalImage | null> {
+  const file = await imageFile(entryId)
+  return file ? readLocalImage(file) : null
+}
+
+async function dropImages(chats: Chat[]): Promise<void> {
+  for (const chat of chats) {
+    for (const entry of chat.entries) {
+      if (entry.kind !== 'image') continue
+      const file = await imageFile(entry.id)
+      if (file) await fs.rm(file, { force: true })
+    }
+  }
+}
 
 // Told whenever a design's list of chats (or which one is open) changes.
 export function onChatsChanged(callback: (docId: DocId) => void): void {
@@ -172,6 +207,7 @@ export async function selectChat(docId: DocId, chatId: string): Promise<AgentEnt
 
 export async function deleteChat(docId: DocId, chatId: string): Promise<void> {
   const book = await load(docId)
+  await dropImages(book.chats.filter((chat) => chat.id === chatId))
   book.chats = book.chats.filter((chat) => chat.id !== chatId)
   if (book.activeId === chatId) book.activeId = null
   listener?.(docId)
@@ -219,6 +255,7 @@ export async function closeChats(docId: DocId): Promise<void> {
 
 // The design file was deleted.
 export async function deleteChatsOf(filePath: string): Promise<void> {
+  await dropImages(await read(filePath))
   await fs.rm(fileFor(filePath), { force: true })
 }
 

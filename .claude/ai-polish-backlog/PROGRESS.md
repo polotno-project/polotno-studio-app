@@ -9,7 +9,7 @@ Items added to BACKLOG.md during .claude/polish-ai-features (2026-10-14..16).
 - [x] 38 startFailure(): verified with a fake 2.0.1 claude (POLOTNO_CLAUDE_BIN) → "expects 2.1.300 or newer, run claude update" in models call and in the feed
 - [x] 37 loginShellEnv(): verified with SHELL=fake shell exporting an empty CLAUDE_CONFIG_DIR → status signedOut; normal launch → ready, run OK
 - [~] 36 Windows lookup implemented (PATHEXT, ~/.local/bin, %APPDATA%/npm, cmd.exe for codex.cmd); no Windows machine here → unverified
-- [ ] 43 Restored chat images: Add to design
+- [x] 43 Codex images copied to userData/chats/images/<sha1(entry id)>.<ext>; agentImage falls back to it; removed with the chat / design (verified: generate → restart → Add to design adds it; library delete empties the folder)
 - [ ] 32 update_element / set_page base-value check
 - [ ] 40 Per-page summaries for huge designs
 - [ ] 44 Missing thumbnails rendered in background

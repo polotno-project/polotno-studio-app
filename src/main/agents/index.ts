@@ -10,6 +10,7 @@ import type { DocId } from '../../shared/types'
 import type { LocalImage } from '../../mcp-server/local-image'
 import {
   chatContext,
+  chatImage,
   closeChats,
   deleteChat as removeChat,
   listChats,
@@ -139,6 +140,9 @@ export async function agentImage(id: string): Promise<LocalImage> {
     const image = await provider.image(id)
     if (image) return image
   }
+  // A chat from an earlier launch: the copy kept with it.
+  const kept = await chatImage(id)
+  if (kept) return kept
   throw new Error('This image is no longer available.')
 }
 
