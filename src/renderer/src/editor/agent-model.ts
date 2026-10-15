@@ -5,14 +5,15 @@ import type {
   AgentId,
   AgentInfo,
   AgentModels,
-  AgentStatus
+  AgentStatus,
+  ChatSummary
 } from '../../../shared/agent'
 import type { DocId } from '../../../shared/types'
 import { tabs } from './tabs-model'
 
 // Renderer-side state for the AI panel: the running agent's status plus each
-// design's conversation feed. Lives outside the panel so switching side-panel
-// sections or tabs keeps the history.
+// design's chats and the open chat's feed. Main keeps the chats (with the
+// design file); this mirrors them, loaded when a design's panel first shows.
 
 class AgentModel {
   active: AgentId = 'codex'
@@ -23,6 +24,7 @@ class AgentModel {
   status: AgentStatus = { state: 'starting' }
   models: AgentModels = { models: [], selected: null }
   private feeds = new Map<DocId, AgentEntry[]>()
+  private chatLists = new Map<DocId, { chats: ChatSummary[]; activeId: string | null }>()
   private running = new Set<DocId>()
 
   constructor() {
@@ -40,8 +42,8 @@ class AgentModel {
     this.refreshStatus()
   }
 
-  // Ends the open conversations (main adds a note to each); the new agent
-  // starts fresh with the next message.
+  // Ends the agent conversations (main adds a note to each chat); the new
+  // agent reads the chat before the next message.
   setActive(id: AgentId): void {
     if (id === this.active) return
     this.active = id
@@ -58,7 +60,49 @@ class AgentModel {
   // The tab is gone (main has already stopped its run).
   forget(docId: DocId): void {
     this.feeds.delete(docId)
+    this.chatLists.delete(docId)
     this.running.delete(docId)
+  }
+
+  // The design's chats from main; the feed too unless `keepFeed` (the open
+  // chat didn't change, and its live entries are already here).
+  loadChats(docId: DocId, keepFeed = false): void {
+    void window.desktop.invoke('agent:chats', { docId }).then(({ chats, activeId, entries }) => {
+      const sameChat = this.chatLists.get(docId)?.activeId === activeId
+      this.setChats(docId, chats, activeId, keepFeed && sameChat ? undefined : entries)
+    })
+  }
+
+  setChats(
+    docId: DocId,
+    chats: ChatSummary[],
+    activeId: string | null,
+    entries?: AgentEntry[]
+  ): void {
+    this.chatLists.set(docId, { chats, activeId })
+    if (entries) this.feeds.set(docId, entries)
+  }
+
+  chats(docId: DocId): ChatSummary[] {
+    return this.chatLists.get(docId)?.chats ?? []
+  }
+
+  activeChat(docId: DocId): string | null {
+    return this.chatLists.get(docId)?.activeId ?? null
+  }
+
+  isLoaded(docId: DocId): boolean {
+    return this.chatLists.has(docId)
+  }
+
+  selectChat(docId: DocId, chatId: string): void {
+    void window.desktop
+      .invoke('agent:selectChat', { docId, chatId })
+      .then((entries) => this.setChats(docId, this.chats(docId), chatId, entries))
+  }
+
+  deleteChat(docId: DocId, chatId: string): void {
+    void window.desktop.invoke('agent:deleteChat', { docId, chatId })
   }
 
   feed(docId: DocId): AgentEntry[] {
@@ -97,6 +141,7 @@ class AgentModel {
     void window.desktop.invoke('agent:setModel', { model: id })
   }
 
+  // New chat: the open one stays in the list.
   clear(docId: DocId): void {
     this.feeds.delete(docId)
     void window.desktop.invoke('agent:reset', { docId })
@@ -106,6 +151,8 @@ class AgentModel {
     if (event.type === 'status') {
       // Other agents report too (Codex runs the canvas AI tools).
       if (event.agent === this.active) this.setStatus(event.status)
+    } else if (event.type === 'chats') {
+      if (this.isLoaded(event.docId)) this.loadChats(event.docId, true)
     } else if (event.type === 'turn') {
       if (event.state === 'running') this.running.add(event.docId)
       else this.running.delete(event.docId)

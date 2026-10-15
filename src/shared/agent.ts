@@ -44,9 +44,14 @@ export type AgentModelInfo = { id: string; name: string; description: string; is
 // default" (for Codex: their config.toml model when the account can use it).
 export type AgentModels = { models: AgentModelInfo[]; selected: string | null }
 
+// One of a design's chats, for the panel's chat list.
+export type ChatSummary = { id: string; title: string; updatedAt: number }
+
 export type AgentTurnState = 'idle' | 'running'
 
 export type AgentEvent =
   | { type: 'status'; agent: AgentId; status: AgentStatus }
   | { type: 'entry'; docId: DocId; entry: AgentEntry }
   | { type: 'turn'; docId: DocId; state: AgentTurnState }
+  // The design's chat list (or the open chat) changed: read it again.
+  | { type: 'chats'; docId: DocId }

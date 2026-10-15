@@ -1,6 +1,14 @@
 import type { BridgeRequest, BridgeResponse } from './bridge-protocol'
 import type { DocId, RecentEntry } from './types'
-import type { AgentEvent, AgentId, AgentInfo, AgentModels, AgentStatus } from './agent'
+import type {
+  AgentEntry,
+  AgentEvent,
+  AgentId,
+  AgentInfo,
+  AgentModels,
+  AgentStatus,
+  ChatSummary
+} from './agent'
 
 // Single source of truth for every IPC channel. The preload derives the typed
 // window.desktop API from these interfaces; main registers handlers against
@@ -59,7 +67,8 @@ export interface InvokeApi {
   // In-app generation through the user's own agent install (src/main/agents).
   // Every call goes to the agent the panel runs.
   'agent:list': () => { active: AgentId; agents: AgentInfo[] }
-  // Switching ends the open conversations (the new agent can't see them).
+  // Switching ends the agent conversations; each chat goes on with the new
+  // agent, which reads it first.
   'agent:setActive': (p: { agent: AgentId }) => void
   'agent:status': () => AgentStatus
   'agent:signIn': () => void
@@ -67,7 +76,18 @@ export interface InvokeApi {
   'agent:setModel': (p: { model: string | null }) => void
   'agent:run': (p: { docId: DocId; prompt: string }) => void
   'agent:stop': (p: { docId: DocId }) => void
+  // New chat: the open one stays in the design's list.
   'agent:reset': (p: { docId: DocId }) => void
+  // A design's chats (kept with its file) and the open chat's feed.
+  'agent:chats': (p: { docId: DocId }) => {
+    chats: ChatSummary[]
+    activeId: string | null
+    entries: AgentEntry[]
+  }
+  // Continues an earlier chat: its next message starts a new agent
+  // conversation that reads it first. Returns the chat's feed.
+  'agent:selectChat': (p: { docId: DocId; chatId: string }) => AgentEntry[]
+  'agent:deleteChat': (p: { docId: DocId; chatId: string }) => void
   // A generated image at full size, by feed entry id.
   'agent:image': (p: { id: string }) => { dataUrl: string; width: number; height: number }
   // Canvas AI tools: edit an image (area to change painted magenta). They

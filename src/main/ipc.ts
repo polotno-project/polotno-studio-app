@@ -20,10 +20,15 @@ import { getMcpStatus, restartMcpServer } from './mcp/launcher'
 import { regenerateMcpToken } from './mcp/token'
 import {
   agentImage,
+  closeAgentConversations,
+  deleteChat,
   getAgentModels,
+  getChats,
+  moveAgentChats,
+  newChat,
+  selectChat,
   getAgentStatus,
   listAgents,
-  resetAgent,
   resetAllAgents,
   runAgent,
   setActiveAgent,
@@ -32,6 +37,7 @@ import {
   stopAgent
 } from './agents'
 import { cancelImageEdit, editImageWithCodex, getCodexStatus } from './agents/codex/provider'
+import { deleteChatsOf, renameChatsOf } from './agents/chats'
 import {
   readDesignFile,
   readDesignFileBase64,
@@ -68,6 +74,7 @@ export function registerIpcHandlers(): void {
   })
   handle('doc:setFilePath', (_event, { docId, filePath }) => {
     documents.setFilePath(docId, filePath)
+    void moveAgentChats(docId, filePath)
     watchDocument(docId)
     void addRecent(filePath)
     persistSession()
@@ -75,7 +82,7 @@ export function registerIpcHandlers(): void {
   handle('doc:close', (_event, { docId }) => {
     // An agent run on a closed design would keep spending usage on edits that
     // can no longer land.
-    resetAgent(docId)
+    void closeAgentConversations(docId)
     unwatchDocument(docId)
     documents.close(docId)
     persistSession()
@@ -95,13 +102,18 @@ export function registerIpcHandlers(): void {
   handle('library:create', async (_event, { name, content }) => ({
     filePath: await createLibraryDesign(name, content)
   }))
-  handle('library:rename', async (_event, { filePath, name }) => ({
-    filePath: await renameLibraryDesign(filePath, name)
-  }))
+  handle('library:rename', async (_event, { filePath, name }) => {
+    const renamed = await renameLibraryDesign(filePath, name)
+    await renameChatsOf(filePath, renamed)
+    return { filePath: renamed }
+  })
   handle('library:duplicate', async (_event, { filePath }) => ({
     filePath: await duplicateLibraryDesign(filePath)
   }))
-  handle('library:delete', (_event, { filePath }) => deleteLibraryDesign(filePath))
+  handle('library:delete', async (_event, { filePath }) => {
+    await deleteLibraryDesign(filePath)
+    await deleteChatsOf(filePath)
+  })
   handle('design:writePreview', (_event, { docId, dataUrl }) => {
     const entry = documents.get(docId)
     if (entry?.filePath) void writePreview(entry.filePath, dataUrl)
@@ -179,7 +191,10 @@ export function registerIpcHandlers(): void {
   handle('agent:setModel', (_event, { model }) => setAgentModel(model))
   handle('agent:run', (_event, { docId, prompt }) => runAgent(docId, prompt))
   handle('agent:stop', (_event, { docId }) => stopAgent(docId))
-  handle('agent:reset', (_event, { docId }) => resetAgent(docId))
+  handle('agent:reset', (_event, { docId }) => newChat(docId))
+  handle('agent:chats', (_event, { docId }) => getChats(docId))
+  handle('agent:selectChat', (_event, { docId, chatId }) => selectChat(docId, chatId))
+  handle('agent:deleteChat', (_event, { docId, chatId }) => deleteChat(docId, chatId))
   handle('agent:image', (_event, { id }) => agentImage(id))
   handle('imageEdit:status', () => getCodexStatus())
   handle('imageEdit:run', (_event, { id, png, instruction }) =>

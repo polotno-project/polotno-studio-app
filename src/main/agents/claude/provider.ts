@@ -217,7 +217,11 @@ function baseOptions(): Parameters<typeof query>[0]['options'] {
   }
 }
 
-async function startSession(docId: DocId, mcp: { url: string; token: string }): Promise<Session> {
+async function startSession(
+  docId: DocId,
+  mcp: { url: string; token: string },
+  context?: string
+): Promise<Session> {
   await fs.mkdir(workspace(), { recursive: true })
   const input = new MessageQueue()
   const model = await readPickedModel()
@@ -239,7 +243,9 @@ async function startSession(docId: DocId, mcp: { url: string; token: string }): 
         allowedTools: ['mcp__polotno__*', ...RESOURCE_TOOLS],
         disallowedTools: PANEL_HIDDEN_TOOLS.map((tool) => `mcp__polotno__${tool}`),
         includePartialMessages: true,
-        systemPrompt: designInstructions(docId, { images: false }),
+        systemPrompt: [designInstructions(docId, { images: false }), context]
+          .filter(Boolean)
+          .join('\n\n'),
         ...(model && { model })
       }
     }),
@@ -370,13 +376,13 @@ function resultText(content: unknown): string | undefined {
   return content.map((part) => (part?.type === 'text' ? part.text : '')).join('') || undefined
 }
 
-async function run(docId: DocId, prompt: string): Promise<void> {
+async function run(docId: DocId, prompt: string, context?: string): Promise<void> {
   if (status.state !== 'ready') await getStatus()
   if (status.state !== 'ready') throw new Error('Claude is not ready.')
   const mcp = getMcpStatus()
   if (!mcp.url) throw new Error('The Polotno MCP server is not running.')
   const session =
-    sessions.get(docId) ?? (await startSession(docId, { url: mcp.url, token: mcp.token }))
+    sessions.get(docId) ?? (await startSession(docId, { url: mcp.url, token: mcp.token }, context))
   const uuid = crypto.randomUUID()
   session.pending.add(uuid)
   entry(docId, { kind: 'prompt', id: uuid, text: prompt })

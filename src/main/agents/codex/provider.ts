@@ -428,7 +428,7 @@ async function steer(docId: DocId, prompt: string): Promise<void> {
   emit({ type: 'entry', docId, entry: { kind: 'prompt', id: crypto.randomUUID(), text: prompt } })
 }
 
-async function run(docId: DocId, prompt: string): Promise<void> {
+async function run(docId: DocId, prompt: string, context?: string): Promise<void> {
   if (busy.has(docId)) {
     try {
       return await steer(docId, prompt)
@@ -454,7 +454,9 @@ async function run(docId: DocId, prompt: string): Promise<void> {
         approvalPolicy: 'never',
         ephemeral: true,
         serviceName: 'polotno_app',
-        developerInstructions: designInstructions(docId, { images: true }),
+        developerInstructions: [designInstructions(docId, { images: true }), context]
+          .filter(Boolean)
+          .join('\n\n'),
         ...(await threadConfig(codex, { url: mcp.url, token: mcp.token }))
       })
       threadId = result.thread.id

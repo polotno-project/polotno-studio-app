@@ -8,11 +8,13 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
+  History,
   ImageIcon,
   ImagePlus,
   RotateCcw,
   Sparkles,
   Square,
+  Trash2,
   Wallpaper,
   X
 } from 'lucide-react'
@@ -417,8 +419,8 @@ const Feed = observer(function Feed({ docId }: { docId: string }): React.JSX.Ele
   )
 })
 
-// Which agent runs: the user's own Codex or Claude Code. Switching starts a
-// new conversation in every design.
+// Which agent runs: the user's own Codex or Claude Code. Switching ends the
+// agent conversations; each chat goes on with the new agent.
 const AgentPicker = observer(function AgentPicker(): React.JSX.Element {
   return (
     <DropdownMenu>
@@ -439,6 +441,71 @@ const AgentPicker = observer(function AgentPicker(): React.JSX.Element {
           <DropdownMenuItem key={item.id} onSelect={() => agent.setActive(item.id)}>
             <Check className={`size-3.5 ${item.id === agent.active ? '' : 'invisible'}`} />
             {item.name}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+})
+
+function ago(time: number): string {
+  const minutes = Math.round((Date.now() - time) / 60_000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours} h ago`
+  return new Date(time).toLocaleDateString()
+}
+
+// The design's chats, newest first. Picking an older one continues it: the
+// agent reads it before the next message.
+const ChatList = observer(function ChatList({
+  docId
+}: {
+  docId: string
+}): React.JSX.Element | null {
+  const chats = agent.chats(docId)
+  if (!chats.length) return null
+  const activeId = agent.activeChat(docId)
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            title="Chats about this design"
+            disabled={agent.isRunning(docId)}
+          >
+            <History className="size-4" />
+          </Button>
+        }
+      />
+      <DropdownMenuContent align="end" className="w-72">
+        {chats.map((chat) => (
+          <DropdownMenuItem
+            key={chat.id}
+            onSelect={() => chat.id !== activeId && agent.selectChat(docId, chat.id)}
+            className="group items-start"
+          >
+            <Check
+              className={`mt-0.5 size-3.5 shrink-0 ${chat.id === activeId ? '' : 'invisible'}`}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="truncate">{chat.title}</div>
+              <div className="text-xs text-neutral-500">{ago(chat.updatedAt)}</div>
+            </div>
+            <button
+              type="button"
+              title="Delete chat"
+              className="invisible shrink-0 rounded p-0.5 text-neutral-500 group-hover:visible hover:text-red-600"
+              onClick={(event) => {
+                event.stopPropagation()
+                agent.deleteChat(docId, chat.id)
+              }}
+            >
+              <Trash2 className="size-3.5" />
+            </button>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -517,6 +584,10 @@ const Panel = observer(function Panel(): React.JSX.Element {
     agent.refreshStatus()
   }, [])
 
+  useEffect(() => {
+    if (docId && !agent.isLoaded(docId)) agent.loadChats(docId)
+  }, [docId])
+
   const retry = (
     <Button variant="outline" size="sm" onClick={() => agent.refreshStatus()}>
       <RotateCcw className="size-3.5" />
@@ -583,6 +654,7 @@ const Panel = observer(function Panel(): React.JSX.Element {
             </div>
           )}
         </div>
+        {status.state === 'ready' && docId && <ChatList docId={docId} />}
         {status.state === 'ready' && docId && agent.feed(docId).length > 0 && (
           <Button
             variant="ghost"

@@ -76,7 +76,7 @@ From the agent's own list, the ones that look valid and cheap:
 - tldraw's idea: full detail for the current page/selection, summaries for other pages.
 - Bigger bet (tldraw "code mode"): let the agent run a small JS script against a sandboxed store API. Defer; needs a security design.
 
-## Phase 7 — Several chats per design (exploration only)
+## Phase 7 — Several chats per design (step 1 done 2026-10-16: chat history + continue; parallel chats not built, see PROGRESS)
 
 Codex threads are already per doc; multiple chats = list of threads per docId with a chat switcher in the panel header (thread/list, thread/name/set exist), and persistence via thread resume (BACKLOG: conversations are ephemeral). Two agents editing one design at once makes Phase 2 mandatory. Recommend: chat history/resume first, parallel chats later if wanted.
 
