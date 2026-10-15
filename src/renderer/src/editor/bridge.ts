@@ -2,6 +2,7 @@ import type { CommandResult, DesignCommand, AppCommand } from '../../../shared/c
 import { tabs } from './tabs-model'
 import { executeCommand, CommandError } from './executor'
 import { executeAppCommand } from './app-executor'
+import { agentActivity } from './agent-activity'
 
 // Executes bridge requests from main. docId '' addresses the window itself
 // (tab management); any other docId addresses that tab's live store — mounted
@@ -20,7 +21,11 @@ window.desktop.on('bridge:request', ({ id, docId, command }) => {
             error: { code: 'document_not_found', message: `No open tab for ${docId}` }
           }
         } else {
-          result = { ok: true, value: await executeCommand(tab.store, command as DesignCommand) }
+          // Plan first: anything the command removes is measured while it exists.
+          const plan = agentActivity.plan(tab.store, command as DesignCommand)
+          const value = await executeCommand(tab.store, command as DesignCommand)
+          if (plan) agentActivity.show(docId, plan, value)
+          result = { ok: true, value }
         }
       }
     } catch (error) {

@@ -60,7 +60,7 @@ Goal: agent edits never overwrite user edits they didn't touch.
 5. **Decision 2026-10-14:** Claude is the next provider after Codex.
 6. Licensing gates remain (BACKLOG: SIWC for Codex, Anthropic confirmation for spawning claude).
 
-## Phase 5 — Agent visibility (tldraw-style)
+## Phase 5 — Agent visibility (tldraw-style) (done 2026-10-15, see PROGRESS)
 
 1. **Agent cursor.** On each mutating MCP command, the renderer gets the element id(s); animate a colored "agent cursor" overlay (absolutely positioned over the workspace, in canvas coords via `store.scale`/page offset) gliding to the element, plus a brief highlight outline. Reading commands can show a scanning shimmer over the page.
 2. Status chip on the canvas ("Codex is editing 'Title'…").

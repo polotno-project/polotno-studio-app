@@ -44,3 +44,58 @@ body {
 .ai-markdown :where(table) {
   font-size: 0.75rem;
 }
+
+/* The agent's cursor on the canvas (agent-cursor.tsx): it glides between
+   targets, and outlines what it changed (or sweeps over what it read). */
+.agent-cursor {
+  transition:
+    transform 450ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 300ms ease-out;
+}
+.agent-highlight,
+.agent-scan {
+  border: 2px solid var(--agent-color);
+  background: color-mix(in srgb, var(--agent-color) 8%, transparent);
+  animation: agent-highlight 1.8s ease-out forwards;
+}
+.agent-scan {
+  border-style: dashed;
+  background: linear-gradient(
+      100deg,
+      transparent 35%,
+      color-mix(in srgb, var(--agent-color) 22%, transparent) 50%,
+      transparent 65%
+    )
+    0 0 / 250% 100% no-repeat;
+  animation:
+    agent-highlight 1.8s ease-out forwards,
+    agent-scan 1.2s ease-in-out infinite;
+}
+@keyframes agent-highlight {
+  0% {
+    opacity: 0;
+  }
+  15%,
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes agent-scan {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-cursor {
+    transition: opacity 300ms ease-out;
+  }
+  .agent-scan {
+    animation: agent-highlight 1.8s ease-out forwards;
+  }
+}
