@@ -1,5 +1,6 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface } from 'node:readline'
+import { spawnBinary } from '../find-binary'
 
 // JSON-RPC over stdio (newline-delimited JSON, no "jsonrpc" header) with a
 // `codex app-server` child. Requests are promise-correlated; notifications and
@@ -25,7 +26,8 @@ export class AppServer {
   private closed: Error | null = null
 
   constructor(binary: string, env: NodeJS.ProcessEnv, handlers: AppServerHandlers) {
-    this.proc = spawn(binary, ['app-server'], { env, stdio: ['pipe', 'pipe', 'pipe'] })
+    // npm's codex.cmd on Windows goes through cmd.exe (see spawnBinary).
+    this.proc = spawnBinary(binary, ['app-server'], { env })
     this.proc.stderr.on('data', (chunk: Buffer) => {
       this.stderrTail = (this.stderrTail + chunk.toString()).slice(-4000)
     })

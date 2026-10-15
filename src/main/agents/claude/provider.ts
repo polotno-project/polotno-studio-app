@@ -1,5 +1,4 @@
 import { app } from 'electron'
-import { execFile } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import {
@@ -12,7 +11,7 @@ import {
 import type { AgentEntry, AgentModels, AgentStatus } from '../../../shared/agent'
 import type { DocId } from '../../../shared/types'
 import { getMcpStatus } from '../../mcp/launcher'
-import { findBinary } from '../find-binary'
+import { findBinary, isBatchFile, loginShellEnv, runBinary } from '../find-binary'
 import { designInstructions } from '../instructions'
 import { emitAgentEvent, PANEL_HIDDEN_TOOLS, type AgentProvider } from '../provider'
 import { readSetting, writeSetting } from '../settings'
@@ -25,6 +24,10 @@ import { readSetting, writeSetting } from '../settings'
 // none of the user's own settings, MCP servers, plugins, or CLAUDE.md.
 
 let binary: string | null = null
+let version: string | null = null
+// Settings exported only in the user's shell profile pick the same account
+// and config the `claude` in their terminal uses.
+let env: NodeJS.ProcessEnv = process.env
 let status: AgentStatus = { state: 'starting' }
 let checking: Promise<void> | null = null
 
@@ -39,25 +42,34 @@ function entry(docId: DocId, value: AgentEntry): void {
 
 // --- install and sign-in ----------------------------------------------------
 
-// Runs the CLI and returns its stdout even when it exits non-zero
-// (`claude auth status` exits 1 when signed out).
-function cli(args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile(binary!, args, { timeout: 15000 }, (error, stdout) => {
-      if (stdout) resolve(stdout)
-      else reject(error ?? new Error(`claude ${args.join(' ')} printed nothing`))
-    })
-  })
-}
+const SHELL_SETTINGS = [
+  'CLAUDE_CONFIG_DIR',
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_BASE_URL'
+]
+
+const cli = (args: string[]): Promise<string> => runBinary(binary!, args, { env })
 
 async function check(): Promise<void> {
+  env = { ...process.env, ...(await loginShellEnv(SHELL_SETTINGS)) }
   binary = await findBinary('claude', {
     envOverride: 'POLOTNO_CLAUDE_BIN',
     extra: [join(app.getPath('home'), '.claude/local/claude')]
   })
   if (!binary) return setStatus({ state: 'missing' })
+  // The Agent SDK starts the binary itself, without a shell: an npm shim
+  // (claude.cmd) can't be started that way on Windows.
+  if (isBatchFile(binary)) {
+    return setStatus({
+      state: 'error',
+      message:
+        'Found Claude Code installed with npm (claude.cmd), which the app cannot start. Install it with the native installer (claude.exe) from docs.claude.com, then try again.'
+    })
+  }
   try {
     const [versionText, authText] = await Promise.all([cli(['--version']), cli(['auth', 'status'])])
+    version = /\d+\.\d+\.\d+/.exec(versionText)?.[0] ?? null
     const auth = JSON.parse(authText) as {
       loggedIn: boolean
       email?: string
@@ -68,7 +80,7 @@ async function check(): Promise<void> {
       state: 'ready',
       email: auth.email ?? null,
       plan: auth.subscriptionType ? `Claude ${capitalize(auth.subscriptionType)}` : null,
-      version: /\d+\.\d+\.\d+/.exec(versionText)?.[0] ?? null
+      version
     })
   } catch (error) {
     setStatus({ state: 'error', message: `Could not run Claude Code: ${(error as Error).message}` })
@@ -76,6 +88,30 @@ async function check(): Promise<void> {
 }
 
 const capitalize = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1)
+
+// The SDK speaks the protocol of the Claude Code it was released with. When a
+// session fails before it starts, a much older or newer CLI is the likely
+// cause: say which side to update.
+const SDK_CLI_VERSION: string | undefined = __CLAUDE_CODE_VERSION__
+
+function compareVersions(a: string, b: string): number {
+  const [x, y] = [a, b].map((v) => v.split('.').map(Number))
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return (x[i] ?? 0) - (y[i] ?? 0)
+  return 0
+}
+
+function startFailure(error: unknown): string {
+  const message = `Claude Code did not start: ${(error as Error).message}`
+  if (!version || !SDK_CLI_VERSION) return message
+  const order = compareVersions(version, SDK_CLI_VERSION)
+  if (order < 0) {
+    return `${message}\n\nYour Claude Code is ${version}; this app expects ${SDK_CLI_VERSION} or newer. Run \`claude update\` in a terminal, then try again.`
+  }
+  if (order > 0 && version.split('.')[0] !== SDK_CLI_VERSION.split('.')[0]) {
+    return `${message}\n\nYour Claude Code is ${version}, newer than this app supports (${SDK_CLI_VERSION}). Update Polotno.`
+  }
+  return message
+}
 
 // Re-checked on every call: the user signs in in their terminal, then
 // presses Try again.
@@ -118,7 +154,7 @@ function listModels(): Promise<ModelInfo[]> {
     }
   })().catch((error) => {
     modelList = null
-    throw error
+    throw new Error(startFailure(error))
   })
   return modelList
 }
@@ -186,6 +222,9 @@ type Session = {
   pending: Set<string>
   running: boolean
   stopping: boolean
+  // Claude Code reported in (its init message): later failures are not about
+  // starting it.
+  started: boolean
   // The streamed text blocks of the current assistant message, by index.
   messageId: string
   text: Map<number, { id: string; text: string }>
@@ -204,7 +243,7 @@ function baseOptions(): Parameters<typeof query>[0]['options'] {
   return {
     pathToClaudeCodeExecutable: binary!,
     cwd: workspace(),
-    env: { ...process.env, CLAUDE_AGENT_SDK_CLIENT_APP: `polotno-app/${app.getVersion()}` },
+    env: { ...env, CLAUDE_AGENT_SDK_CLIENT_APP: `polotno-app/${app.getVersion()}` },
     // None of the user's own settings, hooks, CLAUDE.md, MCP servers or
     // plugins, and no built-in tools: nothing that could read their files on
     // behalf of a prompt that arrived inside a design.
@@ -253,6 +292,7 @@ async function startSession(
     pending: new Set(),
     running: false,
     stopping: false,
+    started: false,
     messageId: '',
     text: new Map(),
     tools: new Map()
@@ -270,7 +310,7 @@ async function consume(docId: DocId, session: Session): Promise<void> {
       entry(docId, {
         kind: 'error',
         id: crypto.randomUUID(),
-        text: `Claude stopped: ${(error as Error).message}`
+        text: session.started ? `Claude stopped: ${(error as Error).message}` : startFailure(error)
       })
     }
   } finally {
@@ -293,6 +333,9 @@ const toolName = (name: string): string => name.replace(/^mcp__polotno__/, '')
 
 function onMessage(docId: DocId, session: Session, message: SDKMessage): void {
   switch (message.type) {
+    case 'system':
+      if (message.subtype === 'init') session.started = true
+      return
     case 'stream_event': {
       const event = message.event
       if (event.type === 'message_start') {
