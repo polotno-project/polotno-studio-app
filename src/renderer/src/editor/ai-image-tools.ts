@@ -1,4 +1,10 @@
-import { setExpandFunc, setRemoveObjectFunc, setReplaceObjectFunc } from 'polotno/config'
+import {
+  getTranslations,
+  setExpandFunc,
+  setRemoveObjectFunc,
+  setReplaceObjectFunc,
+  setTranslations
+} from 'polotno/config'
 import { padImageForFrame, prepareImageInput } from 'polotno/utils/image-edit'
 import { toast } from 'sonner'
 import { agent } from './agent-model'
@@ -230,7 +236,21 @@ async function run(
   }
 }
 
+// The edit panels say what runs them: the AI panel may be on Claude, and
+// these still go to Codex.
+const RUNS_ON = 'Runs on your Codex.'
+
+function sayWhoRuns(): void {
+  const { imageEdit } = getTranslations() as { imageEdit: Record<string, string> }
+  const keys = ['replaceDescription', 'removeDescription', 'expandDescription']
+  setTranslations(
+    { imageEdit: Object.fromEntries(keys.map((key) => [key, `${imageEdit[key]} ${RUNS_ON}`])) },
+    { validate: false }
+  )
+}
+
 export function installAiImageTools(): void {
+  sayWhoRuns()
   setReplaceObjectFunc(({ image, mask, prompt, signal }) =>
     run(image, mask, instructions.replace(prompt), signal)
   )
