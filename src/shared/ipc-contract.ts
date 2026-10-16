@@ -95,6 +95,8 @@ export interface InvokeApi {
   // Canvas AI tools: edit an image (area to change painted magenta). They
   // need image generation, so they run on Codex whichever agent chats.
   'imageEdit:status': () => AgentStatus
+  // Signs in to Codex without making it the chat agent.
+  'imageEdit:signIn': () => void
   'imageEdit:run': (p: { id: string; png: Uint8Array; instruction: string }) => {
     dataUrl: string
   }

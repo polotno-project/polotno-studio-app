@@ -22,6 +22,9 @@ class AgentModel {
     { id: 'claude', name: 'Claude' }
   ]
   status: AgentStatus = { state: 'starting' }
+  // Codex's own status, whichever agent chats: the canvas AI tools run on it.
+  // Null until something asks (asking starts Codex).
+  codexStatus: AgentStatus | null = null
   models: AgentModels = { models: [], selected: null }
   private feeds = new Map<DocId, AgentEntry[]>()
   private chatLists = new Map<DocId, { chats: ChatSummary[]; activeId: string | null }>()
@@ -141,6 +144,14 @@ class AgentModel {
     void window.desktop.invoke('agent:setModel', { model: id })
   }
 
+  refreshCodexStatus(): void {
+    void window.desktop.invoke('imageEdit:status').then((status) => this.setCodexStatus(status))
+  }
+
+  setCodexStatus(status: AgentStatus): void {
+    this.codexStatus = status
+  }
+
   // New chat: the open one stays in the list.
   clear(docId: DocId): void {
     this.feeds.delete(docId)
@@ -151,6 +162,7 @@ class AgentModel {
     if (event.type === 'status') {
       // Other agents report too (Codex runs the canvas AI tools).
       if (event.agent === this.active) this.setStatus(event.status)
+      if (event.agent === 'codex') this.codexStatus = event.status
     } else if (event.type === 'chats') {
       if (this.isLoaded(event.docId)) this.loadChats(event.docId, true)
     } else if (event.type === 'turn') {

@@ -37,7 +37,12 @@ import {
   signInToAgent,
   stopAgent
 } from './agents'
-import { cancelImageEdit, editImageWithCodex, getCodexStatus } from './agents/codex/provider'
+import {
+  cancelImageEdit,
+  editImageWithCodex,
+  getCodexStatus,
+  signInToCodex
+} from './agents/codex/provider'
 import { deleteChatsOf, renameChatsOf } from './agents/chats'
 import {
   readDesignFile,
@@ -205,6 +210,7 @@ export function registerIpcHandlers(): void {
   handle('agent:deleteChat', (_event, { docId, chatId }) => deleteChat(docId, chatId))
   handle('agent:image', (_event, { id }) => agentImage(id))
   handle('imageEdit:status', () => getCodexStatus())
+  handle('imageEdit:signIn', () => signInToCodex())
   handle('imageEdit:run', (_event, { id, png, instruction }) =>
     editImageWithCodex(id, png, instruction)
   )

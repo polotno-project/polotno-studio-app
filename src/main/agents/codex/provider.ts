@@ -390,7 +390,7 @@ export async function getCodexStatus(): Promise<AgentStatus> {
   return status
 }
 
-async function signIn(): Promise<void> {
+export async function signInToCodex(): Promise<void> {
   const codex = await ensureServer()
   if (!codex) return
   const result = await codex.request<{ type: string; authUrl?: string }>('account/login/start', {
@@ -598,7 +598,7 @@ function shutdown(): void {
 export const codexProvider: AgentProvider = {
   info: { id: 'codex', name: 'Codex' },
   getStatus: getCodexStatus,
-  signIn,
+  signIn: signInToCodex,
   getModels,
   setModel,
   run,

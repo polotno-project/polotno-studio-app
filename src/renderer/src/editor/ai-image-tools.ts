@@ -5,8 +5,10 @@ import {
   setReplaceObjectFunc,
   setTranslations
 } from 'polotno/config'
+import { autorun, reaction } from 'mobx'
 import { padImageForFrame, prepareImageInput } from 'polotno/utils/image-edit'
 import { toast } from 'sonner'
+import type { AgentStatus } from '../../../shared/agent'
 import { agent } from './agent-model'
 import { tabs } from './tabs-model'
 
@@ -187,16 +189,34 @@ async function composite(
   return opaque ? out.toDataURL('image/jpeg', 0.92) : out.toDataURL('image/png')
 }
 
-// No connected Codex: show where to connect it instead of an error.
+// No connected Codex: say how to connect it, and stop without closing the
+// tool, so the selection and prompt are still there for the next try.
 async function ensureCodex(): Promise<void> {
   const status = await window.desktop.invoke('imageEdit:status')
+  agent.setCodexStatus(status)
   if (status.state === 'ready') return
-  tabs.active?.store.openSidePanel('ai')
-  toast.info(
-    agent.active === 'codex'
-      ? 'AI edits run on your Codex. Connect it in the AI panel to use them.'
-      : 'AI edits run on your Codex. Switch the AI panel to Codex to connect it.'
-  )
+  if (status.state === 'missing') {
+    toast.info('AI edits run on your own Codex, which is not installed.', {
+      description: 'Install the Codex CLI (npm install -g @openai/codex), then try again.',
+      duration: 15000
+    })
+  } else if (status.state === 'signingIn') {
+    toast.info('Finish signing in to Codex in your browser, then try again.')
+  } else {
+    // Signs in to Codex only: the AI panel keeps chatting with its agent.
+    toast.info(
+      status.state === 'error'
+        ? `AI edits run on your own Codex: ${status.message}`
+        : 'AI edits run on your own Codex. Sign in to use them.',
+      {
+        duration: 15000,
+        action: {
+          label: 'Sign in to Codex',
+          onClick: () => void window.desktop.invoke('imageEdit:signIn')
+        }
+      }
+    )
+  }
   throw abortError()
 }
 
@@ -236,16 +256,40 @@ async function run(
   }
 }
 
-// The edit panels say what runs them: the AI panel may be on Claude, and
-// these still go to Codex.
-const RUNS_ON = 'Runs on your Codex.'
+// The edit panels say what runs them (the AI panel may be on Claude, and
+// these still go to Codex), and whether Codex is ready before Generate.
+function codexLine(status: AgentStatus | null): string {
+  switch (status?.state) {
+    case 'missing':
+      return 'Runs on your own Codex, which is not installed.'
+    case 'signedOut':
+    case 'error':
+      return 'Runs on your own Codex, which is not connected.'
+    case 'signingIn':
+      return 'Runs on your Codex once you finish signing in.'
+    default:
+      return 'Runs on your Codex.'
+  }
+}
 
 function sayWhoRuns(): void {
   const { imageEdit } = getTranslations() as { imageEdit: Record<string, string> }
   const keys = ['replaceDescription', 'removeDescription', 'expandDescription']
-  setTranslations(
-    { imageEdit: Object.fromEntries(keys.map((key) => [key, `${imageEdit[key]} ${RUNS_ON}`])) },
-    { validate: false }
+  const base = Object.fromEntries(keys.map((key) => [key, imageEdit[key]]))
+  autorun(() => {
+    const line = codexLine(agent.codexStatus)
+    setTranslations(
+      { imageEdit: Object.fromEntries(keys.map((key) => [key, `${base[key]} ${line}`])) },
+      { validate: false }
+    )
+  })
+  // Opening an AI edit asks Codex how it is (starting it if needed).
+  reaction(
+    () => {
+      const tool = tabs.active?.store.activeTool?.name
+      return tool === 'inpaint' || tool === 'expand'
+    },
+    (open) => open && agent.refreshCodexStatus()
   )
 }
 
