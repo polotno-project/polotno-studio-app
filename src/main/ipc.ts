@@ -93,6 +93,20 @@ export function registerIpcHandlers(): void {
     documents.close(docId)
     persistSession()
   })
+  // A reload (View > Reload) replaces a window's tabs with new ones: the old
+  // ones close the same way, without a doc:close. The saved session is left
+  // alone; the reloaded window restores its tabs from it.
+  app.on('web-contents-created', (_event, contents) => {
+    contents.on('did-start-navigation', ({ isMainFrame, isSameDocument }) => {
+      if (!isMainFrame || isSameDocument) return
+      for (const { docId, wcId } of documents.all()) {
+        if (wcId !== contents.id) continue
+        void closeAgentConversations(docId)
+        unwatchDocument(docId)
+        documents.close(docId)
+      }
+    })
+  })
 
   handle('file:openDialog', (event) => showOpenDesignDialog(windowOf(event)))
   handle('file:read', (_event, { filePath }) => readDesignFile(filePath))
@@ -203,7 +217,7 @@ export function registerIpcHandlers(): void {
   handle('agent:models', () => getAgentModels())
   handle('agent:setModel', (_event, { model }) => setAgentModel(model))
   handle('agent:run', (_event, { docId, prompt }) => runAgent(docId, prompt))
-  handle('agent:stop', (_event, { docId }) => stopAgent(docId))
+  handle('agent:stop', (_event, { chatId }) => stopAgent(chatId))
   handle('agent:reset', (_event, { docId }) => newChat(docId))
   handle('agent:chats', (_event, { docId }) => getChats(docId))
   handle('agent:selectChat', (_event, { docId, chatId }) => selectChat(docId, chatId))

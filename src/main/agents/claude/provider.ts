@@ -8,8 +8,7 @@ import {
   type SDKMessage,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
-import type { AgentEntry, AgentModels, AgentStatus } from '../../../shared/agent'
-import type { DocId } from '../../../shared/types'
+import type { AgentEntry, AgentModels, AgentStatus, ChatRef } from '../../../shared/agent'
 import { getMcpStatus } from '../../mcp/launcher'
 import { findBinary, isBatchFile, loginShellEnv, runBinary } from '../find-binary'
 import { designInstructions } from '../instructions'
@@ -20,7 +19,7 @@ import { readSetting, writeSetting } from '../settings'
 // In-app generation through the user's own Claude Code install. The Agent SDK
 // drives their installed `claude` binary, unmodified, signed in with their
 // own account through Anthropic's own login (`claude auth login`); the app
-// never sees or handles their credentials. One Claude session per design tab,
+// never sees or handles their credentials. One Claude session per chat,
 // locked down to our MCP server: no built-in tools (no shell, files, or web),
 // none of the user's own settings, MCP servers, plugins, or CLAUDE.md.
 
@@ -37,8 +36,8 @@ function setStatus(next: AgentStatus): void {
   emitAgentEvent({ type: 'status', agent: 'claude', status })
 }
 
-function entry(docId: DocId, value: AgentEntry): void {
-  emitAgentEvent({ type: 'entry', docId, entry: value })
+function entry({ docId, chatId }: ChatRef, value: AgentEntry): void {
+  emitAgentEvent({ type: 'entry', docId, chatId, entry: value })
 }
 
 // --- install and sign-in ----------------------------------------------------
@@ -215,6 +214,7 @@ class MessageQueue implements AsyncIterable<SDKUserMessage> {
 }
 
 type Session = {
+  chat: ChatRef
   query: Query
   input: MessageQueue
   // Messages sent that Claude has not taken yet. A message sent while Claude
@@ -232,7 +232,8 @@ type Session = {
   tools: Map<string, string>
 }
 
-const sessions = new Map<DocId, Session>()
+// By chat id.
+const sessions = new Map<string, Session>()
 
 function workspace(): string {
   return join(app.getPath('userData'), 'claude-workspace')
@@ -256,7 +257,7 @@ function baseOptions(): Parameters<typeof query>[0]['options'] {
 }
 
 async function startSession(
-  docId: DocId,
+  chat: ChatRef,
   mcp: { url: string; token: string },
   context?: string
 ): Promise<Session> {
@@ -264,6 +265,7 @@ async function startSession(
   const input = new MessageQueue()
   const model = await readPickedModel()
   const session: Session = {
+    chat,
     query: query({
       prompt: input,
       options: {
@@ -281,7 +283,7 @@ async function startSession(
         allowedTools: ['mcp__polotno__*', ...CLAUDE_RESOURCE_TOOLS],
         disallowedTools: PANEL_HIDDEN_TOOLS.map((tool) => `mcp__polotno__${tool}`),
         includePartialMessages: true,
-        systemPrompt: [designInstructions(docId, { images: false }), context]
+        systemPrompt: [designInstructions(chat.docId, { images: false }), context]
           .filter(Boolean)
           .join('\n\n'),
         ...(model && { model })
@@ -296,17 +298,18 @@ async function startSession(
     text: new Map(),
     tools: new Map()
   }
-  sessions.set(docId, session)
-  void consume(docId, session)
+  sessions.set(chat.chatId, session)
+  void consume(session)
   return session
 }
 
-async function consume(docId: DocId, session: Session): Promise<void> {
+async function consume(session: Session): Promise<void> {
+  const { chat } = session
   try {
-    for await (const message of session.query) onMessage(docId, session, message)
+    for await (const message of session.query) onMessage(session, message)
   } catch (error) {
-    if (sessions.get(docId) === session) {
-      entry(docId, {
+    if (sessions.get(chat.chatId) === session) {
+      entry(chat, {
         kind: 'error',
         id: crypto.randomUUID(),
         text: session.started ? `Claude stopped: ${(error as Error).message}` : startFailure(error)
@@ -315,22 +318,23 @@ async function consume(docId: DocId, session: Session): Promise<void> {
   } finally {
     // The session ended (closed, or the process died): the next message
     // starts a new one.
-    if (sessions.get(docId) === session) sessions.delete(docId)
-    if (session.running) finishRun(docId, session)
+    if (sessions.get(chat.chatId) === session) sessions.delete(chat.chatId)
+    if (session.running) finishRun(session)
   }
 }
 
-function finishRun(docId: DocId, session: Session): void {
+function finishRun(session: Session): void {
   session.running = false
   session.stopping = false
   session.pending.clear()
-  emitAgentEvent({ type: 'turn', docId, state: 'idle' })
+  emitAgentEvent({ type: 'turn', ...session.chat, state: 'idle' })
 }
 
 // polotno tools arrive as mcp__polotno__add_element.
 const toolName = (name: string): string => name.replace(/^mcp__polotno__/, '')
 
-function onMessage(docId: DocId, session: Session, message: SDKMessage): void {
+function onMessage(session: Session, message: SDKMessage): void {
+  const { chat } = session
   switch (message.type) {
     case 'system':
       if (message.subtype === 'init') session.started = true
@@ -346,7 +350,7 @@ function onMessage(docId: DocId, session: Session, message: SDKMessage): void {
           session.text.set(event.index, { id: `${session.messageId}:${event.index}`, text: '' })
         } else if (block.type === 'tool_use') {
           session.tools.set(block.id, toolName(block.name))
-          entry(docId, {
+          entry(chat, {
             kind: 'tool',
             id: block.id,
             tool: toolName(block.name),
@@ -357,10 +361,10 @@ function onMessage(docId: DocId, session: Session, message: SDKMessage): void {
         const block = session.text.get(event.index)
         if (!block) return
         block.text += event.delta.text
-        entry(docId, { kind: 'message', id: block.id, text: block.text, done: false })
+        entry(chat, { kind: 'message', id: block.id, text: block.text, done: false })
       } else if (event.type === 'content_block_stop') {
         const block = session.text.get(event.index)
-        if (block) entry(docId, { kind: 'message', id: block.id, text: block.text, done: true })
+        if (block) entry(chat, { kind: 'message', id: block.id, text: block.text, done: true })
       }
       return
     }
@@ -372,7 +376,7 @@ function onMessage(docId: DocId, session: Session, message: SDKMessage): void {
         const text = message.message.content
           .map((block) => (block.type === 'text' ? block.text : ''))
           .join('')
-        entry(docId, { kind: 'error', id: message.uuid, text: text || message.error })
+        entry(chat, { kind: 'error', id: message.uuid, text: text || message.error })
       }
       return
     case 'user': {
@@ -382,7 +386,7 @@ function onMessage(docId: DocId, session: Session, message: SDKMessage): void {
         if (block.type !== 'tool_result') continue
         const tool = session.tools.get(block.tool_use_id)
         if (!tool) continue
-        entry(docId, {
+        entry(chat, {
           kind: 'tool',
           id: block.tool_use_id,
           tool,
@@ -398,15 +402,15 @@ function onMessage(docId: DocId, session: Session, message: SDKMessage): void {
         (message.user_message_uuid ? [message.user_message_uuid] : [...session.pending])
       for (const id of consumed) session.pending.delete(id)
       if (session.stopping) {
-        entry(docId, { kind: 'message', id: message.uuid, text: 'Stopped.', done: true })
+        entry(chat, { kind: 'message', id: message.uuid, text: 'Stopped.', done: true })
       } else if (message.subtype !== 'success') {
-        entry(docId, {
+        entry(chat, {
           kind: 'error',
           id: message.uuid,
           text: message.errors.join('\n') || 'Claude could not finish.'
         })
       }
-      if (session.pending.size === 0) finishRun(docId, session)
+      if (session.pending.size === 0) finishRun(session)
       return
     }
   }
@@ -418,19 +422,20 @@ function resultText(content: unknown): string | undefined {
   return content.map((part) => (part?.type === 'text' ? part.text : '')).join('') || undefined
 }
 
-async function run(docId: DocId, prompt: string, context?: string): Promise<void> {
+async function run(chat: ChatRef, prompt: string, context?: string): Promise<void> {
   if (status.state !== 'ready') await getStatus()
   if (status.state !== 'ready') throw new Error('Claude is not ready.')
   const mcp = getMcpStatus()
   if (!mcp.url) throw new Error('The Polotno MCP server is not running.')
   const session =
-    sessions.get(docId) ?? (await startSession(docId, { url: mcp.url, token: mcp.token }, context))
+    sessions.get(chat.chatId) ??
+    (await startSession(chat, { url: mcp.url, token: mcp.token }, context))
   const uuid = crypto.randomUUID()
   session.pending.add(uuid)
-  entry(docId, { kind: 'prompt', id: uuid, text: prompt })
+  entry(chat, { kind: 'prompt', id: uuid, text: prompt })
   if (!session.running) {
     session.running = true
-    emitAgentEvent({ type: 'turn', docId, state: 'running' })
+    emitAgentEvent({ type: 'turn', ...chat, state: 'running' })
   }
   session.input.push({
     type: 'user',
@@ -440,28 +445,32 @@ async function run(docId: DocId, prompt: string, context?: string): Promise<void
   })
 }
 
-async function stop(docId: DocId): Promise<void> {
-  const session = sessions.get(docId)
+async function stop(chatId: string): Promise<void> {
+  const session = sessions.get(chatId)
   if (!session?.running) return
   session.stopping = true
   await session.query.interrupt()
 }
 
-function reset(docId: DocId): void {
-  const session = sessions.get(docId)
+function reset(chatId: string): void {
+  const session = sessions.get(chatId)
   if (!session) return
-  sessions.delete(docId)
+  sessions.delete(chatId)
   session.input.end()
   session.query.close()
-  if (session.running) finishRun(docId, session)
+  if (session.running) finishRun(session)
 }
 
-function conversations(): DocId[] {
-  return [...sessions.keys()]
+function conversations(): ChatRef[] {
+  return [...sessions.values()].map((session) => session.chat)
+}
+
+function running(): string[] {
+  return [...sessions.values()].filter((session) => session.running).map((s) => s.chat.chatId)
 }
 
 function shutdown(): void {
-  for (const docId of [...sessions.keys()]) reset(docId)
+  for (const chatId of [...sessions.keys()]) reset(chatId)
 }
 
 export const claudeProvider: AgentProvider = {
@@ -474,6 +483,7 @@ export const claudeProvider: AgentProvider = {
   stop,
   reset,
   conversations,
+  running,
   // Claude has no image generation.
   image: async () => null,
   shutdown

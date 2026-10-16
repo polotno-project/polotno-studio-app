@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import { extname, join } from 'node:path'
-import type { AgentEntry, AgentEvent, ChatSummary } from '../../shared/agent'
+import type { AgentEntry, AgentEvent, ChatRef, ChatSummary } from '../../shared/agent'
 import type { DocId } from '../../shared/types'
 import { readLocalImage, type LocalImage } from '../../mcp-server/local-image'
 import { documents } from '../documents'
@@ -162,31 +162,39 @@ export async function listChats(
   }
 }
 
-// Every feed entry the panel shows lands in the design's open chat (a new one
-// if none is open); updates of a known entry replace it.
+// Every feed entry the panel shows lands in its chat; updates of a known entry
+// replace it. A chat deleted while its agent still worked takes nothing more.
 export async function recordEntry(event: AgentEvent): Promise<void> {
   if (event.type !== 'entry') return
-  const { docId, entry } = event
+  const { docId, chatId, entry } = event
   const book = await load(docId)
-  let chat = book.chats.find((item) => item.id === book.activeId)
-  const now = Date.now()
-  if (!chat) {
-    chat = {
-      id: crypto.randomUUID(),
-      title: entry.kind === 'prompt' ? entry.text.slice(0, 80) : 'Chat',
-      createdAt: now,
-      updatedAt: now,
-      entries: []
-    }
-    book.chats.push(chat)
-    book.activeId = chat.id
-    listener?.(docId)
-  }
+  const chat = book.chats.find((item) => item.id === chatId)
+  if (!chat) return
   const index = chat.entries.findIndex((item) => item.id === entry.id)
   if (index >= 0) chat.entries[index] = { ...chat.entries[index], ...entry } as AgentEntry
   else chat.entries.push(entry)
-  chat.updatedAt = now
+  chat.updatedAt = Date.now()
   scheduleSave(docId)
+}
+
+// The chat a message goes to: the open one, or a new one named after the
+// message when none is open.
+export async function openChatFor(docId: DocId, prompt: string): Promise<string> {
+  const book = await load(docId)
+  const open = book.chats.find((item) => item.id === book.activeId)
+  if (open) return open.id
+  const now = Date.now()
+  const chat: Chat = {
+    id: crypto.randomUUID(),
+    title: prompt.slice(0, 80),
+    createdAt: now,
+    updatedAt: now,
+    entries: []
+  }
+  book.chats.push(chat)
+  book.activeId = chat.id
+  listener?.(docId)
+  return chat.id
 }
 
 // The next message starts a new chat; the open one stays in the list.
@@ -218,9 +226,9 @@ const TRANSCRIPT_LIMIT = 8000
 
 // What a fresh agent conversation is given with its instructions when it
 // continues an earlier chat: the words exchanged, newest kept when long.
-export async function chatContext(docId: DocId): Promise<string | undefined> {
+export async function chatContext({ docId, chatId }: ChatRef): Promise<string | undefined> {
   const book = await load(docId)
-  const chat = book.chats.find((item) => item.id === book.activeId)
+  const chat = book.chats.find((item) => item.id === chatId)
   const lines: string[] = []
   for (const entry of chat?.entries ?? []) {
     if (entry.kind === 'prompt') lines.push(`User: ${entry.text}`)

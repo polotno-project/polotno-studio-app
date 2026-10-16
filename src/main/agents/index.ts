@@ -4,6 +4,7 @@ import type {
   AgentInfo,
   AgentModels,
   AgentStatus,
+  ChatRef,
   ChatSummary
 } from '../../shared/agent'
 import type { DocId } from '../../shared/types'
@@ -16,6 +17,7 @@ import {
   listChats,
   moveChats,
   onChatsChanged,
+  openChatFor,
   selectChat as openChat,
   startNewChat
 } from './chats'
@@ -25,7 +27,8 @@ import { emitAgentEvent, type AgentProvider } from './provider'
 import { readSetting, writeSetting } from './settings'
 
 // The agents the AI panel can run, and which one it runs (kept across
-// launches). Each design's conversation lives in the agent that started it.
+// launches). Each chat's conversation lives in the agent that started it; a
+// design's chats run side by side.
 
 const providers: Record<AgentId, AgentProvider> = { codex: codexProvider, claude: claudeProvider }
 
@@ -46,15 +49,15 @@ export async function listAgents(): Promise<{ active: AgentId; agents: AgentInfo
   return { active: info.id, agents: Object.values(providers).map((provider) => provider.info) }
 }
 
-// A note in each design whose agent conversation is dropped, so the history
+// A note in each chat whose agent conversation is dropped, so the history
 // above it reads right. The chat itself goes on: the next message starts a new
 // agent conversation that reads it first.
 function endConversations(provider: AgentProvider, note: string): void {
-  for (const docId of provider.conversations()) {
-    provider.reset(docId)
+  for (const chat of provider.conversations()) {
+    provider.reset(chat.chatId)
     emitAgentEvent({
       type: 'entry',
-      docId,
+      ...chat,
       entry: { kind: 'message', id: crypto.randomUUID(), text: note, done: true }
     })
   }
@@ -78,48 +81,64 @@ export const signInToAgent = async (): Promise<void> => (await current()).signIn
 export const getAgentModels = async (): Promise<AgentModels> => (await current()).getModels()
 export const setAgentModel = async (model: string | null): Promise<void> =>
   (await current()).setModel(model)
-// A message to a chat with no live agent conversation (reopened, switched
-// to, or after an agent switch) starts one that reads the chat first.
-export async function runAgent(docId: DocId, prompt: string): Promise<void> {
+// A message goes to the design's open chat (a new one if none is open). A
+// chat with no live agent conversation (reopened, or after an agent switch)
+// starts one that reads the chat first. Returns the chat's id.
+export async function runAgent(docId: DocId, prompt: string): Promise<string> {
   const provider = await current()
-  const live = provider.conversations().includes(docId)
-  await provider.run(docId, prompt, live ? undefined : await chatContext(docId))
+  const chat: ChatRef = { docId, chatId: await openChatFor(docId, prompt) }
+  const live = provider.conversations().some((item) => item.chatId === chat.chatId)
+  await provider.run(chat, prompt, live ? undefined : await chatContext(chat))
+  return chat.chatId
 }
 
-export async function stopAgent(docId: DocId): Promise<void> {
-  await Promise.all(Object.values(providers).map((provider) => provider.stop(docId)))
+export async function stopAgent(chatId: string): Promise<void> {
+  await Promise.all(Object.values(providers).map((provider) => provider.stop(chatId)))
 }
 
-function endAgentConversations(docId: DocId): void {
-  for (const provider of Object.values(providers)) provider.reset(docId)
+function endChatConversation(chatId: string): void {
+  for (const provider of Object.values(providers)) provider.reset(chatId)
 }
 
-// New chat: the open one stays in the design's list.
+// New chat: the open one stays in the design's list, and keeps running if it
+// is.
 export async function newChat(docId: DocId): Promise<void> {
-  endAgentConversations(docId)
   await startNewChat(docId)
 }
 
-export const getChats = (
-  docId: DocId
-): Promise<{ chats: ChatSummary[]; activeId: string | null; entries: AgentEntry[] }> =>
-  listChats(docId)
-
-export async function selectChat(docId: DocId, chatId: string): Promise<AgentEntry[]> {
-  endAgentConversations(docId)
-  return openChat(docId, chatId)
+// Which of them are working: the panel reloads (or opens on another design)
+// while chats run.
+export async function getChats(docId: DocId): Promise<{
+  chats: ChatSummary[]
+  activeId: string | null
+  entries: AgentEntry[]
+  running: string[]
+}> {
+  const running = Object.values(providers).flatMap((provider) => provider.running())
+  const list = await listChats(docId)
+  return {
+    ...list,
+    running: list.chats.map((chat) => chat.id).filter((id) => running.includes(id))
+  }
 }
 
+// Switching chats leaves the others running.
+export const selectChat = (docId: DocId, chatId: string): Promise<AgentEntry[]> =>
+  openChat(docId, chatId)
+
 export async function deleteChat(docId: DocId, chatId: string): Promise<void> {
-  const { activeId } = await listChats(docId)
-  if (activeId === chatId) endAgentConversations(docId)
+  endChatConversation(chatId)
   await removeChat(docId, chatId)
 }
 
 // The tab closed (an agent run on it would keep spending usage on edits that
 // can no longer land); its chats are kept with the design file.
 export async function closeAgentConversations(docId: DocId): Promise<void> {
-  endAgentConversations(docId)
+  for (const provider of Object.values(providers)) {
+    for (const chat of provider.conversations()) {
+      if (chat.docId === docId) provider.reset(chat.chatId)
+    }
+  }
   await closeChats(docId)
 }
 

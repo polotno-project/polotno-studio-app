@@ -258,7 +258,7 @@ const ModelPicker = observer(function ModelPicker(): React.JSX.Element | null {
 
 const Composer = observer(function Composer({ docId }: { docId: string }): React.JSX.Element {
   const [prompt, setPrompt] = useState('')
-  const running = agent.isRunning(docId)
+  const running = agent.isChatRunning(agent.activeChat(docId))
   const started = agent.feed(docId).length > 0
 
   // While the agent works, a message joins the running turn.
@@ -295,12 +295,7 @@ const Composer = observer(function Composer({ docId }: { docId: string }): React
           <ModelPicker />
           <div className="flex-1" />
           {running && (
-            <Button
-              variant="ghost"
-              size="sm"
-              title="Stop"
-              onClick={() => void window.desktop.invoke('agent:stop', { docId })}
-            >
+            <Button variant="ghost" size="sm" title="Stop" onClick={() => agent.stop(docId)}>
               <Square className="size-3.5" />
               Stop
             </Button>
@@ -321,7 +316,7 @@ const Composer = observer(function Composer({ docId }: { docId: string }): React
 })
 
 function send(docId: string, prompt: string): void {
-  window.desktop.invoke('agent:run', { docId, prompt }).catch((error: Error) => {
+  agent.send(docId, prompt).catch((error: Error) => {
     toast.error(`${agent.name} could not start: ${error.message}`)
   })
 }
@@ -349,7 +344,7 @@ function collapseTools(feed: AgentEntry[]): { entry: AgentEntry; count: number }
 
 const Feed = observer(function Feed({ docId }: { docId: string }): React.JSX.Element {
   const feed = agent.feed(docId)
-  const running = agent.isRunning(docId)
+  const running = agent.isChatRunning(agent.activeChat(docId))
   const last = feed[feed.length - 1]
   // Follows new text only while the user is at the bottom; scrolling up
   // detaches it until they scroll back or press the arrow.
@@ -458,7 +453,8 @@ function ago(time: number): string {
 }
 
 // The design's chats, newest first. Picking an older one continues it: the
-// agent reads it before the next message.
+// agent reads it before the next message. Chats keep running in the
+// background; a dot on the button says one other than the open chat works.
 const ChatList = observer(function ChatList({
   docId
 }: {
@@ -467,6 +463,7 @@ const ChatList = observer(function ChatList({
   const chats = agent.chats(docId)
   if (!chats.length) return null
   const activeId = agent.activeChat(docId)
+  const elsewhere = chats.some((chat) => chat.id !== activeId && agent.isChatRunning(chat.id))
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -474,10 +471,15 @@ const ChatList = observer(function ChatList({
           <Button
             variant="ghost"
             size="sm"
-            title="Chats about this design"
-            disabled={agent.isRunning(docId)}
+            title={
+              elsewhere ? 'Chats about this design (one is working)' : 'Chats about this design'
+            }
+            className="relative"
           >
             <History className="size-4" />
+            {elsewhere && (
+              <span className="absolute top-1 right-1 size-1.5 animate-pulse rounded-full bg-blue-500" />
+            )}
           </Button>
         }
       />
@@ -493,7 +495,16 @@ const ChatList = observer(function ChatList({
             />
             <div className="min-w-0 flex-1">
               <div className="truncate">{chat.title}</div>
-              <div className="text-xs text-neutral-500">{ago(chat.updatedAt)}</div>
+              <div className="flex items-center gap-1 text-xs text-neutral-500">
+                {agent.isChatRunning(chat.id) ? (
+                  <>
+                    <Spinner className="size-3" />
+                    Working…
+                  </>
+                ) : (
+                  ago(chat.updatedAt)
+                )}
+              </div>
             </div>
             <button
               type="button"
@@ -656,12 +667,7 @@ const Panel = observer(function Panel(): React.JSX.Element {
         </div>
         {status.state === 'ready' && docId && <ChatList docId={docId} />}
         {status.state === 'ready' && docId && agent.feed(docId).length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={agent.isRunning(docId)}
-            onClick={() => agent.clear(docId)}
-          >
+          <Button variant="ghost" size="sm" onClick={() => agent.clear(docId)}>
             New chat
           </Button>
         )}

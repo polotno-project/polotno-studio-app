@@ -1,8 +1,13 @@
 import { app, nativeImage, shell } from 'electron'
 import { promises as fs } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
-import type { AgentEntry, AgentEvent, AgentModels, AgentStatus } from '../../../shared/agent'
-import type { DocId } from '../../../shared/types'
+import type {
+  AgentEntry,
+  AgentEvent,
+  AgentModels,
+  AgentStatus,
+  ChatRef
+} from '../../../shared/agent'
 import { getMcpStatus } from '../../mcp/launcher'
 import { readLocalImage, type LocalImage } from '../../../mcp-server/local-image'
 import { keepChatImage } from '../chats'
@@ -15,7 +20,7 @@ import { AppServer } from './app-server'
 // In-app generation through the user's own Codex install: spawns
 // `codex app-server`, signs in with their ChatGPT account (Codex owns the
 // login and the tokens; we never see them), and runs one Codex conversation
-// per design tab. Codex edits the design through our own MCP server, injected
+// (thread) per chat. Codex edits the design through our own MCP server, injected
 // per conversation, so its changes land live and share the undo stack.
 
 let server: AppServer | null = null
@@ -23,8 +28,9 @@ let starting: Promise<AppServer | null> | null = null
 let status: AgentStatus = { state: 'starting' }
 let version: string | null = null
 
-const threadByDoc = new Map<DocId, string>()
-const docByThread = new Map<string, DocId>()
+// Each chat's thread, and back.
+const threadByChat = new Map<string, string>()
+const chatByThread = new Map<string, ChatRef>()
 const turnByThread = new Map<string, string>()
 const messageText = new Map<string, string>()
 // Where Codex saved each generated image, by feed entry id. The panel asks
@@ -35,16 +41,16 @@ const imageFiles = new Map<string, string>()
 type ImageEdit = { turnId?: string; savedPath?: string; finish: (status: string) => void }
 const editByThread = new Map<string, ImageEdit>()
 const threadByEdit = new Map<string, string>()
-// Designs with a run in flight, claimed before the first await so a double
-// submit cannot start two turns on one design.
-const busy = new Set<DocId>()
+// Chats with a run in flight (by chat id), claimed before the first await so
+// a double submit cannot start two turns in one chat.
+const busy = new Map<string, ChatRef>()
 // Stop pressed before turn/start answered: interrupt as soon as the id is known.
-const stopRequested = new Set<DocId>()
+const stopRequested = new Set<string>()
 
-function finishRun(docId: DocId): void {
-  busy.delete(docId)
-  stopRequested.delete(docId)
-  emit({ type: 'turn', docId, state: 'idle' })
+function finishRun(chat: ChatRef): void {
+  busy.delete(chat.chatId)
+  stopRequested.delete(chat.chatId)
+  emit({ type: 'turn', ...chat, state: 'idle' })
 }
 
 function emit(event: AgentEvent): void {
@@ -57,8 +63,8 @@ function setStatus(next: AgentStatus): void {
 }
 
 function entry(threadId: string, value: AgentEntry): void {
-  const docId = docByThread.get(threadId)
-  if (docId) emit({ type: 'entry', docId, entry: value })
+  const chat = chatByThread.get(threadId)
+  if (chat) emit({ type: 'entry', ...chat, entry: value })
 }
 
 // --- server lifecycle -------------------------------------------------------
@@ -95,9 +101,9 @@ async function start(): Promise<AppServer | null> {
     onExit: () => {
       if (server !== codex && server !== null) return
       server = null
-      for (const docId of [...busy]) finishRun(docId)
-      threadByDoc.clear()
-      docByThread.clear()
+      for (const chat of [...busy.values()]) finishRun(chat)
+      threadByChat.clear()
+      chatByThread.clear()
       turnByThread.clear()
       if (status.state !== 'missing') setStatus({ state: 'error', message: 'Codex stopped.' })
     }
@@ -248,8 +254,8 @@ function onNotification(method: string, params: Record<string, unknown>): void {
           text: turn.error?.message ?? 'Codex could not finish.'
         })
       }
-      const docId = docByThread.get(threadId)
-      if (docId) finishRun(docId)
+      const chat = chatByThread.get(threadId)
+      if (chat) finishRun(chat)
       return
     }
     case 'account/login/completed':
@@ -406,8 +412,8 @@ export async function signInToCodex(): Promise<void> {
 
 // A message sent while Codex is working joins the running turn (an answer to
 // its question, or a correction) instead of waiting for it to end.
-async function steer(docId: DocId, prompt: string): Promise<void> {
-  const threadId = threadByDoc.get(docId)
+async function steer(chat: ChatRef, prompt: string): Promise<void> {
+  const threadId = threadByChat.get(chat.chatId)
   const turnId = threadId && turnByThread.get(threadId)
   if (!server || !threadId || !turnId) {
     throw new Error('Codex is still starting this request. Send again in a moment.')
@@ -417,26 +423,26 @@ async function steer(docId: DocId, prompt: string): Promise<void> {
     expectedTurnId: turnId,
     input: [{ type: 'text', text: prompt }]
   })
-  emit({ type: 'entry', docId, entry: { kind: 'prompt', id: crypto.randomUUID(), text: prompt } })
+  emit({ type: 'entry', ...chat, entry: { kind: 'prompt', id: crypto.randomUUID(), text: prompt } })
 }
 
-async function run(docId: DocId, prompt: string, context?: string): Promise<void> {
-  if (busy.has(docId)) {
+async function run(chat: ChatRef, prompt: string, context?: string): Promise<void> {
+  if (busy.has(chat.chatId)) {
     try {
-      return await steer(docId, prompt)
+      return await steer(chat, prompt)
     } catch (error) {
       // The turn ended while the message was on its way: start a new one.
-      if (busy.has(docId)) throw error
+      if (busy.has(chat.chatId)) throw error
     }
   }
-  busy.add(docId)
+  busy.set(chat.chatId, chat)
   try {
     const codex = await ensureServer()
     if (!codex || status.state !== 'ready') throw new Error('Codex is not ready.')
     const mcp = getMcpStatus()
     if (!mcp.url) throw new Error('The Polotno MCP server is not running.')
 
-    let threadId = threadByDoc.get(docId)
+    let threadId = threadByChat.get(chat.chatId)
     if (!threadId) {
       const cwd = join(app.getPath('userData'), 'codex-workspace')
       await fs.mkdir(cwd, { recursive: true })
@@ -446,18 +452,22 @@ async function run(docId: DocId, prompt: string, context?: string): Promise<void
         approvalPolicy: 'never',
         ephemeral: true,
         serviceName: 'polotno_app',
-        developerInstructions: [designInstructions(docId, { images: true }), context]
+        developerInstructions: [designInstructions(chat.docId, { images: true }), context]
           .filter(Boolean)
           .join('\n\n'),
         ...(await threadConfig(codex, { url: mcp.url, token: mcp.token }))
       })
       threadId = result.thread.id
-      threadByDoc.set(docId, threadId)
-      docByThread.set(threadId, docId)
+      threadByChat.set(chat.chatId, threadId)
+      chatByThread.set(threadId, chat)
     }
 
-    emit({ type: 'entry', docId, entry: { kind: 'prompt', id: crypto.randomUUID(), text: prompt } })
-    emit({ type: 'turn', docId, state: 'running' })
+    emit({
+      type: 'entry',
+      ...chat,
+      entry: { kind: 'prompt', id: crypto.randomUUID(), text: prompt }
+    })
+    emit({ type: 'turn', ...chat, state: 'running' })
     // The picked model (if the account still serves it), so a pick made
     // mid-conversation applies from this message on.
     const model = (await readPickedModel()) && (await threadModel(codex))
@@ -467,9 +477,9 @@ async function run(docId: DocId, prompt: string, context?: string): Promise<void
       ...(model && { model })
     })
     turnByThread.set(threadId, turn.id)
-    if (stopRequested.has(docId)) await stop(docId)
+    if (stopRequested.has(chat.chatId)) await stop(chat.chatId)
   } catch (error) {
-    finishRun(docId)
+    finishRun(chat)
     throw error
   }
 }
@@ -562,32 +572,38 @@ export async function cancelImageEdit(id: string): Promise<void> {
   if (server && threadId && turnId) await server.request('turn/interrupt', { threadId, turnId })
 }
 
-async function stop(docId: DocId): Promise<void> {
-  const threadId = threadByDoc.get(docId)
+async function stop(chatId: string): Promise<void> {
+  const threadId = threadByChat.get(chatId)
   const turnId = threadId && turnByThread.get(threadId)
   if (server && threadId && turnId) {
-    stopRequested.delete(docId)
+    stopRequested.delete(chatId)
     await server.request('turn/interrupt', { threadId, turnId })
-  } else if (busy.has(docId)) {
-    stopRequested.add(docId)
+  } else if (busy.has(chatId)) {
+    stopRequested.add(chatId)
   }
 }
 
-// Forget the design's conversation; the next prompt starts a fresh one. A
-// run in flight is interrupted first (the tab closed, or the token changed).
-function reset(docId: DocId): void {
-  if (busy.has(docId)) void stop(docId).catch(() => undefined)
-  const threadId = threadByDoc.get(docId)
+// Forget the chat's conversation; the next prompt starts a fresh one. A run
+// in flight is interrupted first (the chat was deleted, the tab closed, or
+// the token changed).
+function reset(chatId: string): void {
+  if (busy.has(chatId)) void stop(chatId).catch(() => undefined)
+  const threadId = threadByChat.get(chatId)
   if (!threadId) return
-  threadByDoc.delete(docId)
-  docByThread.delete(threadId)
+  const chat = chatByThread.get(threadId)!
+  threadByChat.delete(chatId)
+  chatByThread.delete(threadId)
   turnByThread.delete(threadId)
-  finishRun(docId)
+  finishRun(chat)
 }
 
-// Designs that have a conversation with Codex.
-function conversations(): DocId[] {
-  return [...threadByDoc.keys()]
+// Chats that have a conversation with Codex.
+function conversations(): ChatRef[] {
+  return [...chatByThread.values()]
+}
+
+function running(): string[] {
+  return [...busy.keys()]
 }
 
 function shutdown(): void {
@@ -605,6 +621,7 @@ export const codexProvider: AgentProvider = {
   stop,
   reset,
   conversations,
+  running,
   image,
   shutdown
 }

@@ -16,7 +16,11 @@ export type AgentStatus =
   | { state: 'ready'; email: string | null; plan: string | null; version: string | null }
   | { state: 'error'; message: string }
 
-// One row in the panel's activity feed for a design's conversation.
+// One chat about a design. Each chat has its own agent conversation, so
+// several chats on one design can run at once.
+export type ChatRef = { docId: DocId; chatId: string }
+
+// One row in the panel's activity feed for a chat.
 export type AgentEntry =
   | { kind: 'prompt'; id: string; text: string }
   | { kind: 'message'; id: string; text: string; done: boolean }
@@ -51,7 +55,7 @@ export type AgentTurnState = 'idle' | 'running'
 
 export type AgentEvent =
   | { type: 'status'; agent: AgentId; status: AgentStatus }
-  | { type: 'entry'; docId: DocId; entry: AgentEntry }
-  | { type: 'turn'; docId: DocId; state: AgentTurnState }
+  | { type: 'entry'; docId: DocId; chatId: string; entry: AgentEntry }
+  | { type: 'turn'; docId: DocId; chatId: string; state: AgentTurnState }
   // The design's chat list (or the open chat) changed: read it again.
   | { type: 'chats'; docId: DocId }

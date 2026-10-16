@@ -12,7 +12,8 @@ import type { DocId } from '../../../shared/types'
 import { tabs } from './tabs-model'
 
 // Renderer-side state for the AI panel: the running agent's status plus each
-// design's chats and the open chat's feed. Main keeps the chats (with the
+// design's chats and their feeds. A design's chats run side by side; the
+// panel shows the open one. Main keeps the chats (with the
 // design file); this mirrors them, loaded when a design's panel first shows.
 
 class AgentModel {
@@ -26,9 +27,11 @@ class AgentModel {
   // Null until something asks (asking starts Codex).
   codexStatus: AgentStatus | null = null
   models: AgentModels = { models: [], selected: null }
-  private feeds = new Map<DocId, AgentEntry[]>()
+  // By chat id: every chat this window has loaded or seen events for.
+  private feeds = new Map<string, AgentEntry[]>()
   private chatLists = new Map<DocId, { chats: ChatSummary[]; activeId: string | null }>()
-  private running = new Set<DocId>()
+  // Running chats, by chat id, with their design.
+  private running = new Map<string, DocId>()
 
   constructor() {
     makeAutoObservable(this)
@@ -60,30 +63,45 @@ class AgentModel {
     return this.agents.find((agent) => agent.id === this.active)?.name ?? this.active
   }
 
-  // The tab is gone (main has already stopped its run).
+  // The tab is gone (main has already stopped its runs).
   forget(docId: DocId): void {
-    this.feeds.delete(docId)
+    for (const chat of this.chats(docId)) this.feeds.delete(chat.id)
     this.chatLists.delete(docId)
-    this.running.delete(docId)
+    for (const [chatId, owner] of this.running) if (owner === docId) this.running.delete(chatId)
   }
 
-  // The design's chats from main; the feed too unless `keepFeed` (the open
-  // chat didn't change, and its live entries are already here).
-  loadChats(docId: DocId, keepFeed = false): void {
-    void window.desktop.invoke('agent:chats', { docId }).then(({ chats, activeId, entries }) => {
-      const sameChat = this.chatLists.get(docId)?.activeId === activeId
-      this.setChats(docId, chats, activeId, keepFeed && sameChat ? undefined : entries)
-    })
+  // The design's chats from main, with the open chat's feed and which chats
+  // are working.
+  loadChats(docId: DocId): void {
+    void window.desktop
+      .invoke('agent:chats', { docId })
+      .then(({ chats, activeId, entries, running }) => {
+        this.setChats(docId, chats, activeId)
+        if (activeId) this.setFeed(activeId, entries)
+        this.setRunning(docId, running)
+      })
   }
 
-  setChats(
-    docId: DocId,
-    chats: ChatSummary[],
-    activeId: string | null,
-    entries?: AgentEntry[]
-  ): void {
+  setChats(docId: DocId, chats: ChatSummary[], activeId: string | null): void {
     this.chatLists.set(docId, { chats, activeId })
-    if (entries) this.feeds.set(docId, entries)
+  }
+
+  // Main's copy of a chat's feed, merged with the live entries this window
+  // already has for it (they may be newer than main's copy, or arrive while
+  // it is on its way).
+  setFeed(chatId: string, entries: AgentEntry[]): void {
+    const local = this.feeds.get(chatId) ?? []
+    const byId = new Map(local.map((entry) => [entry.id, entry]))
+    const known = new Set(entries.map((entry) => entry.id))
+    this.feeds.set(chatId, [
+      ...entries.map((entry) => byId.get(entry.id) ?? entry),
+      ...local.filter((entry) => !known.has(entry.id))
+    ])
+  }
+
+  setRunning(docId: DocId, chatIds: string[]): void {
+    for (const [chatId, owner] of this.running) if (owner === docId) this.running.delete(chatId)
+    for (const chatId of chatIds) this.running.set(chatId, docId)
   }
 
   chats(docId: DocId): ChatSummary[] {
@@ -98,22 +116,43 @@ class AgentModel {
     return this.chatLists.has(docId)
   }
 
+  // Opens another chat; a running one keeps running.
   selectChat(docId: DocId, chatId: string): void {
+    this.setChats(docId, this.chats(docId), chatId)
     void window.desktop
       .invoke('agent:selectChat', { docId, chatId })
-      .then((entries) => this.setChats(docId, this.chats(docId), chatId, entries))
+      .then((entries) => this.setFeed(chatId, entries))
   }
 
   deleteChat(docId: DocId, chatId: string): void {
     void window.desktop.invoke('agent:deleteChat', { docId, chatId })
   }
 
+  // The open chat's feed.
   feed(docId: DocId): AgentEntry[] {
-    return this.feeds.get(docId) ?? []
+    const chatId = this.activeChat(docId)
+    return (chatId && this.feeds.get(chatId)) || []
   }
 
+  // Any of the design's chats is working (the canvas shows the agent).
   isRunning(docId: DocId): boolean {
-    return this.running.has(docId)
+    return [...this.running.values()].includes(docId)
+  }
+
+  isChatRunning(chatId: string | null): boolean {
+    return !!chatId && this.running.has(chatId)
+  }
+
+  // A message to the open chat (main opens a new one if none is).
+  send(docId: DocId, prompt: string): Promise<void> {
+    return window.desktop.invoke('agent:run', { docId, prompt }).then((chatId) => {
+      if (this.activeChat(docId) === null) this.setChats(docId, this.chats(docId), chatId)
+    })
+  }
+
+  stop(docId: DocId): void {
+    const chatId = this.activeChat(docId)
+    if (chatId) void window.desktop.invoke('agent:stop', { chatId })
   }
 
   refreshStatus(): void {
@@ -152,9 +191,9 @@ class AgentModel {
     this.codexStatus = status
   }
 
-  // New chat: the open one stays in the list.
+  // New chat: the open one stays in the list, running if it was.
   clear(docId: DocId): void {
-    this.feeds.delete(docId)
+    this.setChats(docId, this.chats(docId), null)
     void window.desktop.invoke('agent:reset', { docId })
   }
 
@@ -164,17 +203,19 @@ class AgentModel {
       if (event.agent === this.active) this.setStatus(event.status)
       if (event.agent === 'codex') this.codexStatus = event.status
     } else if (event.type === 'chats') {
-      if (this.isLoaded(event.docId)) this.loadChats(event.docId, true)
+      if (this.isLoaded(event.docId)) this.loadChats(event.docId)
     } else if (event.type === 'turn') {
-      if (event.state === 'running') this.running.add(event.docId)
-      else this.running.delete(event.docId)
+      if (event.state === 'running') this.running.set(event.chatId, event.docId)
+      else this.running.delete(event.chatId)
     } else {
-      const feed = this.feeds.get(event.docId) ?? []
+      // Every chat's entries are kept, open or not: switching to a running
+      // chat shows it live.
+      const feed = this.feeds.get(event.chatId) ?? []
       const index = feed.findIndex((entry) => entry.id === event.entry.id)
       // Updates of a known item (deltas, completion) replace it in place.
       if (index >= 0) feed[index] = { ...feed[index], ...event.entry } as AgentEntry
       else feed.push(event.entry)
-      this.feeds.set(event.docId, feed)
+      this.feeds.set(event.chatId, feed)
     }
   }
 }

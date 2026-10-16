@@ -76,18 +76,22 @@ export interface InvokeApi {
   'agent:signIn': () => void
   'agent:models': () => AgentModels
   'agent:setModel': (p: { model: string | null }) => void
-  'agent:run': (p: { docId: DocId; prompt: string }) => void
-  'agent:stop': (p: { docId: DocId }) => void
-  // New chat: the open one stays in the design's list.
+  // To the design's open chat (a new one if none is open); returns its id.
+  'agent:run': (p: { docId: DocId; prompt: string }) => string
+  // Stops one chat's run; the design's other chats keep going.
+  'agent:stop': (p: { chatId: string }) => void
+  // New chat: the open one stays in the design's list (and keeps running).
   'agent:reset': (p: { docId: DocId }) => void
-  // A design's chats (kept with its file) and the open chat's feed.
+  // A design's chats (kept with its file), the open chat's feed, and which
+  // chats are working.
   'agent:chats': (p: { docId: DocId }) => {
     chats: ChatSummary[]
     activeId: string | null
     entries: AgentEntry[]
+    running: string[]
   }
-  // Continues an earlier chat: its next message starts a new agent
-  // conversation that reads it first. Returns the chat's feed.
+  // Opens another chat; the others keep running. A chat with no live agent
+  // conversation starts one that reads it first. Returns the chat's feed.
   'agent:selectChat': (p: { docId: DocId; chatId: string }) => AgentEntry[]
   'agent:deleteChat': (p: { docId: DocId; chatId: string }) => void
   // A generated image at full size, by feed entry id.
