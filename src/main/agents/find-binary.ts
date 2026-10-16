@@ -41,14 +41,16 @@ function withExtensions(path: string): string[] {
 }
 
 // Where the user installed an agent's CLI: an override from the environment,
-// the login shell's PATH, ours, then the usual install locations.
+// the login shell's PATH, ours, then the usual install locations. An override
+// is the only place looked at (pointing it at nothing acts as not installed).
 export async function findBinary(
   command: string,
   { envOverride, extra = [] }: { envOverride: string; extra?: string[] }
 ): Promise<string | null> {
+  const override = process.env[envOverride]
+  if (override) return (await isExecutable(override)) ? override : null
   const home = homedir()
   const candidates = [
-    process.env[envOverride],
     await fromLoginShell(command),
     ...(process.env.PATH ?? '')
       .split(delimiter)
