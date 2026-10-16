@@ -20,6 +20,7 @@ import { importDesign } from './document'
 import { TemplatesSection } from './sections/templates-section'
 import { AiSection } from './sections/ai-section'
 import { AgentCursor } from './agent-cursor'
+import { CodexNotice } from './codex-notice'
 
 // Our Templates section replaces the stock one (same slot) to add the
 // "My designs" tab. Every other stock section, upload included, stays. The
@@ -113,6 +114,7 @@ export const PolotnoEditor = observer(function PolotnoEditor({
           <ZoomButtons store={store} />
           <PagesTimeline store={store} />
           <AgentCursor />
+          <CodexNotice />
         </WorkspaceWrap>
       </PolotnoContainer>
     </div>

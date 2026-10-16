@@ -5,10 +5,9 @@ import {
   setReplaceObjectFunc,
   setTranslations
 } from 'polotno/config'
-import { autorun, reaction } from 'mobx'
+import { reaction } from 'mobx'
 import { padImageForFrame, prepareImageInput } from 'polotno/utils/image-edit'
 import { toast } from 'sonner'
-import type { AgentStatus } from '../../../shared/agent'
 import { agent } from './agent-model'
 import { tabs } from './tabs-model'
 
@@ -256,33 +255,18 @@ async function run(
   }
 }
 
-// The edit panels say what runs them (the AI panel may be on Claude, and
-// these still go to Codex), and whether Codex is ready before Generate.
-function codexLine(status: AgentStatus | null): string {
-  switch (status?.state) {
-    case 'missing':
-      return 'Runs on your own Codex, which is not installed.'
-    case 'signedOut':
-    case 'error':
-      return 'Runs on your own Codex, which is not connected.'
-    case 'signingIn':
-      return 'Runs on your Codex once you finish signing in.'
-    default:
-      return 'Runs on your Codex.'
-  }
-}
+// The edit panels say what runs them: the AI panel may be on Claude, and
+// these still go to Codex. Whether Codex is ready shows above it
+// (codex-notice.tsx).
+const RUNS_ON = 'Runs on your Codex.'
 
 function sayWhoRuns(): void {
   const { imageEdit } = getTranslations() as { imageEdit: Record<string, string> }
   const keys = ['replaceDescription', 'removeDescription', 'expandDescription']
-  const base = Object.fromEntries(keys.map((key) => [key, imageEdit[key]]))
-  autorun(() => {
-    const line = codexLine(agent.codexStatus)
-    setTranslations(
-      { imageEdit: Object.fromEntries(keys.map((key) => [key, `${base[key]} ${line}`])) },
-      { validate: false }
-    )
-  })
+  setTranslations(
+    { imageEdit: Object.fromEntries(keys.map((key) => [key, `${imageEdit[key]} ${RUNS_ON}`])) },
+    { validate: false }
+  )
   // Opening an AI edit asks Codex how it is (starting it if needed).
   reaction(
     () => {
