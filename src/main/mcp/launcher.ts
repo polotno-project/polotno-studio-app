@@ -51,12 +51,13 @@ async function uniquePath(dir: string, fileName: string): Promise<string> {
 
 async function handleRpc<M extends RpcMethod>(
   method: M,
-  params: RpcRequestMap[M]['params']
+  params: RpcRequestMap[M]['params'],
+  chat?: string
 ): Promise<unknown> {
   switch (method) {
     case 'design.exec': {
       const p = params as RpcRequestMap['design.exec']['params']
-      return execCommand(p.docId, p.command)
+      return execCommand(p.docId, p.command, undefined, chat)
     }
     case 'app.exec': {
       const p = params as RpcRequestMap['app.exec']['params']
@@ -105,7 +106,7 @@ export function startMcpServer(): void {
       return
     }
     if (message.type === 'rpc') {
-      handleRpc(message.method, message.params as never)
+      handleRpc(message.method, message.params as never, message.chat)
         .then((result) =>
           child?.postMessage({ type: 'rpc-result', id: message.id, ok: true, result })
         )

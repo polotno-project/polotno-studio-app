@@ -6,10 +6,12 @@ import type { DesignStore } from './store'
 import { agent } from './agent-model'
 import { tabs } from './tabs-model'
 
-// What an agent is doing to each design right now, for the canvas cursor:
+// What agents are doing to each design right now, for the canvas cursors:
 // every design command that comes over the bridge (from the AI panel or any
-// connected agent) names what it reads or changes. The latest one shows for a
-// few seconds, longer while the panel's agent is still working.
+// connected agent) names what it reads or changes. Each AI panel chat has its
+// own cursor (its agent names the chat); agents connected from outside share
+// one. The latest command of each shows for a few seconds, longer while its
+// chat is still working.
 
 export type ActivityTarget =
   | { kind: 'element'; id: string }
@@ -18,9 +20,13 @@ export type ActivityTarget =
   | { kind: 'rect'; rect: ScreenRect }
 
 export type Activity = {
-  // Who: the panel's agent while its turn runs; otherwise an agent connected
-  // from outside (Connect AI), which doesn't say who it is.
+  // The AI panel chat it comes from; undefined for agents connected from
+  // outside (Connect AI), which don't say who they are.
+  chatId?: string
+  // Who: the panel's agent, or "AI agent" for an outside one.
   agent: string
+  // The cursor's color: one per chat on a design.
+  color: string
   mode: 'read' | 'write'
   label: string
   targets: ActivityTarget[]
@@ -31,6 +37,9 @@ export type Activity = {
 }
 
 const HOLD_MS = 2500
+
+// Outside agents get the first; chats take the others in turn.
+const COLORS = ['#7c3aed', '#0891b2', '#db2777', '#ea580c', '#16a34a', '#2563eb']
 
 type ElementLike = { id: string; type: string; name?: string; text?: string }
 
@@ -72,9 +81,10 @@ function activePageId(store: DesignStore): string | undefined {
   return store.activePage?.id ?? store.pages[0]?.id
 }
 
+// Per design: one activity per chat ('' for outside agents).
 class AgentActivity {
-  private byDoc = new Map<DocId, Activity>()
-  private timers = new Map<DocId, ReturnType<typeof setTimeout>>()
+  private byDoc = new Map<DocId, Map<string, Activity>>()
+  private timers = new Map<string, ReturnType<typeof setTimeout>>()
   private seq = 0
   // The visible editor's root, where removed elements are measured.
   root: Element | null = null
@@ -84,13 +94,17 @@ class AgentActivity {
     tabs.addCloseListener((docId) => this.forget(docId))
   }
 
-  get(docId: DocId): Activity | undefined {
-    return this.byDoc.get(docId)
+  // Every cursor on the design, outside agents first, then chats in the
+  // order they first touched it.
+  get(docId: DocId): Activity[] {
+    return [...(this.byDoc.get(docId)?.values() ?? [])]
   }
 
   forget(docId: DocId): void {
-    clearTimeout(this.timers.get(docId))
-    this.timers.delete(docId)
+    for (const key of this.byDoc.get(docId)?.keys() ?? []) {
+      clearTimeout(this.timers.get(`${docId}|${key}`))
+      this.timers.delete(`${docId}|${key}`)
+    }
     this.byDoc.delete(docId)
   }
 
@@ -207,23 +221,45 @@ class AgentActivity {
   }
 
   // After the command ran: new things are where the agent is now.
-  show(docId: DocId, plan: Plan, value: unknown): void {
+  show(docId: DocId, plan: Plan, value: unknown, chatId?: string): void {
     const targets = [...plan.targets]
     const result = (value ?? {}) as { elementId?: string; pageId?: string }
     if (result.elementId) targets.push({ kind: 'element', id: result.elementId })
     if (result.pageId) targets.push({ kind: 'page', id: result.pageId })
-    const name = agent.isRunning(docId) ? agent.name : 'AI agent'
-    this.byDoc.set(docId, { ...plan, agent: name, targets, seq: ++this.seq, stale: false })
-    clearTimeout(this.timers.get(docId))
+    const key = chatId ?? ''
+    const cursors = this.byDoc.get(docId) ?? new Map<string, Activity>()
+    const previous = cursors.get(key)
+    // A chat keeps its color; a new one takes the next no shown cursor uses.
+    const used = new Set(
+      [...cursors.values()]
+        .filter((item) => !item.stale || agent.isChatRunning(item.chatId ?? null))
+        .map((item) => item.color)
+    )
+    const color =
+      previous?.color ??
+      (chatId ? (COLORS.slice(1).find((c) => !used.has(c)) ?? COLORS[1]) : COLORS[0])
+    cursors.set(key, {
+      ...plan,
+      chatId,
+      agent: chatId ? agent.name : 'AI agent',
+      color,
+      targets,
+      seq: ++this.seq,
+      stale: false
+    })
+    this.byDoc.set(docId, cursors)
+    const timer = `${docId}|${key}`
+    clearTimeout(this.timers.get(timer))
     this.timers.set(
-      docId,
-      setTimeout(() => this.expire(docId), HOLD_MS)
+      timer,
+      setTimeout(() => this.expire(docId, key), HOLD_MS)
     )
   }
 
-  private expire(docId: DocId): void {
-    const current = this.byDoc.get(docId)
-    if (current) this.byDoc.set(docId, { ...current, stale: true })
+  private expire(docId: DocId, key: string): void {
+    const cursors = this.byDoc.get(docId)
+    const current = cursors?.get(key)
+    if (cursors && current) cursors.set(key, { ...current, stale: true })
   }
 }
 

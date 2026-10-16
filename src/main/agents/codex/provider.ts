@@ -358,8 +358,9 @@ async function setModel(model: string | null): Promise<void> {
 
 async function threadConfig(
   codex: AppServer,
-  // Without it the thread gets no MCP servers at all (image edits).
-  mcp: { url: string; token: string } | null
+  // Without it the thread gets no MCP servers at all (image edits). `chat`
+  // names the thread's chat to our server, so the canvas shows its own cursor.
+  mcp: { url: string; token: string; chat: string } | null
 ): Promise<{ model?: string; config: Record<string, unknown> }> {
   // Per-thread config merges into the user's own: switch off every MCP server
   // they configured for themselves, so it never joins a design conversation.
@@ -375,7 +376,7 @@ async function threadConfig(
         ...(mcp && {
           polotno: {
             url: mcp.url,
-            http_headers: { Authorization: `Bearer ${mcp.token}` },
+            http_headers: { Authorization: `Bearer ${mcp.token}`, 'X-Polotno-Chat': mcp.chat },
             default_tools_approval_mode: 'approve',
             disabled_tools: PANEL_HIDDEN_TOOLS,
             tool_timeout_sec: 180
@@ -455,7 +456,7 @@ async function run(chat: ChatRef, prompt: string, context?: string): Promise<voi
         developerInstructions: [designInstructions(chat.docId, { images: true }), context]
           .filter(Boolean)
           .join('\n\n'),
-        ...(await threadConfig(codex, { url: mcp.url, token: mcp.token }))
+        ...(await threadConfig(codex, { url: mcp.url, token: mcp.token, chat: chat.chatId }))
       })
       threadId = result.thread.id
       threadByChat.set(chat.chatId, threadId)

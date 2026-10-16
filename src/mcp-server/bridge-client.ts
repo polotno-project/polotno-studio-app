@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
 import type { ChildToMain, MainToChild, RpcMethod, RpcRequestMap } from '../shared/mcp-rpc'
 
@@ -27,6 +28,15 @@ parentPort.on('message', ({ data }) => {
   else entry.reject(new Error(data.error ?? 'RPC failed'))
 })
 
+// Which AI panel chat the current MCP request came from (its agent sends an
+// X-Polotno-Chat header), so the canvas shows one cursor per chat. Requests
+// from agents connected from outside carry none.
+const requestChat = new AsyncLocalStorage<string | undefined>()
+
+export function withChat<T>(chat: string | undefined, run: () => T): T {
+  return requestChat.run(chat, run)
+}
+
 export function rpc<M extends RpcMethod>(
   method: M,
   params: RpcRequestMap[M]['params']
@@ -38,7 +48,7 @@ export function rpc<M extends RpcMethod>(
       reject(new Error(`RPC ${method} timed out`))
     }, RPC_TIMEOUT_MS)
     pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer })
-    parentPort.postMessage({ type: 'rpc', id, method, params })
+    parentPort.postMessage({ type: 'rpc', id, method, params, chat: requestChat.getStore() })
   })
 }
 

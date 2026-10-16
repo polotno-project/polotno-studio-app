@@ -7,7 +7,7 @@ import { agentActivity } from './agent-activity'
 // Executes bridge requests from main. docId '' addresses the window itself
 // (tab management); any other docId addresses that tab's live store — mounted
 // or not, background tabs work the same.
-window.desktop.on('bridge:request', ({ id, docId, command }) => {
+window.desktop.on('bridge:request', ({ id, docId, command, chat }) => {
   void (async () => {
     let result: CommandResult
     try {
@@ -24,7 +24,7 @@ window.desktop.on('bridge:request', ({ id, docId, command }) => {
           // Plan first: anything the command removes is measured while it exists.
           const plan = agentActivity.plan(tab.store, command as DesignCommand)
           const value = await executeCommand(tab.store, command as DesignCommand)
-          if (plan) agentActivity.show(docId, plan, value)
+          if (plan) agentActivity.show(docId, plan, value, chat)
           result = { ok: true, value }
         }
       }

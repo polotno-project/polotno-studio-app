@@ -28,3 +28,15 @@ Goal: several chats on one design can run at once; switching chats or starting a
   - after a restart: an old chat continued with Claude answered "DONE-B" (the word Codex replied in it), and the agent-switch note landed in that chat
 - typecheck, 15/15 tests, lint on changed files, production build OK
 - Test elements removed from "Untitled 7" (back to its 7 elements)
+
+## Cursor per chat (2026-10-16)
+- Each panel conversation sends `X-Polotno-Chat: <chatId>` to our MCP server:
+  - Claude: in its session's mcpServers headers.
+  - Codex: in its thread's `mcp_servers.polotno.http_headers`.
+- MCP server (stateless, one handler per request): `withChat` runs the request in an AsyncLocalStorage, and `rpc()` adds `chat` to every message to main. Main passes it through execCommand → `bridge:request`, and the renderer bridge hands it to agentActivity.show.
+- agentActivity keeps one activity per (design, chat). Outside agents share the key '' and keep the purple cursor. A chat keeps its color; a new one takes the next color no shown cursor uses.
+- AgentCursor draws one Cursor per activity. With two or more chat cursors shown, each tag has a second line with the chat title. Near the right edge the tag flips to the left of the arrow.
+- Verified in the dev app:
+  - Claude: two chats, two cursors in different colors, each following its own squares.
+  - Codex: two chats plus an outside MCP client at once, three cursors (AI agent purple, two Codex chats). The tag flipped at the right edge.
+- Test squares removed from "Untitled 7".

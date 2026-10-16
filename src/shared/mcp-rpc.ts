@@ -22,7 +22,8 @@ export type RpcMethod = keyof RpcRequestMap
 
 export type ChildToMain =
   | { type: 'listening'; url: string }
-  | { type: 'rpc'; id: string; method: RpcMethod; params: unknown }
+  // chat: the AI panel chat the request came from, if any (for its cursor).
+  | { type: 'rpc'; id: string; method: RpcMethod; params: unknown; chat?: string }
 
 export type MainToChild = {
   type: 'rpc-result'

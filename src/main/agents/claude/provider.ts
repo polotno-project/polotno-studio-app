@@ -274,7 +274,8 @@ async function startSession(
           polotno: {
             type: 'http',
             url: mcp.url,
-            headers: { Authorization: `Bearer ${mcp.token}` }
+            // The chat, so the canvas shows this conversation's own cursor.
+            headers: { Authorization: `Bearer ${mcp.token}`, 'X-Polotno-Chat': chat.chatId }
           }
         },
         // Only the tools that read our MCP server's resources (the design

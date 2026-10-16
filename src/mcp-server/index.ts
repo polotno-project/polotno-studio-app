@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { registerTools, resolveTool } from './tools'
 import { registerResources } from './resources'
 import { registerPrompts } from './prompts'
-import { announceListening } from './bridge-client'
+import { announceListening, withChat } from './bridge-client'
 
 // The MCP server for the Polotno desktop app. Runs as an Electron
 // utilityProcess; serves streamable HTTP on 127.0.0.1 with a per-install
@@ -166,8 +166,14 @@ const mcpHandler = toNodeHandler(createMcpHandler(createServer, { onerror: logEr
 
 // express.json() already consumed the stream; hand over the parsed body, which
 // also keeps its 100mb limit in charge instead of the handler's 4 MiB default.
+// The panel's agents name their chat in a header (see bridge-client.ts).
+const chatOf = (req: express.Request): string | undefined => {
+  const value = req.headers['x-polotno-chat']
+  return typeof value === 'string' && /^[\w-]{1,64}$/.test(value) ? value : undefined
+}
+
 app.all('/mcp', (req, res) => {
-  mcpHandler(req, res, req.body).catch((error: Error) => {
+  withChat(chatOf(req), () => mcpHandler(req, res, req.body)).catch((error: Error) => {
     logError(error)
     if (!res.headersSent) res.status(500).end()
   })
