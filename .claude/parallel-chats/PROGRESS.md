@@ -40,3 +40,7 @@ Goal: several chats on one design can run at once; switching chats or starting a
   - Claude: two chats, two cursors in different colors, each following its own squares.
   - Codex: two chats plus an outside MCP client at once, three cursors (AI agent purple, two Codex chats). The tag flipped at the right edge.
 - Test squares removed from "Untitled 7".
+
+## Cursor glides from its last spot (2026-10-16)
+- Whole-page reads (get_json/get_info/lint, which tools run around every edit) used to send the cursor to the page middle, so each move detoured there. Now a page read keeps a placed cursor where it is (still sweeps the page); a first read still lands mid-page.
+- Verified by sampling the transform per frame: outside agent (3 edits) and a Codex chat (4 edits) move in straight lines.

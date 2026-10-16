@@ -114,18 +114,25 @@ const Cursor = observer(function Cursor({
         .map((target) => targetRect(root, store, target))
         .filter((rect): rect is ScreenRect => !!rect)
         .map((rect) => ({ ...rect, x: rect.x - bounds.left, y: rect.y - bounds.top }))
+      // Reading the whole page (the tools also do it around each edit) sweeps
+      // it without moving the cursor: it would detour to the page's middle on
+      // every way from one element to the next.
+      const stay = activity.mode === 'read' && activity.targets.at(-1)?.kind === 'page'
       setGeometry((previous) => {
         const last = boxes.at(-1)
         if (!last) return previous
         const clamp = (value: number, max: number): number =>
           Math.min(Math.max(value, EDGE), max - EDGE)
-        const next = {
-          boxes,
-          x: clamp(last.x + last.width / 2, bounds.width),
-          y: clamp(last.y + last.height / 2, bounds.height),
-          seq: activity.seq,
-          flip: last.x + last.width / 2 > bounds.width - TAG_ROOM
-        }
+        const next =
+          stay && previous
+            ? { ...previous, boxes, seq: activity.seq }
+            : {
+                boxes,
+                x: clamp(last.x + last.width / 2, bounds.width),
+                y: clamp(last.y + last.height / 2, bounds.height),
+                seq: activity.seq,
+                flip: last.x + last.width / 2 > bounds.width - TAG_ROOM
+              }
         return same(previous, next) ? previous : next
       })
       frame = requestAnimationFrame(tick)
