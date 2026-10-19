@@ -436,7 +436,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'place_image',
     description:
-      'Place a local image file (PNG, JPEG, WebP, GIF or SVG — e.g. one you just generated) on a page. The file is embedded in the design, so it can be deleted afterwards. Without width/height it keeps its aspect ratio and fits inside the page; without x/y it is centered. With as: "background" it becomes the page background instead (cover-fitted, not an element). Returns elementId plus the placed box.',
+      'Place a local image file (PNG, JPEG, WebP, GIF or SVG — e.g. one you just generated) on a page. The file is embedded in the design, so it can be deleted afterwards. Without width/height it keeps its aspect ratio and fits inside the page; without x/y it is centered. With as: "background" it becomes the page background instead (cover-fitted, not an element). With replace: <image element id> the file goes into that image instead (an edited version of it): it keeps its position, size, rotation and effects as they are then, also if the user changed them while you worked, and is center-cropped to fill it; don\'t add a new image and remove the old one. Returns elementId plus the placed box.',
     schema: {
       designId,
       pageId: z.string().optional().describe('Defaults to the page the user is on'),
@@ -445,6 +445,10 @@ export const TOOLS: ToolDef[] = [
         .enum(['element', 'background'])
         .optional()
         .describe('"background" sets the page background; default "element"'),
+      replace: z
+        .string()
+        .optional()
+        .describe('An image element id: put the file into that image instead of adding one'),
       x: z.number().optional(),
       y: z.number().optional(),
       width: z
@@ -473,9 +477,26 @@ export const TOOLS: ToolDef[] = [
       width,
       height,
       props,
-      atIndex
+      atIndex,
+      replace
     }: any) => {
       const image = await readLocalImage(filePath)
+      if (replace) {
+        if (image.type !== 'image') {
+          throw new Error('invalid_args: replace takes a PNG, JPEG, WebP or GIF file')
+        }
+        const { value, rev } = await exec(id, {
+          type: 'replace_image',
+          elementId: replace,
+          src: image.dataUrl,
+          imageWidth: image.width,
+          imageHeight: image.height
+        })
+        const { elementId, ...crop } = value as { elementId: string } & Json
+        // The agent knows the picture it put in: not a change of the user's.
+        sawChange(id, elementId, { src: image.dataUrl, ...crop })
+        return json({ ok: true, elementId, replaced: true, rev })
+      }
       const info = (await exec(id, { type: 'get_info' })).value as {
         activePageId: string | null
         pages: { id: string; width: number; height: number }[]

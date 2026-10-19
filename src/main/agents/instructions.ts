@@ -18,7 +18,10 @@ ${
     ? `- For imagery, use your image generation tool, then always put the saved file
   on the page with place_image (absolute path); a generated image is not in
   the design until you do. For a background use place_image with
-  as: "background". Do not copy or convert the file.`
+  as: "background". To edit an image already in the design (remove or add
+  something, restyle it), put the result into it with place_image
+  replace: <its element id>: it keeps the size and place the user gives it,
+  even mid-run. Do not copy or convert the file.`
     : `- You cannot generate images. Build imagery from shapes, text, and images
   already in the design. If the user asks for a generated image, say that
   Codex can make one (they can switch to it in the AI panel).`

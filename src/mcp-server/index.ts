@@ -36,7 +36,8 @@ Workflow:
    bulk or structural edits, passing the rev you read as baseRev — the user
    may keep editing while you work. place_image puts a local image file (e.g. one
    you generated) on a page, or with as: "background" makes it the page
-   background.
+   background; with replace: <image id> it swaps the picture of an existing
+   image (an edited version) in place.
 3. LOOK at your work: render_page after edits, and lint_design to catch text
    overflow, contrast and layout problems. Fix errors, then re-render.
 4. export_design writes png/jpeg/pdf files to disk.

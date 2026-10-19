@@ -33,6 +33,15 @@ export type DesignCommand =
       atIndex?: number
     }
   | { type: 'update_element'; elementId: string; props: Record<string, unknown> }
+  // A new picture in an image element, cropped to fill the element as it is
+  // when the command runs (the user may have resized it meanwhile).
+  | {
+      type: 'replace_image'
+      elementId: string
+      src: string
+      imageWidth: number
+      imageHeight: number
+    }
   | { type: 'remove_elements'; elementIds: string[] }
   | {
       type: 'move_element'
@@ -98,6 +107,7 @@ export const MUTATING_COMMANDS: ReadonlySet<DesignCommand['type']> = new Set([
   'set_page',
   'add_element',
   'update_element',
+  'replace_image',
   'remove_elements',
   'move_element'
 ] as DesignCommand['type'][])

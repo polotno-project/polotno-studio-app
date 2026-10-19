@@ -161,6 +161,12 @@ class AgentActivity {
           label: `${command.type === 'update_element' ? 'Editing' : 'Arranging'} ${describeElement(element(command.elementId))}`,
           targets: [{ kind: 'element', id: command.elementId }]
         }
+      case 'replace_image':
+        return {
+          mode: 'write',
+          label: `Replacing ${describeElement(element(command.elementId))}`,
+          targets: [{ kind: 'element', id: command.elementId }]
+        }
       case 'remove_elements': {
         const ids = command.elementIds
         return {

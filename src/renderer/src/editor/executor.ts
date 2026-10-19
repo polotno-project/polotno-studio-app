@@ -152,6 +152,31 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
       return null
     }
 
+    case 'replace_image': {
+      const element = elementOf(store, command.elementId) as NonNullable<ElementModel> & {
+        width: number
+        height: number
+      }
+      if (element.type !== 'image') {
+        throw new CommandError('invalid_command', `${command.elementId} is not an image`)
+      }
+      // Center crop that fills the element's box (Polotno crops are
+      // fractions of the picture).
+      const frame = element.width / element.height
+      const picture = command.imageWidth / command.imageHeight
+      const cropWidth = picture > frame ? frame / picture : 1
+      const cropHeight = picture > frame ? 1 : picture / frame
+      const crop = {
+        cropX: (1 - cropWidth) / 2,
+        cropY: (1 - cropHeight) / 2,
+        cropWidth,
+        cropHeight
+      }
+      element.set({ src: command.src, ...crop })
+      await store.waitLoading()
+      return { elementId: element.id, ...crop }
+    }
+
     case 'remove_elements': {
       for (const id of command.elementIds) elementOf(store, id)
       store.deleteElements(command.elementIds)
