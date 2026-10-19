@@ -19,7 +19,7 @@ import { nameFromPath } from './tabs-model'
 import { importDesign } from './document'
 import { TemplatesSection } from './sections/templates-section'
 import { AiSection } from './sections/ai-section'
-import { AgentCursor } from './agent-cursor'
+import { PageSlot } from './agent-cursor'
 import { CodexNotice } from './codex-notice'
 
 // Our Templates section replaces the stock one (same slot) to add the
@@ -30,6 +30,9 @@ const SECTIONS = [
   TemplatesSection,
   ...DEFAULT_SECTIONS.filter((section) => section.name !== 'templates')
 ] as Section[]
+
+// Each page's slot carries the agent cursors (agent-cursor.tsx).
+const WORKSPACE_COMPONENTS = { PageControls: PageSlot }
 
 // The editor remounts per tab, and Polotno's SidePanel opens its default
 // section on mount. Each tab reopens the section it had (kept in its store);
@@ -110,10 +113,9 @@ export const PolotnoEditor = observer(function PolotnoEditor({
         </SidePanelWrap>
         <WorkspaceWrap>
           <Toolbar store={store} />
-          <Workspace store={store} />
+          <Workspace store={store} components={WORKSPACE_COMPONENTS} />
           <ZoomButtons store={store} />
           <PagesTimeline store={store} />
-          <AgentCursor />
           <CodexNotice />
         </WorkspaceWrap>
       </PolotnoContainer>

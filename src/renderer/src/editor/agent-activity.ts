@@ -1,7 +1,7 @@
 import { makeAutoObservable } from 'mobx'
 import type { DesignCommand } from '../../../shared/commands'
 import type { DocId } from '../../../shared/types'
-import { elementRect, pageRect, type ScreenRect } from './canvas-rects'
+import { elementBox, type Box } from './page-boxes'
 import type { DesignStore } from './store'
 import { agent } from './agent-model'
 import { tabs } from './tabs-model'
@@ -16,10 +16,9 @@ import { tabs } from './tabs-model'
 export type ActivityTarget =
   | { kind: 'element'; id: string }
   | { kind: 'page'; id: string }
-  // Something already gone (removed): where it was when the command came in,
-  // as fractions of its page (so it moves with the canvas), or on screen when
-  // the page went too.
-  | { kind: 'rect'; rect: ScreenRect; pageId?: string }
+  // Something already gone (removed): where it was on its page when the
+  // command came in.
+  | { kind: 'rect'; rect: Box; pageId: string }
 
 export type Activity = {
   // The AI panel chat it comes from; undefined for agents connected from
@@ -32,6 +31,10 @@ export type Activity = {
   mode: 'read' | 'write'
   label: string
   targets: ActivityTarget[]
+  // What the cursor points at: the last target, or still the previous one
+  // when the agent only reads the whole page (the tools do it around each
+  // edit; going to the page's middle would be a detour) or names nothing.
+  anchor?: ActivityTarget
   // Bumped per command, so the overlay replays its highlight.
   seq: number
   // Shown long enough; the cursor stays only while the agent still works.
@@ -88,11 +91,9 @@ class AgentActivity {
   private byDoc = new Map<DocId, Map<string, Activity>>()
   private timers = new Map<string, ReturnType<typeof setTimeout>>()
   private seq = 0
-  // The visible editor's root, where removed elements are measured.
-  root: Element | null = null
 
   constructor() {
-    makeAutoObservable<this, 'timers'>(this, { timers: false, root: false })
+    makeAutoObservable<this, 'timers'>(this, { timers: false })
     tabs.addCloseListener((docId) => this.forget(docId))
   }
 
@@ -111,26 +112,8 @@ class AgentActivity {
   }
 
   private measure(store: DesignStore, id: string): ActivityTarget | null {
-    const rect = this.root && elementRect(this.root, store, id)
-    if (!rect) return null
-    const pageId = (store.getElementById(id) as { page?: { id: string } } | undefined)?.page?.id
-    const page = this.root && pageId ? pageRect(this.root, pageId) : null
-    if (!page) return { kind: 'rect', rect }
-    return {
-      kind: 'rect',
-      pageId,
-      rect: {
-        x: (rect.x - page.x) / page.width,
-        y: (rect.y - page.y) / page.height,
-        width: rect.width / page.width,
-        height: rect.height / page.height
-      }
-    }
-  }
-
-  private measurePage(id: string): ActivityTarget | null {
-    const rect = this.root && pageRect(this.root, id)
-    return rect ? { kind: 'rect', rect } : null
+    const found = elementBox(store, id)
+    return found && { kind: 'rect', rect: found.box, pageId: found.pageId }
   }
 
   // Before the command runs: removed things are measured while they exist.
@@ -159,10 +142,8 @@ class AgentActivity {
         return { mode: 'write', label: 'Resizing the design', targets: page() }
       case 'add_page':
         return { mode: 'write', label: 'Adding a page', targets: [] }
-      case 'remove_page': {
-        const gone = this.measurePage(command.pageId)
-        return { mode: 'write', label: 'Removing a page', targets: gone ? [gone] : [] }
-      }
+      case 'remove_page':
+        return { mode: 'write', label: 'Removing a page', targets: [] }
       case 'move_page':
         return { mode: 'write', label: 'Reordering pages', targets: page(command.pageId) }
       case 'set_page':
@@ -253,12 +234,15 @@ class AgentActivity {
     const color =
       previous?.color ??
       (chatId ? (COLORS.slice(1).find((c) => !used.has(c)) ?? COLORS[1]) : COLORS[0])
+    const last = targets.at(-1)
+    const stay = !last || (plan.mode === 'read' && last.kind === 'page')
     cursors.set(key, {
       ...plan,
       chatId,
       agent: chatId ? agent.name : 'AI agent',
       color,
       targets,
+      anchor: (stay && previous?.anchor) || last,
       seq: ++this.seq,
       stale: false
     })
