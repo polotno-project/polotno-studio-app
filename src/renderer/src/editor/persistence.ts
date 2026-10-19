@@ -35,10 +35,14 @@ const states = new Map<DocId, PersistenceState>()
 
 async function writePreview(tab: DesignTab): Promise<void> {
   try {
+    // quickMode: a full export below pixelRatio 1 rebuilds every element's
+    // buffer that small and back, so images on the canvas flicker pixelated
+    // after each autosave while the user works.
     const dataUrl = await tab.store.toDataURL({
       pixelRatio: PREVIEW_WIDTH / tab.store.width,
       mimeType: 'image/jpeg',
-      quality: 0.7
+      quality: 0.7,
+      quickMode: true
     })
     await window.desktop.invoke('design:writePreview', { docId: tab.docId, dataUrl })
   } catch {

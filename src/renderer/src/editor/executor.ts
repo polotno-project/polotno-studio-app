@@ -201,10 +201,13 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
       const maxSide = command.maxSide ?? 1024
       const fromMax = maxSide / Math.max(store.width, store.height)
       const pixelRatio = command.pixelRatio ?? Math.min(1, fromMax)
+      // quickMode, as for thumbnails: the agent renders while the user edits,
+      // and a full export below pixelRatio 1 flickers the canvas pixelated.
       const dataUrl = await store.toDataURL({
         pageId: page.id,
         pixelRatio,
-        mimeType: command.mimeType ?? 'image/png'
+        mimeType: command.mimeType ?? 'image/png',
+        quickMode: true
       })
       return {
         dataUrl,
