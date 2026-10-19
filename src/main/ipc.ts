@@ -19,6 +19,7 @@ import { listRecent, addRecent } from './recent'
 import { markRendererReady } from './open-files'
 import { getMcpStatus, restartMcpServer } from './mcp/launcher'
 import { regenerateMcpToken } from './mcp/token'
+import { getUpdateStatus, installUpdate } from './updater'
 import {
   agentImage,
   closeAgentConversations,
@@ -214,6 +215,8 @@ export function registerIpcHandlers(): void {
     if (!/^(https?|cursor|vscode):/.test(url)) throw new Error(`Refusing to open ${url}`)
     void shell.openExternal(url)
   })
+  handle('update:getStatus', () => getUpdateStatus())
+  handle('update:install', () => installUpdate())
   handle('agent:list', () => listAgents())
   handle('agent:setActive', (_event, { agent }) => setActiveAgent(agent))
   handle('agent:status', () => getAgentStatus())

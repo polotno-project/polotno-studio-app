@@ -27,6 +27,18 @@ export interface LibraryEntry {
   preview: string | null
 }
 
+// Auto-update (src/main/updater.ts). `userAsked`: the person picked Check for
+// Updates, so every step and the outcome are shown; a background check only
+// surfaces an update once it is downloaded.
+export type UpdateStatus = { userAsked: boolean } & (
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'upToDate'; version: string }
+  | { state: 'downloading'; version: string; percent: number }
+  | { state: 'ready'; version: string }
+  | { state: 'error'; message: string }
+)
+
 export interface McpStatus {
   running: boolean
   url: string | null
@@ -68,6 +80,9 @@ export interface InvokeApi {
   'mcp:saveMcpb': () => { filePath: string } | null
   'mcp:installSkill': () => { path: string }
   'shell:openExternal': (p: { url: string }) => void
+  'update:getStatus': () => UpdateStatus
+  // Restarts into the downloaded update.
+  'update:install': () => void
   // In-app generation through the user's own agent install (src/main/agents).
   // Every call goes to the agent the panel runs.
   'agent:list': () => { active: AgentId; agents: AgentInfo[] }
@@ -125,6 +140,7 @@ export interface MainEvents {
   'library:changed': Record<string, never>
   // The MCP server started listening or went away (Connect panel stays live).
   'mcp:status': McpStatus
+  'update:status': UpdateStatus
 }
 
 // Fire-and-forget renderer -> main messages (ipcRenderer.send).
