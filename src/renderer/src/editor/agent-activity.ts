@@ -16,8 +16,10 @@ import { tabs } from './tabs-model'
 export type ActivityTarget =
   | { kind: 'element'; id: string }
   | { kind: 'page'; id: string }
-  // Something already gone (removed): where it was when the command came in.
-  | { kind: 'rect'; rect: ScreenRect }
+  // Something already gone (removed): where it was when the command came in,
+  // as fractions of its page (so it moves with the canvas), or on screen when
+  // the page went too.
+  | { kind: 'rect'; rect: ScreenRect; pageId?: string }
 
 export type Activity = {
   // The AI panel chat it comes from; undefined for agents connected from
@@ -110,7 +112,20 @@ class AgentActivity {
 
   private measure(store: DesignStore, id: string): ActivityTarget | null {
     const rect = this.root && elementRect(this.root, store, id)
-    return rect ? { kind: 'rect', rect } : null
+    if (!rect) return null
+    const pageId = (store.getElementById(id) as { page?: { id: string } } | undefined)?.page?.id
+    const page = this.root && pageId ? pageRect(this.root, pageId) : null
+    if (!page) return { kind: 'rect', rect }
+    return {
+      kind: 'rect',
+      pageId,
+      rect: {
+        x: (rect.x - page.x) / page.width,
+        y: (rect.y - page.y) / page.height,
+        width: rect.width / page.width,
+        height: rect.height / page.height
+      }
+    }
   }
 
   private measurePage(id: string): ActivityTarget | null {
@@ -257,6 +272,7 @@ class AgentActivity {
   }
 
   private expire(docId: DocId, key: string): void {
+    this.timers.delete(`${docId}|${key}`)
     const cursors = this.byDoc.get(docId)
     const current = cursors?.get(key)
     if (cursors && current) cursors.set(key, { ...current, stale: true })

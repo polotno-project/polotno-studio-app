@@ -15,8 +15,21 @@ import { tabs } from './tabs-model'
 // Boxes are relative to the overlay; the cursor points at the last target
 // (the most recent thing touched). `seq` is the activity they were measured
 // for: a new one keeps the cursor where it was until its targets show up.
-// `flip`: near the right edge, the tag goes left of the cursor.
-type Geometry = { boxes: ScreenRect[]; x: number; y: number; seq: number; flip: boolean }
+// `flip`: near the right edge, the tag goes left of the cursor. The cursor
+// glides to a new activity's target (until `glideUntil`); after that it sticks
+// to the target as the user scrolls or zooms (`instant`).
+type Geometry = {
+  boxes: ScreenRect[]
+  x: number
+  y: number
+  seq: number
+  flip: boolean
+  glideUntil: number
+  instant: boolean
+}
+
+// The glide's length in index.css (.agent-cursor).
+const GLIDE_MS = 450
 
 const EDGE = 12
 // About the widest tag (max-w-64 plus the arrow).
@@ -25,12 +38,20 @@ const TAG_ROOM = 270
 function targetRect(root: Element, store: DesignStore, target: ActivityTarget): ScreenRect | null {
   if (target.kind === 'element') return elementRect(root, store, target.id)
   if (target.kind === 'page') return pageRect(root, target.id)
-  return target.rect
+  if (!target.pageId) return target.rect
+  const page = pageRect(root, target.pageId)
+  if (!page) return null
+  return {
+    x: page.x + target.rect.x * page.width,
+    y: page.y + target.rect.y * page.height,
+    width: target.rect.width * page.width,
+    height: target.rect.height * page.height
+  }
 }
 
 function same(a: Geometry | null, b: Geometry): boolean {
   const round = (g: Geometry): string =>
-    [g.seq, g.x, g.y, ...g.boxes.flatMap((r) => [r.x, r.y, r.width, r.height])]
+    [g.seq, g.x, g.y, +g.instant, ...g.boxes.flatMap((r) => [r.x, r.y, r.width, r.height])]
       .map(Math.round)
       .join()
   return !!a && round(a) === round(b)
@@ -101,6 +122,9 @@ const Cursor = observer(function Cursor({
   chat?: string
 }): React.JSX.Element | null {
   const [geometry, setGeometry] = useState<Geometry | null>(null)
+  // What the cursor points at, measured again every frame so it stays on it
+  // while the user scrolls or zooms.
+  const anchor = useRef<ActivityTarget | null>(null)
 
   // Follows the targets every frame while shown: the user may scroll or zoom,
   // and an element may still be moving (a later command, the user).
@@ -110,29 +134,47 @@ const Cursor = observer(function Cursor({
     let frame = 0
     const tick = (): void => {
       const bounds = overlay.getBoundingClientRect()
-      const boxes = activity.targets
-        .map((target) => targetRect(root, store, target))
-        .filter((rect): rect is ScreenRect => !!rect)
-        .map((rect) => ({ ...rect, x: rect.x - bounds.left, y: rect.y - bounds.top }))
+      const local = (rect: ScreenRect): ScreenRect => ({
+        ...rect,
+        x: rect.x - bounds.left,
+        y: rect.y - bounds.top
+      })
+      const measured = activity.targets
+        .map((target) => ({ target, rect: targetRect(root, store, target) }))
+        .filter((item): item is { target: ActivityTarget; rect: ScreenRect } => !!item.rect)
+      const boxes = measured.map(({ rect }) => local(rect))
       // Reading the whole page (the tools also do it around each edit) sweeps
-      // it without moving the cursor: it would detour to the page's middle on
-      // every way from one element to the next.
-      const stay = activity.mode === 'read' && activity.targets.at(-1)?.kind === 'page'
+      // it without moving the cursor off what it pointed at: it would detour
+      // to the page's middle on every way from one element to the next.
+      const stay =
+        activity.mode === 'read' && activity.targets.at(-1)?.kind === 'page' && !!anchor.current
+      if (!stay) anchor.current = measured.at(-1)?.target ?? anchor.current
+      const anchored = anchor.current && targetRect(root, store, anchor.current)
+      // Its target gone too (removed since): the cursor stays where it was.
+      const point = anchored ? local(anchored) : stay ? undefined : boxes.at(-1)
       setGeometry((previous) => {
-        const last = boxes.at(-1)
-        if (!last) return previous
         const clamp = (value: number, max: number): number =>
           Math.min(Math.max(value, EDGE), max - EDGE)
-        const next =
-          stay && previous
-            ? { ...previous, boxes, seq: activity.seq }
-            : {
-                boxes,
-                x: clamp(last.x + last.width / 2, bounds.width),
-                y: clamp(last.y + last.height / 2, bounds.height),
-                seq: activity.seq,
-                flip: last.x + last.width / 2 > bounds.width - TAG_ROOM
-              }
+        const at = point
+          ? {
+              x: clamp(point.x + point.width / 2, bounds.width),
+              y: clamp(point.y + point.height / 2, bounds.height),
+              flip: point.x + point.width / 2 > bounds.width - TAG_ROOM
+            }
+          : previous
+        if (!at) return previous
+        const now = performance.now()
+        const glideUntil =
+          previous && previous.seq === activity.seq ? previous.glideUntil : now + GLIDE_MS
+        const next = {
+          boxes,
+          x: at.x,
+          y: at.y,
+          flip: at.flip,
+          seq: activity.seq,
+          glideUntil,
+          instant: now >= glideUntil
+        }
         return same(previous, next) ? previous : next
       })
       frame = requestAnimationFrame(tick)
@@ -166,7 +208,8 @@ const Cursor = observer(function Cursor({
         style={{
           // Flipped, the arrow (18px wide, now at the right end) stays on the point.
           transform: `translate(${geometry.x}px, ${geometry.y}px)${geometry.flip ? ' translateX(calc(-100% + 18px))' : ''}`,
-          opacity: visible ? 1 : 0
+          opacity: visible ? 1 : 0,
+          ...(geometry.instant && { transition: 'opacity 300ms ease-out' })
         }}
       >
         <svg width="18" height="20" viewBox="0 0 18 20" className="drop-shadow-sm">

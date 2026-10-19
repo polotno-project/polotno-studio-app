@@ -155,8 +155,13 @@ class AgentModel {
     if (chatId) void window.desktop.invoke('agent:stop', { chatId })
   }
 
+  // Main answers for whichever agent is active when the request lands: an
+  // answer that comes back after a switch belongs to the old one.
   refreshStatus(): void {
-    void window.desktop.invoke('agent:status').then((status) => this.setStatus(status))
+    const asked = this.active
+    void window.desktop.invoke('agent:status').then((status) => {
+      if (asked === this.active) this.setStatus(status)
+    })
   }
 
   setStatus(status: AgentStatus): void {
@@ -165,7 +170,10 @@ class AgentModel {
   }
 
   loadModels(): void {
-    void window.desktop.invoke('agent:models').then((models) => this.setModels(models))
+    const asked = this.active
+    void window.desktop.invoke('agent:models').then((models) => {
+      if (asked === this.active) this.setModels(models)
+    })
   }
 
   setModels(models: AgentModels): void {

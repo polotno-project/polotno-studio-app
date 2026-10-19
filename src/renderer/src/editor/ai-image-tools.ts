@@ -188,34 +188,18 @@ async function composite(
   return opaque ? out.toDataURL('image/jpeg', 0.92) : out.toDataURL('image/png')
 }
 
-// No connected Codex: say how to connect it, and stop without closing the
-// tool, so the selection and prompt are still there for the next try.
+// No connected Codex: stop without closing the tool, so the selection and
+// prompt are still there for the next try. The callout at the top of the
+// panel (codex-notice.tsx) says how to connect it.
 async function ensureCodex(): Promise<void> {
   const status = await window.desktop.invoke('imageEdit:status')
   agent.setCodexStatus(status)
   if (status.state === 'ready') return
-  if (status.state === 'missing') {
-    toast.info('AI edits run on your own Codex, which is not installed.', {
-      description: 'Install the Codex CLI (npm install -g @openai/codex), then try again.',
-      duration: 15000
-    })
-  } else if (status.state === 'signingIn') {
-    toast.info('Finish signing in to Codex in your browser, then try again.')
-  } else {
-    // Signs in to Codex only: the AI panel keeps chatting with its agent.
-    toast.info(
-      status.state === 'error'
-        ? `AI edits run on your own Codex: ${status.message}`
-        : 'AI edits run on your own Codex. Sign in to use them.',
-      {
-        duration: 15000,
-        action: {
-          label: 'Sign in to Codex',
-          onClick: () => void window.desktop.invoke('imageEdit:signIn')
-        }
-      }
-    )
-  }
+  toast.info(
+    status.state === 'signingIn'
+      ? 'Finish signing in to Codex in your browser, then try again.'
+      : 'Codex is not ready: see the note at the top of the panel.'
+  )
   throw abortError()
 }
 

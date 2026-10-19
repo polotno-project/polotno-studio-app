@@ -13,6 +13,7 @@ import { readLocalImage, type LocalImage } from '../../../mcp-server/local-image
 import { keepChatImage } from '../chats'
 import { CODEX_DISABLED_FEATURES } from '../lockdown'
 import { findBinary } from '../find-binary'
+import { readSetting, writeSetting } from '../settings'
 import { designInstructions } from '../instructions'
 import { emitAgentEvent, PANEL_HIDDEN_TOOLS, type AgentProvider } from '../provider'
 import { AppServer } from './app-server'
@@ -40,9 +41,13 @@ const imageFiles = new Map<string, string>()
 // threads, apart from the design conversation.
 type ImageEdit = { turnId?: string; savedPath?: string; finish: (status: string) => void }
 const editByThread = new Map<string, ImageEdit>()
-const threadByEdit = new Map<string, string>()
+// Canvas AI edits in flight, by the renderer's id. `canceled` holds a cancel
+// that came before Codex named the thread or turn to interrupt.
+type EditJob = { threadId?: string; canceled: boolean }
+const editJobs = new Map<string, EditJob>()
 // Chats with a run in flight (by chat id), claimed before the first await so
-// a double submit cannot start two turns in one chat.
+// a double submit cannot start two turns in one chat. A run whose entry was
+// replaced or removed (the chat was reset meanwhile) starts nothing more.
 const busy = new Map<string, ChatRef>()
 // Stop pressed before turn/start answered: interrupt as soon as the id is known.
 const stopRequested = new Set<string>()
@@ -102,6 +107,7 @@ async function start(): Promise<AppServer | null> {
       if (server !== codex && server !== null) return
       server = null
       for (const chat of [...busy.values()]) finishRun(chat)
+      for (const edit of editByThread.values()) edit.finish('stopped')
       threadByChat.clear()
       chatByThread.clear()
       turnByThread.clear()
@@ -305,18 +311,15 @@ async function listModels(codex: AppServer): Promise<ModelListEntry[]> {
 }
 
 // The model picked in the panel, kept across launches. Null: Codex's own choice.
-const modelFile = (): string => join(app.getPath('userData'), 'codex-model.json')
+const MODEL_SETTING = 'codex-model'
 let pickedModel: string | null | undefined
 
 async function readPickedModel(): Promise<string | null> {
+  // Read once (null, nothing picked, is kept too).
   if (pickedModel === undefined) {
-    try {
-      pickedModel = JSON.parse(await fs.readFile(modelFile(), 'utf8')).model ?? null
-    } catch {
-      pickedModel = null
-    }
+    pickedModel = (await readSetting<{ model: string | null }>(MODEL_SETTING)).model ?? null
   }
-  return pickedModel ?? null
+  return pickedModel
 }
 
 // The picked model, or the one from the user's config.toml, unless their
@@ -353,7 +356,7 @@ async function getModels(): Promise<AgentModels> {
 // carries the model, and Codex keeps it for later turns of that thread).
 async function setModel(model: string | null): Promise<void> {
   pickedModel = model
-  await fs.writeFile(modelFile(), JSON.stringify({ model }), 'utf8')
+  await writeSetting(MODEL_SETTING, { model })
 }
 
 async function threadConfig(
@@ -437,6 +440,7 @@ async function run(chat: ChatRef, prompt: string, context?: string): Promise<voi
     }
   }
   busy.set(chat.chatId, chat)
+  const dropped = (): boolean => busy.get(chat.chatId) !== chat
   try {
     const codex = await ensureServer()
     if (!codex || status.state !== 'ready') throw new Error('Codex is not ready.')
@@ -459,19 +463,24 @@ async function run(chat: ChatRef, prompt: string, context?: string): Promise<voi
         ...(await threadConfig(codex, { url: mcp.url, token: mcp.token, chat: chat.chatId }))
       })
       threadId = result.thread.id
+      if (dropped()) {
+        void codex.request('thread/unsubscribe', { threadId }).catch(() => undefined)
+        return
+      }
       threadByChat.set(chat.chatId, threadId)
       chatByThread.set(threadId, chat)
     }
 
+    // The picked model (if the account still serves it), so a pick made
+    // mid-conversation applies from this message on.
+    const model = (await readPickedModel()) && (await threadModel(codex))
+    if (dropped()) return
     emit({
       type: 'entry',
       ...chat,
       entry: { kind: 'prompt', id: crypto.randomUUID(), text: prompt }
     })
     emit({ type: 'turn', ...chat, state: 'running' })
-    // The picked model (if the account still serves it), so a pick made
-    // mid-conversation applies from this message on.
-    const model = (await readPickedModel()) && (await threadModel(codex))
     const { turn } = await codex.request<{ turn: { id: string } }>('turn/start', {
       threadId,
       input: [{ type: 'text', text: prompt }],
@@ -480,7 +489,7 @@ async function run(chat: ChatRef, prompt: string, context?: string): Promise<voi
     turnByThread.set(threadId, turn.id)
     if (stopRequested.has(chat.chatId)) await stop(chat.chatId)
   } catch (error) {
-    finishRun(chat)
+    if (!dropped()) finishRun(chat)
     throw error
   }
 }
@@ -505,32 +514,37 @@ export async function editImageWithCodex(
   png: Uint8Array,
   instruction: string
 ): Promise<{ dataUrl: string }> {
-  const codex = await ensureServer()
-  if (!codex || status.state !== 'ready') throw new Error('Codex is not connected.')
-  const dir = join(app.getPath('temp'), 'polotno-image-edit')
-  await fs.mkdir(dir, { recursive: true })
-  const input = join(dir, `${id}.png`)
-  await fs.writeFile(input, png)
+  const job: EditJob = { canceled: false }
+  editJobs.set(id, job)
+  const input = join(app.getPath('temp'), 'polotno-image-edit', `${id}.png`)
   try {
+    const codex = await ensureServer()
+    if (!codex || status.state !== 'ready') throw new Error('Codex is not connected.')
+    await fs.mkdir(dirname(input), { recursive: true })
+    await fs.writeFile(input, png)
     // The image model now and then answers without generating: try twice.
     for (let attempt = 0; attempt < 2; attempt++) {
-      const savedPath = await runImageEdit(codex, id, input, instruction)
+      const savedPath = await runImageEdit(codex, job, input, instruction)
       if (savedPath) return { dataUrl: (await readLocalImage(savedPath)).dataUrl }
-      if (!threadByEdit.has(id)) break
     }
     throw new Error('Codex did not return an image.')
   } finally {
-    threadByEdit.delete(id)
+    editJobs.delete(id)
     await fs.rm(input, { force: true })
   }
 }
 
+function canceled(): Error {
+  return Object.assign(new Error('Canceled'), { name: 'AbortError' })
+}
+
 async function runImageEdit(
   codex: AppServer,
-  id: string,
+  job: EditJob,
   input: string,
   instruction: string
 ): Promise<string | undefined> {
+  if (job.canceled) throw canceled()
   const cwd = join(app.getPath('userData'), 'codex-workspace')
   await fs.mkdir(cwd, { recursive: true })
   const { thread } = await codex.request<{ thread: { id: string } }>('thread/start', {
@@ -546,8 +560,9 @@ async function runImageEdit(
   const done = new Promise<string>((resolve) => (finish = resolve))
   const edit: ImageEdit = { finish }
   editByThread.set(thread.id, edit)
-  threadByEdit.set(id, thread.id)
+  job.threadId = thread.id
   try {
+    if (job.canceled) throw canceled()
     const { turn } = await codex.request<{ turn: { id: string } }>('turn/start', {
       threadId: thread.id,
       input: [
@@ -556,8 +571,15 @@ async function runImageEdit(
       ]
     })
     edit.turnId ??= turn.id
+    // Canceled while the turn was starting.
+    if (job.canceled) {
+      void codex
+        .request('turn/interrupt', { threadId: thread.id, turnId: edit.turnId })
+        .catch(() => undefined)
+    }
     const result = await done
-    if (result === 'interrupted') throw Object.assign(new Error('Canceled'), { name: 'AbortError' })
+    if (result === 'interrupted') throw canceled()
+    if (result === 'stopped') throw new Error('Codex stopped.')
     if (result === 'failed' && !edit.savedPath) throw new Error('Codex could not edit the image.')
     return edit.savedPath
   } finally {
@@ -567,8 +589,10 @@ async function runImageEdit(
 }
 
 export async function cancelImageEdit(id: string): Promise<void> {
-  const threadId = threadByEdit.get(id)
-  threadByEdit.delete(id)
+  const job = editJobs.get(id)
+  if (!job) return
+  job.canceled = true
+  const threadId = job.threadId
   const turnId = threadId && editByThread.get(threadId)?.turnId
   if (server && threadId && turnId) await server.request('turn/interrupt', { threadId, turnId })
 }
@@ -590,7 +614,12 @@ async function stop(chatId: string): Promise<void> {
 function reset(chatId: string): void {
   if (busy.has(chatId)) void stop(chatId).catch(() => undefined)
   const threadId = threadByChat.get(chatId)
-  if (!threadId) return
+  if (!threadId) {
+    // Still starting: the run sees it was dropped once Codex answers.
+    const starting = busy.get(chatId)
+    if (starting) finishRun(starting)
+    return
+  }
   const chat = chatByThread.get(threadId)!
   threadByChat.delete(chatId)
   chatByThread.delete(threadId)
@@ -598,9 +627,10 @@ function reset(chatId: string): void {
   finishRun(chat)
 }
 
-// Chats that have a conversation with Codex.
+// Chats that have a conversation with Codex, or are starting one.
 function conversations(): ChatRef[] {
-  return [...chatByThread.values()]
+  const chats = new Map([...busy.values(), ...chatByThread.values()].map((c) => [c.chatId, c]))
+  return [...chats.values()]
 }
 
 function running(): string[] {

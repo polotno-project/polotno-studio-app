@@ -98,6 +98,23 @@ test('added page arrives whole; removed page goes', () => {
   ])
 })
 
+test('a page added in front of the others gets its place', () => {
+  const before = design([text('a')])
+  const added = { id: 'p0', background: 'white', children: [] }
+  const after = { ...before, pages: [added, ...before.pages] }
+  assert.deepEqual(diffDesign(before, after).changes, [
+    { kind: 'add-page', page: added },
+    { kind: 'page-order', ids: ['p0', 'p1'] }
+  ])
+})
+
+test('a page added at the end needs no reorder', () => {
+  const before = design([text('a')])
+  const added = { id: 'p2', background: 'white', children: [] }
+  const after = { ...before, pages: [...before.pages, added] }
+  assert.deepEqual(diffDesign(before, after).changes, [{ kind: 'add-page', page: added }])
+})
+
 test('elements inside groups are addressed by id', () => {
   const group = (children) => ({ id: 'g', type: 'group', children })
   const before = design([group([text('a'), text('b')])])

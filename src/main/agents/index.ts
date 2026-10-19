@@ -156,7 +156,8 @@ export function resetAllAgents(): void {
 
 export async function agentImage(id: string): Promise<LocalImage> {
   for (const provider of Object.values(providers)) {
-    const image = await provider.image(id)
+    // Its file may be gone (temp files are cleaned): the kept copy below.
+    const image = await provider.image(id).catch(() => null)
     if (image) return image
   }
   // A chat from an earlier launch: the copy kept with it.

@@ -37,6 +37,10 @@ export function withChat<T>(chat: string | undefined, run: () => T): T {
   return requestChat.run(chat, run)
 }
 
+export function currentChat(): string | undefined {
+  return requestChat.getStore()
+}
+
 export function rpc<M extends RpcMethod>(
   method: M,
   params: RpcRequestMap[M]['params']
@@ -48,7 +52,7 @@ export function rpc<M extends RpcMethod>(
       reject(new Error(`RPC ${method} timed out`))
     }, RPC_TIMEOUT_MS)
     pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer })
-    parentPort.postMessage({ type: 'rpc', id, method, params, chat: requestChat.getStore() })
+    parentPort.postMessage({ type: 'rpc', id, method, params, chat: currentChat() })
   })
 }
 

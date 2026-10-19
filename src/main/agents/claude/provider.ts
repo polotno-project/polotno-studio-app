@@ -136,7 +136,10 @@ let pickedModel: string | null | undefined
 let modelList: Promise<ModelInfo[]> | null = null
 
 async function readPickedModel(): Promise<string | null> {
-  pickedModel ??= (await readSetting<{ model: string | null }>(MODEL_SETTING)).model ?? null
+  // Read once (null, nothing picked, is kept too).
+  if (pickedModel === undefined) {
+    pickedModel = (await readSetting<{ model: string | null }>(MODEL_SETTING)).model ?? null
+  }
   return pickedModel
 }
 
@@ -234,6 +237,31 @@ type Session = {
 
 // By chat id.
 const sessions = new Map<string, Session>()
+// Sessions on their way, by chat: a second message joins the same one, and a
+// reset meanwhile closes it as soon as it is there.
+const opening = new Map<
+  string,
+  { chat: ChatRef; session: Promise<Session | null>; canceled: boolean }
+>()
+
+function openSession(
+  chat: ChatRef,
+  mcp: { url: string; token: string },
+  context?: string
+): Promise<Session | null> {
+  const known = opening.get(chat.chatId)
+  if (known) return known.session
+  const item = { chat, canceled: false, session: Promise.resolve<Session | null>(null) }
+  item.session = startSession(chat, mcp, context)
+    .finally(() => opening.delete(chat.chatId))
+    .then((session) => {
+      if (!item.canceled) return session
+      reset(chat.chatId)
+      return null
+    })
+  opening.set(chat.chatId, item)
+  return item.session
+}
 
 function workspace(): string {
   return join(app.getPath('userData'), 'claude-workspace')
@@ -430,7 +458,9 @@ async function run(chat: ChatRef, prompt: string, context?: string): Promise<voi
   if (!mcp.url) throw new Error('The Polotno MCP server is not running.')
   const session =
     sessions.get(chat.chatId) ??
-    (await startSession(chat, { url: mcp.url, token: mcp.token }, context))
+    (await openSession(chat, { url: mcp.url, token: mcp.token }, context))
+  // Reset while it started (the tab closed, the chat was deleted).
+  if (!session) return
   const uuid = crypto.randomUUID()
   session.pending.add(uuid)
   entry(chat, { kind: 'prompt', id: uuid, text: prompt })
@@ -454,6 +484,8 @@ async function stop(chatId: string): Promise<void> {
 }
 
 function reset(chatId: string): void {
+  const starting = opening.get(chatId)
+  if (starting) starting.canceled = true
   const session = sessions.get(chatId)
   if (!session) return
   sessions.delete(chatId)
@@ -462,8 +494,10 @@ function reset(chatId: string): void {
   if (session.running) finishRun(session)
 }
 
+// Chats that have a session, or are starting one.
 function conversations(): ChatRef[] {
-  return [...sessions.values()].map((session) => session.chat)
+  const chats = [...sessions.values(), ...opening.values()].map((item) => item.chat)
+  return [...new Map(chats.map((chat) => [chat.chatId, chat])).values()]
 }
 
 function running(): string[] {
@@ -471,7 +505,7 @@ function running(): string[] {
 }
 
 function shutdown(): void {
-  for (const chatId of [...sessions.keys()]) reset(chatId)
+  for (const chatId of [...sessions.keys(), ...opening.keys()]) reset(chatId)
 }
 
 export const claudeProvider: AgentProvider = {

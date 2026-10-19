@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { CallToolResult, McpServer } from '@modelcontextprotocol/server'
 import { applyPatch, type Operation } from 'fast-json-patch'
 import { validateDesign } from '@polotno/schema'
-import { rpc } from './bridge-client'
+import { currentChat, rpc } from './bridge-client'
 import { readLocalImage } from './local-image'
 import { elideDataUrls, hasDataRefs, restoreDataUrls } from './data-urls'
 import { diffDesign, isEqual } from '../shared/design-diff'
@@ -184,8 +184,13 @@ const reads = new Map<string, Map<number, unknown>>()
 // plus what they changed themselves since. update_element and set_page
 // compare against it, like a patch does against its read, so a property the
 // user changed meanwhile keeps the user's value. Nodes the agents never saw
-// (no read yet) are set directly.
+// (no read yet) are set directly. Kept per chat (outside agents share one):
+// another chat's read must not hide the user's changes from this one.
 const seen = new Map<string, Map<string, Json>>()
+
+function seenKey(id: string): string {
+  return `${currentChat() ?? ''}|${id}`
+}
 
 function rememberSeen(id: string, design: unknown): void {
   const nodes = new Map<string, Json>()
@@ -198,11 +203,11 @@ function rememberSeen(id: string, design: unknown): void {
   const pages = (design as DesignJson | undefined)?.pages ?? []
   for (const page of pages) nodes.set(page.id, page as unknown as Json)
   walk(pages.flatMap((page) => page.children))
-  seen.set(id, nodes)
+  seen.set(seenKey(id), nodes)
 }
 
 function sawChange(id: string, nodeId: string, props: Json): void {
-  const node = seen.get(id)?.get(nodeId)
+  const node = seen.get(seenKey(id))?.get(nodeId)
   if (node) Object.assign(node, structuredClone(props))
 }
 
@@ -214,7 +219,7 @@ async function setSeen(
   nodeId: string,
   props: Json
 ): Promise<{ rev?: number; skipped?: unknown[] } | null> {
-  const known = seen.get(id)?.get(nodeId)
+  const known = seen.get(seenKey(id))?.get(nodeId)
   if (!known) return null
   const base = Object.fromEntries(Object.keys(props).map((key) => [key, known[key]]))
   const { value, rev } = await exec(id, {

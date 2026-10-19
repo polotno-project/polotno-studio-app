@@ -109,9 +109,13 @@ export function diffDesign(before: Design, after: Design): DiffResult {
     const diff = propChanges(old, page)
     if (diff) changes.push({ kind: 'set', target: 'page', id: page.id, ...diff })
   }
-  const keptPages = after.pages.filter((page) => pagesBefore.has(page.id)).map((page) => page.id)
+  // Added pages are appended; anything else needs the agent's order.
+  const wantedPages = after.pages.map((page) => page.id)
   const oldOrder = before.pages.filter((page) => pagesAfter.has(page.id)).map((page) => page.id)
-  if (!isEqual(keptPages, oldOrder)) changes.push({ kind: 'page-order', ids: keptPages })
+  const addedPages = wantedPages.filter((id) => !pagesBefore.has(id))
+  if (!isEqual(wantedPages, [...oldOrder, ...addedPages])) {
+    changes.push({ kind: 'page-order', ids: wantedPages })
+  }
 
   // Elements on pages that exist on both sides.
   const elementsBefore = index({

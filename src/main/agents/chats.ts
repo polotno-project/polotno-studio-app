@@ -63,13 +63,18 @@ export async function chatImage(entryId: string): Promise<LocalImage | null> {
 }
 
 async function dropImages(chats: Chat[]): Promise<void> {
-  for (const chat of chats) {
-    for (const entry of chat.entries) {
-      if (entry.kind !== 'image') continue
-      const file = await imageFile(entry.id)
-      if (file) await fs.rm(file, { force: true })
-    }
-  }
+  const bases = new Set(
+    chats.flatMap((chat) =>
+      chat.entries.filter((entry) => entry.kind === 'image').map((entry) => imageBase(entry.id))
+    )
+  )
+  if (!bases.size) return
+  const names = await fs.readdir(imagesDir()).catch(() => [] as string[])
+  await Promise.all(
+    names
+      .filter((name) => bases.has(name.split('.')[0]))
+      .map((name) => fs.rm(join(imagesDir(), name), { force: true }))
+  )
 }
 
 // Told whenever a design's list of chats (or which one is open) changes.

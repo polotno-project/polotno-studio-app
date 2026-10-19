@@ -105,11 +105,18 @@ export async function applyChanges(
         case 'add-page':
           store.addPage(change.page as Parameters<DesignStore['addPage']>[0])
           break
-        case 'page-order':
-          change.ids
-            .filter((id) => store.pages.some((page) => page.id === id))
-            .forEach((id, i) => store.pages.find((page) => page.id === id)?.setZIndex(i))
+        case 'page-order': {
+          // Like 'order': pages the user added meanwhile keep their place.
+          const current = store.pages.map((page) => page.id)
+          const known = new Set(change.ids)
+          const wanted = change.ids.filter((id) => current.includes(id))
+          let next = 0
+          const final = current.map((id) => (known.has(id) ? wanted[next++] : id))
+          final.forEach((id, i) => {
+            if (store.pages[i]?.id !== id) store.pages.find((page) => page.id === id)?.setZIndex(i)
+          })
           break
+        }
       }
     }
   })
