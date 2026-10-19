@@ -15,7 +15,7 @@ export function installAppMenu(): void {
 
   const checkForUpdatesItem: Electron.MenuItemConstructorOptions = {
     label: 'Check for Updates…',
-    click: () => void checkForUpdatesInteractive()
+    click: () => checkForUpdatesInteractive()
   }
 
   const template: Electron.MenuItemConstructorOptions[] = [

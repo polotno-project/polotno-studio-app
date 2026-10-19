@@ -7,6 +7,7 @@ import { TabStrip } from './editor/tab-strip'
 import { tabs } from './editor/tabs-model'
 import { openViaDialog, requestCloseTab, restoreSession } from './editor/document'
 import { initPersistence, save, saveAs } from './editor/persistence'
+import { initUpdateToasts } from './editor/updates'
 
 const App = observer(function App(): React.JSX.Element {
   useEffect(() => {
@@ -42,9 +43,11 @@ const App = observer(function App(): React.JSX.Element {
     const offOpen = window.desktop.on('doc:openPath', ({ filePath }) => {
       void import('./editor/document').then(({ openPath }) => openPath(filePath))
     })
+    const offUpdates = initUpdateToasts()
     return () => {
       offMenu()
       offOpen()
+      offUpdates()
     }
   }, [])
 
