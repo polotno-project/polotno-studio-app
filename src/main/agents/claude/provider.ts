@@ -90,13 +90,15 @@ async function check(): Promise<void> {
 const capitalize = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1)
 
 // The SDK speaks the protocol of the Claude Code it was released with. When a
-// session fails before it starts, a much older or newer CLI is the likely
-// cause: say which side to update.
+// session fails before it starts and the CLI is a minor version or more away
+// from that, the gap is a likely cause: say which side to update. (Patch
+// releases come out daily and keep the protocol.)
 const SDK_CLI_VERSION: string | undefined = __CLAUDE_CODE_VERSION__
 
+// By major and minor version only.
 function compareVersions(a: string, b: string): number {
   const [x, y] = [a, b].map((v) => v.split('.').map(Number))
-  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return (x[i] ?? 0) - (y[i] ?? 0)
+  for (let i = 0; i < 2; i++) if (x[i] !== y[i]) return (x[i] ?? 0) - (y[i] ?? 0)
   return 0
 }
 
@@ -105,10 +107,10 @@ function startFailure(error: unknown): string {
   if (!version || !SDK_CLI_VERSION) return message
   const order = compareVersions(version, SDK_CLI_VERSION)
   if (order < 0) {
-    return `${message}\n\nYour Claude Code is ${version}; this app expects ${SDK_CLI_VERSION} or newer. Run \`claude update\` in a terminal, then try again.`
+    return `${message}\n\nYour Claude Code is ${version}; this app was built for ${SDK_CLI_VERSION}. Run \`claude update\` in a terminal, then try again.`
   }
-  if (order > 0 && version.split('.')[0] !== SDK_CLI_VERSION.split('.')[0]) {
-    return `${message}\n\nYour Claude Code is ${version}, newer than this app supports (${SDK_CLI_VERSION}). Update Polotno.`
+  if (order > 0) {
+    return `${message}\n\nYour Claude Code is ${version}; this app was built for ${SDK_CLI_VERSION}. Update Polotno.`
   }
   return message
 }
@@ -519,7 +521,5 @@ export const claudeProvider: AgentProvider = {
   reset,
   conversations,
   running,
-  // Claude has no image generation.
-  image: async () => null,
   shutdown
 }

@@ -35,3 +35,4 @@
 - 2026-10-16 [claude-opus-5-5] testing 'Codex not installed': POLOTNO_CODEX_BIN couldn't hide codex because findBinary fell back to /opt/homebrew/bin when the override path was missing; an override is now the only path tried
 - 2026-10-16 [claude-opus-5-5] running tests: npx vitest picks up scripts/*.test.mjs and reports 'No test suite found' — they are node:test files, run with npm test
 - 2026-10-19 [claude-opus-5-5] testing the agent cursor while scrolling: with the dev window hidden, rAF is paused and timers are throttled, and CDP Input mouseWheel never returns — patch rAF to setTimeout and scroll .polotno-workspace-inner.scrollTop instead
+- 2026-10-19 [claude-opus-5-5] testing an MCP tools.ts change in dev → electron-vite dev runs the prebuilt out/mcp-server.cjs, so edits there need 'npm run build:mcp' before a restart; nothing says it's stale

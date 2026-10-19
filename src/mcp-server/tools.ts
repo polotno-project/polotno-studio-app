@@ -176,7 +176,11 @@ const designId = z.string().describe('The design id (from list_designs or create
 // The designs agents last read, by rev. A patch's index paths ("/pages/0/
 // children/3") mean what they meant in the copy the agent read; the user may
 // have added, removed, or edited elements since. Patching that copy and
-// diffing it keeps the edit pointed at the right elements.
+// diffing it keeps the edit pointed at the right elements. Kept per chat,
+// like `seen` below, whose nodes are the latest read's own: what the chat
+// changes itself since (sawChange) is in its read too, so a patch doesn't take
+// it for the user's, while another chat's changes still count as someone
+// else's.
 const READS_KEPT = 4
 const reads = new Map<string, Map<number, unknown>>()
 
@@ -241,11 +245,11 @@ const KEPT_NOTE =
 function rememberRead(id: string, rev: number | undefined, value: unknown): void {
   rememberSeen(id, value)
   if (rev === undefined) return
-  const byRev = reads.get(id) ?? new Map<number, unknown>()
+  const byRev = reads.get(seenKey(id)) ?? new Map<number, unknown>()
   byRev.delete(rev)
   byRev.set(rev, value)
   while (byRev.size > READS_KEPT) byRev.delete(byRev.keys().next().value as number)
-  reads.set(id, byRev)
+  reads.set(seenKey(id), byRev)
 }
 
 // Above this (characters of compact JSON) agents' tool-result limits cut the
@@ -621,7 +625,7 @@ export const TOOLS: ToolDef[] = [
     },
     handler: async ({ designId: id, patch, baseRev, check: wanted }: any) => {
       const current = await exec(id, { type: 'get_json' })
-      const read = baseRev === undefined ? undefined : reads.get(id)?.get(baseRev)
+      const read = baseRev === undefined ? undefined : reads.get(seenKey(id))?.get(baseRev)
       if (!read && baseRev !== undefined && current.rev !== undefined && baseRev !== current.rev) {
         throw new Error(
           `rev_conflict: design is at rev ${current.rev}, you based the patch on rev ${baseRev}. Re-read with get_design_json.`

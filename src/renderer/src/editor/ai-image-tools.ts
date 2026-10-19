@@ -16,7 +16,8 @@ import { tabs } from './tabs-model'
 // pixels and applies the result; we paint the area to change solid magenta
 // (Codex's image model follows a marked area well and a separate mask badly),
 // have Codex redraw the image, then put the result back only inside the
-// area, so every pixel outside it stays exactly as it was.
+// area, so outside it the original stays (as JPEG for an opaque photo, see
+// composite).
 // Background removal is not routed here: an image model redraws the subject
 // instead of cutting it out. Upscale is not offered: image models can't.
 
@@ -180,8 +181,8 @@ async function composite(
   outCtx.drawImage(original, 0, 0)
   outCtx.drawImage(layer, 0, 0)
 
-  // Opaque photos as JPEG keep the design file small; anything with
-  // transparency stays PNG.
+  // Opaque photos as JPEG keep the design file small (at the cost of a
+  // re-encode outside the area too); anything with transparency stays PNG.
   const data = outCtx.getImageData(0, 0, width, height).data
   let opaque = true
   for (let i = 3; i < data.length && opaque; i += 4) opaque = data[i] === 255

@@ -9,7 +9,7 @@ import type {
   ChatRef
 } from '../../../shared/agent'
 import { getMcpStatus } from '../../mcp/launcher'
-import { readLocalImage, type LocalImage } from '../../../mcp-server/local-image'
+import { readLocalImage } from '../../../mcp-server/local-image'
 import { keepChatImage } from '../chats'
 import { CODEX_DISABLED_FEATURES } from '../lockdown'
 import { findBinary } from '../find-binary'
@@ -34,9 +34,6 @@ const threadByChat = new Map<string, string>()
 const chatByThread = new Map<string, ChatRef>()
 const turnByThread = new Map<string, string>()
 const messageText = new Map<string, string>()
-// Where Codex saved each generated image, by feed entry id. The panel asks
-// for an image by entry id, so the renderer never names a file path.
-const imageFiles = new Map<string, string>()
 // Canvas AI tool requests (Generative fill, Expand) run in their own throwaway
 // threads, apart from the design conversation.
 type ImageEdit = { turnId?: string; savedPath?: string; finish: (status: string) => void }
@@ -189,21 +186,22 @@ function onItem(threadId: string, item: Item, completed: boolean): void {
         status: !completed ? 'running' : item.status === 'completed' ? 'done' : 'failed'
       })
       return
-    case 'imageGeneration':
-      if (completed && item.savedPath) {
-        imageFiles.set(item.id, item.savedPath)
-        void keepChatImage(item.id, item.savedPath).catch((error) =>
-          console.error('Keeping the generated image failed:', error)
-        )
-      }
-      entry(threadId, {
+    case 'imageGeneration': {
+      const image: AgentEntry = {
         kind: 'image',
         id: item.id,
         status: !completed ? 'running' : item.status === 'failed' ? 'failed' : 'done',
         preview: completed ? previewOf(item.savedPath) : undefined,
         prompt: item.revisedPrompt ?? undefined
-      })
+      }
+      if (!completed || !item.savedPath) return entry(threadId, image)
+      // Codex's file is temporary: "Add to design" reads the chat's copy, so
+      // the image shows as done once the copy is there.
+      void keepChatImage(item.id, item.savedPath)
+        .catch((error) => console.error('Keeping the generated image failed:', error))
+        .finally(() => entry(threadId, image))
       return
+    }
   }
 }
 
@@ -486,18 +484,20 @@ async function run(chat: ChatRef, prompt: string, context?: string): Promise<voi
       input: [{ type: 'text', text: prompt }],
       ...(model && { model })
     })
+    if (dropped()) {
+      // Reset while the turn was starting: nothing would stop it otherwise.
+      void codex
+        .request('turn/interrupt', { threadId, turnId: turn.id })
+        .finally(() => codex.request('thread/unsubscribe', { threadId }))
+        .catch(() => undefined)
+      return
+    }
     turnByThread.set(threadId, turn.id)
     if (stopRequested.has(chat.chatId)) await stop(chat.chatId)
   } catch (error) {
     if (!dropped()) finishRun(chat)
     throw error
   }
-}
-
-// The full-size generated image behind a feed entry, for "Add to design".
-async function image(id: string): Promise<LocalImage | null> {
-  const path = imageFiles.get(id)
-  return path ? readLocalImage(path) : null
 }
 
 const EDIT_INSTRUCTIONS = `You are an image editing tool inside a design
@@ -624,6 +624,7 @@ function reset(chatId: string): void {
   threadByChat.delete(chatId)
   chatByThread.delete(threadId)
   turnByThread.delete(threadId)
+  void server?.request('thread/unsubscribe', { threadId }).catch(() => undefined)
   finishRun(chat)
 }
 
@@ -653,6 +654,5 @@ export const codexProvider: AgentProvider = {
   reset,
   conversations,
   running,
-  image,
   shutdown
 }

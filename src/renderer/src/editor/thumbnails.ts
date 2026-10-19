@@ -40,19 +40,13 @@ async function work(): Promise<void> {
   }
 }
 
-const nextFrame = (): Promise<void> =>
-  new Promise((resolve) => requestAnimationFrame(() => resolve()))
-
 async function render(filePath: string): Promise<void> {
   const { content } = await window.desktop.invoke('file:read', { filePath })
   const store = createDesignStore()
   try {
     store.loadJSON(parseProjectText(content) as Parameters<DesignStore['loadJSON']>[0])
     runInAction(() => (thumbnails.rendering = store))
-    // Mounted, then every image and font in.
-    await nextFrame()
-    await nextFrame()
-    await store.waitLoading()
+    // toDataURL waits for the page's stage to mount and its images and fonts.
     const dataUrl = await store.toDataURL({
       pixelRatio: PREVIEW_WIDTH / store.width,
       mimeType: 'image/jpeg',

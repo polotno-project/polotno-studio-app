@@ -154,13 +154,9 @@ export function resetAllAgents(): void {
   }
 }
 
+// A generated image at full size by feed entry id, for "Add to design": the
+// copy kept with its chat.
 export async function agentImage(id: string): Promise<LocalImage> {
-  for (const provider of Object.values(providers)) {
-    // Its file may be gone (temp files are cleaned): the kept copy below.
-    const image = await provider.image(id).catch(() => null)
-    if (image) return image
-  }
-  // A chat from an earlier launch: the copy kept with it.
   const kept = await chatImage(id)
   if (kept) return kept
   throw new Error('This image is no longer available.')

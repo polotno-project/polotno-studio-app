@@ -1,6 +1,5 @@
 import { BrowserWindow } from 'electron'
 import type { AgentEvent, AgentInfo, AgentModels, AgentStatus, ChatRef } from '../../shared/agent'
-import type { LocalImage } from '../../mcp-server/local-image'
 import { recordEntry } from './chats'
 
 // One AI agent the panel can run: the user's own install of it, their own
@@ -27,9 +26,6 @@ export interface AgentProvider {
   conversations(): ChatRef[]
   // Chats whose conversation is working on a turn.
   running(): string[]
-  // A generated image at full size by feed entry id, or null if not this
-  // agent's.
-  image(id: string): Promise<LocalImage | null>
   shutdown(): void
 }
 

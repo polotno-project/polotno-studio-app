@@ -5,16 +5,19 @@ import { AlertTriangle } from 'lucide-react'
 import { Button } from 'polotno/primitives/button'
 import { Spinner } from 'polotno/primitives/spinner'
 import { agent } from './agent-model'
+import { tabs } from './tabs-model'
 
 // The canvas AI tools (Generative fill, Expand) run on the user's Codex,
 // whichever agent the AI panel chats with. When Codex can't run them, a
 // callout at the top of Polotno's edit panel says so before Generate.
 
 // Polotno's edit panel takes only text, so the callout goes into a node we
-// put at the top of its form (the form remounts per tool and element).
-function useEditPanelHost(): HTMLElement | null {
+// put at the top of its form (the form remounts per tool and element). Only
+// watched while `wanted`: an AI tool is open and Codex can't run it.
+function useEditPanelHost(wanted: boolean): HTMLElement | null {
   const [host, setHost] = useState<HTMLElement | null>(null)
   useEffect(() => {
+    if (!wanted) return
     let current: HTMLElement | null = null
     const sync = (): void => {
       const form = document.querySelector('.polotno-image-edit-panel')
@@ -33,15 +36,22 @@ function useEditPanelHost(): HTMLElement | null {
     return () => {
       observer.disconnect()
       current?.remove()
+      setHost(null)
     }
-  }, [])
+  }, [wanted])
   return host
 }
 
 export const CodexNotice = observer(function CodexNotice(): React.JSX.Element | null {
-  const host = useEditPanelHost()
   const status = agent.codexStatus
-  if (!host || !status || status.state === 'ready' || status.state === 'starting') return null
+  const tool = tabs.active?.store.activeTool?.name
+  const host = useEditPanelHost(
+    (tool === 'inpaint' || tool === 'expand') &&
+      !!status &&
+      status.state !== 'ready' &&
+      status.state !== 'starting'
+  )
+  if (!host || !status) return null
 
   let title: string
   let body: React.ReactNode
