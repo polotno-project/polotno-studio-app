@@ -15,6 +15,8 @@ export function initSentry(): void {
     // Matches the release the vite plugin uploads source maps to
     // (electron.vite.config.ts).
     release: `polotno-app@${app.getVersion()}`,
-    environment: app.isPackaged ? 'production' : 'development'
+    environment: app.isPackaged ? 'production' : 'development',
+    // No user IP/geo: main's setting covers events from every process.
+    dataCollection: { userInfo: false }
   })
 }

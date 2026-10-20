@@ -10,4 +10,7 @@ Goal: crash/error reporting via Sentry. User decisions: always on (no opt-out to
 - [x] Source maps: plugin + `sourcemap: 'hidden'` only when SENTRY_AUTH_TOKEN is set; maps deleted after upload; upload failure doesn't fail the build
 - [x] release.yml passes secrets SENTRY_DSN / SENTRY_AUTH_TOKEN and vars SENTRY_ORG / SENTRY_PROJECT; README documents it
 - [x] Verified against a local envelope-capture server (DSN http://key@127.0.0.1:8999/1, app with --user-data-dir): renderer error, renderer unhandled rejection, main unhandled rejection, native renderer crash (Page.crash → fatal minidump event), all with release polotno-app@0.1.4. No screenshots/local variables attached (SDK defaults off). CLI render still exits 0.
-- [ ] Repo owner: create the Sentry project, add the secrets/variables
+- [x] Sentry project polotno/polotno-studio-app (platform electron) created via MCP; real renderer error verified in Sentry (POLOTNO-STUDIO-APP-2)
+- [x] No user IP/geo: `dataCollection: { userInfo: false }` in main (verified: POLOTNO-STUDIO-APP-3 has 0 users)
+- [x] GitHub: secret SENTRY_DSN, variables SENTRY_ORG=polotno / SENTRY_PROJECT=polotno-studio-app set via gh
+- [ ] SENTRY_AUTH_TOKEN secret (org auth token, created in Sentry UI) — needed for source-map upload in release.yml
