@@ -1,9 +1,8 @@
-import { randomUUID, timingSafeEqual } from 'node:crypto'
+import { timingSafeEqual } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import express from 'express'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { registerTools, resolveTool } from './tools'
 import { registerResources } from './resources'
@@ -138,9 +137,11 @@ app.post('/api/call/:verb', (req, res) => {
     res.json(result.value)
   })().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error)
-    res.status(message.startsWith('rev_conflict') || message.startsWith('invalid_') ? 409 : 500).json({
-      error: message
-    })
+    res
+      .status(message.startsWith('rev_conflict') || message.startsWith('invalid_') ? 409 : 500)
+      .json({
+        error: message
+      })
   })
 })
 
@@ -148,40 +149,30 @@ app.get('/', (_req, res) => {
   res.json({ name: 'polotno-app-mcp', endpoint: '/mcp' })
 })
 
-const transports = new Map<string, StreamableHTTPServerTransport>()
-
-app.all('/mcp', (req, res) => {
+// Stateless: a fresh server + transport per request, no sessions. The server
+// never pushes to the client (no list_changed, logging, sampling), and without
+// sessions a client — or the .mcpb proxy — survives an app restart untouched:
+// the port and the per-install token stay the same. The .mcpb installed in
+// Claude Desktop never auto-updates, so this side has to carry that.
+app.post('/mcp', (req, res) => {
   void (async () => {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined
-    let transport = sessionId ? transports.get(sessionId) : undefined
-
-    if (!transport) {
-      if (req.method !== 'POST' || !isInitializeRequest(req.body)) {
-        res.status(400).json({
-          jsonrpc: '2.0',
-          error: { code: -32000, message: 'No valid session — send initialize first' },
-          id: null
-        })
-        return
-      }
-      const newTransport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (sid) => {
-          transports.set(sid, newTransport)
-        }
-      })
-      newTransport.onclose = () => {
-        if (newTransport.sessionId) transports.delete(newTransport.sessionId)
-      }
-      transport = newTransport
-      await createServer().connect(transport)
-    }
-
+    const server = createServer()
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
+    res.on('close', () => {
+      void transport.close()
+      void server.close()
+    })
+    await server.connect(transport)
     await transport.handleRequest(req, res, req.body)
   })().catch((error) => {
     console.error('MCP request failed', error)
     if (!res.headersSent) res.status(500).end()
   })
+})
+
+// No standalone SSE stream (GET) or session to end (DELETE) without sessions.
+app.all('/mcp', (_req, res) => {
+  res.status(405).set('Allow', 'POST').end()
 })
 
 function listen(port: number, fallbackToEphemeral: boolean): void {

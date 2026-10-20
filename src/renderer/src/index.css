@@ -24,6 +24,16 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* Polotno's toolbar, right under the tab strip, drags the window too. Its
+   markup isn't ours, so the opt-out goes by element: every control (buttons,
+   inputs, Base UI triggers that render as role/tabindex elements). */
+.polotno-toolbar {
+  -webkit-app-region: drag;
+}
+.polotno-toolbar :is(button, input, select, textarea, a, label, [role], [tabindex]) {
+  -webkit-app-region: no-drag;
+}
+
 /* Keeps the tab strip's right edge clear of the Windows window controls
    overlay. The titlebar-area-* env values only exist while the overlay is on;
    elsewhere this falls back to plain 0.5rem padding. */
