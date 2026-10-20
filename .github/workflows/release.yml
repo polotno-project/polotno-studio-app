@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npm run build
@@ -31,7 +31,22 @@ jobs:
                    AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET; do
             if [ -z "${!v}" ]; then unset "$v"; fi
           done
-          npx electron-builder --publish always
+          sign_args=()
+          # Windows Azure Trusted Signing, release builds only (see the note in
+          # electron-builder.yml). Uncomment once the AZURE_* secrets exist and
+          # the four values below are the real ones (electron-builder 26 option
+          # names; v27 moves them to win.sign with type: azure).
+          # publisherName must equal the certificate subject exactly: signed
+          # apps refuse updates signed under any other name, so never change it.
+          # if [ "$RUNNER_OS" = Windows ] && [ -n "${AZURE_CLIENT_SECRET:-}" ]; then
+          #   sign_args=(
+          #     -c.win.azureSignOptions.endpoint=https://eus.codesigning.azure.net/
+          #     -c.win.azureSignOptions.codeSigningAccountName=polotno
+          #     -c.win.azureSignOptions.certificateProfileName=polotno-app
+          #     "-c.win.azureSignOptions.publisherName=CN=Polotno, O=Polotno, L=City, S=State, C=US"
+          #   )
+          # fi
+          npx electron-builder --publish always "${sign_args[@]}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # macOS signing + notarization (set these repo secrets to enable;
@@ -41,8 +56,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Windows Azure Trusted Signing (uncomment azureSignOptions in
-          # electron-builder.yml when these are set):
+          # Windows Azure Trusted Signing (also uncomment sign_args above):
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}

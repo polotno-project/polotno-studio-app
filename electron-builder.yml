@@ -35,14 +35,17 @@ win:
   target:
     - target: nsis
       arch: [x64, arm64]
-  # Azure Trusted Signing — set env AZURE_TENANT_ID / AZURE_CLIENT_ID /
-  # AZURE_CLIENT_SECRET in CI and uncomment:
-  # azureSignOptions:
-  #   endpoint: https://eus.codesigning.azure.net
-  #   codeSigningAccountName: polotno
-  #   certificateProfileName: polotno-app
+  # Azure Trusted Signing is configured in .github/workflows/release.yml, not
+  # here: whenever win.azureSignOptions is set, electron-builder runs
+  # Invoke-TrustedSigning, which fails without the AZURE_* credentials (PR
+  # builds in build.yml, local --win builds on macOS).
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
+  # Per-user one-click install (%LOCALAPPDATA%\Programs): updates install
+  # without a UAC prompt, and build/win/cli-path.ps1 edits the per-user (HKCU)
+  # PATH — a per-machine install would need HKLM there too.
+  oneClick: true
+  perMachine: false
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
