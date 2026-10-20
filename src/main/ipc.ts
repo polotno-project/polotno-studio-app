@@ -18,6 +18,7 @@ import { listRecent, addRecent } from './recent'
 import { markRendererReady } from './open-files'
 import { getMcpStatus, restartMcpServer } from './mcp/launcher'
 import { regenerateMcpToken } from './mcp/token'
+import { getUpdateStatus, installUpdate } from './updater'
 import {
   readDesignFile,
   readDesignFileBase64,
@@ -61,6 +62,10 @@ export function registerIpcHandlers(): void {
   handle('doc:close', (_event, { docId }) => {
     unwatchDocument(docId)
     documents.close(docId)
+    persistSession()
+  })
+  handle('doc:reorder', (_event, { docIds }) => {
+    documents.reorder(docIds)
     persistSession()
   })
 
@@ -153,4 +158,6 @@ export function registerIpcHandlers(): void {
     if (!/^(https?|cursor|vscode):/.test(url)) throw new Error(`Refusing to open ${url}`)
     void shell.openExternal(url)
   })
+  handle('update:getStatus', () => getUpdateStatus())
+  handle('update:install', () => installUpdate())
 }

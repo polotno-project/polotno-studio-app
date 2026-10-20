@@ -18,11 +18,25 @@ export interface LibraryEntry {
   preview: string | null
 }
 
+// Auto-update (src/main/updater.ts). `userAsked`: the person picked Check for
+// Updates, so every step and the outcome are shown; a background check only
+// surfaces an update once it is downloaded.
+export type UpdateStatus = { userAsked: boolean } & (
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'upToDate'; version: string }
+  | { state: 'downloading'; version: string; percent: number }
+  | { state: 'ready'; version: string }
+  | { state: 'error'; message: string }
+)
+
 // Promise-based renderer -> main calls (ipcRenderer.invoke).
 export interface InvokeApi {
   'doc:register': (p: { docId: DocId; filePath: string | null }) => void
   'doc:setFilePath': (p: { docId: DocId; filePath: string }) => void
   'doc:close': (p: { docId: DocId }) => void
+  // Tab order after a drag in the tab strip; the session file follows it.
+  'doc:reorder': (p: { docIds: DocId[] }) => void
   'file:openDialog': () => { filePaths: string[] } | null
   'file:read': (p: { filePath: string }) => OpenedFile
   'file:readBase64': (p: { filePath: string }) => { filePath: string; base64: string }
@@ -49,6 +63,9 @@ export interface InvokeApi {
   'mcp:saveMcpb': () => { filePath: string } | null
   'mcp:installSkill': () => { path: string }
   'shell:openExternal': (p: { url: string }) => void
+  'update:getStatus': () => UpdateStatus
+  // Restarts into the downloaded update.
+  'update:install': () => void
 }
 
 export type MenuAction = 'newTab' | 'openFile' | 'save' | 'saveAs' | 'closeTab' | 'export'
@@ -64,6 +81,7 @@ export interface MainEvents {
   // An export's download finished: saved (completed), cancelled in the save
   // dialog, or failed (interrupted).
   'export:downloadDone': { state: 'completed' | 'cancelled' | 'interrupted'; filePath: string }
+  'update:status': UpdateStatus
 }
 
 // Fire-and-forget renderer -> main messages (ipcRenderer.send).

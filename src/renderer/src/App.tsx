@@ -7,6 +7,7 @@ import { TabStrip } from './editor/tab-strip'
 import { tabs } from './editor/tabs-model'
 import { openViaDialog, requestCloseTab, restoreSession } from './editor/document'
 import { initPersistence, save, saveAs } from './editor/persistence'
+import { initUpdateToasts } from './editor/updates'
 
 const App = observer(function App(): React.JSX.Element {
   useEffect(() => {
@@ -47,10 +48,12 @@ const App = observer(function App(): React.JSX.Element {
       if (state === 'completed') toast.success(`Saved to ${filePath}`)
       else if (state === 'interrupted') toast.error('The export could not be saved.')
     })
+    const offUpdates = initUpdateToasts()
     return () => {
       offMenu()
       offOpen()
       offDownload()
+      offUpdates()
     }
   }, [])
 
