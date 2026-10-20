@@ -10,6 +10,8 @@ export interface BridgeRequest {
   id: string
   docId: DocId
   command: BridgeCommand
+  // The AI panel chat whose agent sent it, if any.
+  chat?: string
 }
 
 export interface BridgeResponse {

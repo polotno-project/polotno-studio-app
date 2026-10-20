@@ -19,7 +19,10 @@ import { getEditorWindow } from './window'
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
-const pending = new Map<string, { resolve: (result: CommandResult) => void; timer: NodeJS.Timeout }>()
+const pending = new Map<
+  string,
+  { resolve: (result: CommandResult) => void; timer: NodeJS.Timeout }
+>()
 const queues = new Map<DocId, Promise<CommandResult>>()
 
 export function initBridgeRouter(): void {
@@ -36,23 +39,29 @@ function sendRequest(
   wc: WebContents,
   docId: DocId,
   command: BridgeCommand,
-  timeoutMs: number
+  timeoutMs: number,
+  chat?: string
 ): Promise<CommandResult> {
   return new Promise((resolve) => {
     const id = randomUUID()
     const timer = setTimeout(() => {
       pending.delete(id)
-      resolve({ ok: false, error: { code: 'timeout', message: `Command ${command.type} timed out` } })
+      resolve({
+        ok: false,
+        error: { code: 'timeout', message: `Command ${command.type} timed out` }
+      })
     }, timeoutMs)
     pending.set(id, { resolve, timer })
-    wc.send('bridge:request', { id, docId, command })
+    wc.send('bridge:request', { id, docId, command, chat })
   })
 }
 
+// `chat`: the AI panel chat that sent it, if any (the canvas cursor is per chat).
 export function execCommand(
   docId: DocId,
   command: DesignCommand,
-  timeoutMs = DEFAULT_TIMEOUT_MS
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  chat?: string
 ): Promise<CommandResult> {
   const run = (): Promise<CommandResult> => {
     const entry = documents.get(docId)
@@ -69,7 +78,7 @@ export function execCommand(
         error: { code: 'document_not_found', message: 'The hosting window is gone' }
       })
     }
-    return sendRequest(wc, docId, command, timeoutMs)
+    return sendRequest(wc, docId, command, timeoutMs, chat)
   }
 
   const prev = queues.get(docId) ?? Promise.resolve<CommandResult>({ ok: true })

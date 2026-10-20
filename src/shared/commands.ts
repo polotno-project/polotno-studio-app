@@ -1,3 +1,11 @@
+import type { DesignChange } from './design-diff'
+
+// What Polotno fills in for a page and for each element type (get_defaults).
+export type DesignDefaults = {
+  page: Record<string, unknown>
+  elements: Record<string, Record<string, unknown>>
+}
+
 // The single vocabulary for store operations. Every agent-visible edit (MCP
 // tools) and every internal bridge call maps to exactly one DesignCommand.
 // The executor lives in the renderer (src/renderer/src/editor/executor.ts) and
@@ -7,8 +15,12 @@
 export type DesignCommand =
   | { type: 'ping' }
   | { type: 'get_json' }
+  // Polotno's default page and per-type element values (compact-design.ts).
+  | { type: 'get_defaults' }
   | { type: 'get_info' }
   | { type: 'load_json'; json: unknown }
+  // An agent's JSON Patch, diffed into per-id store operations (design-diff.ts).
+  | { type: 'apply_changes'; changes: DesignChange[] }
   | { type: 'set_size'; width: number; height: number; magicResize?: boolean }
   | { type: 'add_page'; background?: string; duration?: number }
   | { type: 'remove_page'; pageId: string }
@@ -21,6 +33,15 @@ export type DesignCommand =
       atIndex?: number
     }
   | { type: 'update_element'; elementId: string; props: Record<string, unknown> }
+  // A new picture in an image element, cropped to fill the element as it is
+  // when the command runs (the user may have resized it meanwhile).
+  | {
+      type: 'replace_image'
+      elementId: string
+      src: string
+      imageWidth: number
+      imageHeight: number
+    }
   | { type: 'remove_elements'; elementIds: string[] }
   | {
       type: 'move_element'
@@ -78,6 +99,7 @@ export type BridgeCommand = DesignCommand | AppCommand
 // Commands that change the document (drive the per-design rev counter).
 export const MUTATING_COMMANDS: ReadonlySet<DesignCommand['type']> = new Set([
   'load_json',
+  'apply_changes',
   'set_size',
   'add_page',
   'remove_page',
@@ -85,6 +107,7 @@ export const MUTATING_COMMANDS: ReadonlySet<DesignCommand['type']> = new Set([
   'set_page',
   'add_element',
   'update_element',
+  'replace_image',
   'remove_elements',
   'move_element'
 ] as DesignCommand['type'][])
@@ -102,5 +125,4 @@ export interface CommandFailure {
 }
 
 export type CommandResult =
-  | { ok: true; value?: unknown; rev?: number }
-  | { ok: false; error: CommandFailure }
+  { ok: true; value?: unknown; rev?: number } | { ok: false; error: CommandFailure }

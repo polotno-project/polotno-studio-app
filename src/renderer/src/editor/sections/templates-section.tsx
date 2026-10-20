@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { observable, runInAction } from 'mobx'
 import { observer } from 'mobx-react-lite'
 import {
   SectionTab,
   TemplatesSection as StockTemplatesSection,
   type Section
 } from 'polotno/side-panel'
-import { LayoutTemplate, MoreHorizontal, Plus } from 'lucide-react'
+import { Check, LayoutTemplate, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from 'polotno/primitives/button'
 import {
@@ -20,13 +21,37 @@ import type { DesignStore } from '../store'
 import { tabs } from '../tabs-model'
 import { openPath } from '../document'
 import { SegmentedTabs } from './segmented-tabs'
+import { renderMissingThumbnails } from '../thumbnails'
+
+// Which half of the panel shows (Library or My designs). The editor remounts
+// per tab, so this lives outside the panel: switching or opening tabs keeps it.
+const view = observable({ tab: 'stock' as 'stock' | 'mine' })
+
+// Closes the designs' tabs first (so autosave can't bring the files back),
+// then moves them to the trash.
+async function deleteDesigns(filePaths: string[]): Promise<void> {
+  for (const filePath of filePaths) {
+    const openTab = tabs.getByPath(filePath)
+    if (openTab) tabs.closeTab(openTab.docId)
+    await window.desktop.invoke('library:delete', { filePath })
+  }
+  if (tabs.tabs.length === 0) tabs.newTab()
+}
 
 const DesignCard = observer(function DesignCard({
   entry,
-  onChanged
+  onChanged,
+  selected,
+  selecting,
+  onToggle
 }: {
   entry: LibraryEntry
   onChanged: () => void
+  selected: boolean
+  // Some designs are selected: a click selects instead of opening.
+  selecting: boolean
+  // range: shift-click, selects every design from the last one clicked.
+  onToggle: (range: boolean) => void
 }): React.JSX.Element {
   const [renaming, setRenaming] = useState(false)
   const [draftName, setDraftName] = useState(entry.name)
@@ -62,10 +87,7 @@ const DesignCard = observer(function DesignCard({
       confirmLabel: 'Move to Trash'
     })
     if (!confirmed) return
-    // Close first so autosave cannot resurrect the file after deletion.
-    if (openTab) tabs.closeTab(openTab.docId)
-    await window.desktop.invoke('library:delete', { filePath: entry.filePath })
-    if (tabs.tabs.length === 0) tabs.newTab()
+    await deleteDesigns([entry.filePath])
     onChanged()
   }
 
@@ -73,21 +95,60 @@ const DesignCard = observer(function DesignCard({
     <div
       className={
         'group relative flex flex-col overflow-hidden rounded-md border text-left transition-colors ' +
-        (isActive
-          ? 'border-blue-500'
-          : 'border-neutral-200 hover:border-neutral-400 dark:border-neutral-700 dark:hover:border-neutral-500')
+        (selected
+          ? 'border-blue-500 ring-2 ring-blue-500/40'
+          : isActive
+            ? 'border-blue-500 ring-1 ring-blue-500'
+            : 'border-neutral-200 hover:border-neutral-400 dark:border-neutral-700 dark:hover:border-neutral-500')
       }
     >
       <button
-        onClick={() => void openPath(entry.filePath)}
+        onClick={(event) => {
+          if (selecting || event.metaKey || event.ctrlKey || event.shiftKey) {
+            onToggle(event.shiftKey)
+          } else void openPath(entry.filePath)
+        }}
+        title={selecting ? undefined : 'Open (⌘/Ctrl-click to select, Shift-click for a range)'}
         className="flex aspect-square w-full items-center justify-center bg-neutral-50 dark:bg-neutral-900"
       >
         {entry.preview ? (
-          <img src={entry.preview} alt={entry.name} className="max-h-full max-w-full object-contain" />
+          <img
+            src={entry.preview}
+            alt={entry.name}
+            className="max-h-full max-w-full object-contain"
+          />
         ) : (
           <LayoutTemplate className="size-6 text-neutral-300" />
         )}
       </button>
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={selected}
+        title={selected ? 'Deselect' : 'Select'}
+        onClick={(event) => onToggle(event.shiftKey)}
+        className={
+          'absolute top-1.5 left-1.5 flex size-5 items-center justify-center rounded border shadow-sm transition-opacity ' +
+          (selected
+            ? 'border-blue-500 bg-blue-500 text-white'
+            : 'border-neutral-300 bg-white/90 text-transparent dark:border-neutral-600 dark:bg-neutral-800/90 ' +
+              (selecting ? '' : 'opacity-0 group-hover:opacity-100'))
+        }
+      >
+        <Check className="size-3.5" />
+      </button>
+      {openTab && (
+        <span
+          className={
+            'pointer-events-none absolute top-1.5 right-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm ' +
+            (isActive
+              ? 'bg-blue-500 text-white'
+              : 'bg-white/90 text-blue-600 dark:bg-neutral-800/90')
+          }
+        >
+          {isActive ? 'Editing' : 'Open'}
+        </span>
+      )}
       <div className="flex items-center gap-1 px-2 py-1.5">
         {renaming ? (
           <Input
@@ -102,10 +163,7 @@ const DesignCard = observer(function DesignCard({
             className="h-6 flex-1 px-1 text-xs"
           />
         ) : (
-          <span className="min-w-0 flex-1 truncate text-xs font-medium">
-            {entry.name}
-            {openTab && <span className="ml-1 text-[10px] text-blue-500">open</span>}
-          </span>
+          <span className="min-w-0 flex-1 truncate text-xs font-medium">{entry.name}</span>
         )}
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -137,22 +195,106 @@ const DesignCard = observer(function DesignCard({
 
 const MyDesignsPanel = observer(function MyDesignsPanel(): React.JSX.Element {
   const [entries, setEntries] = useState<LibraryEntry[]>([])
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
+  // The design clicked last: where a shift-click range starts.
+  const anchor = useRef<string | null>(null)
   const refresh = useCallback(() => {
-    void window.desktop.invoke('library:list').then(setEntries)
+    void window.desktop.invoke('library:list').then((list) => {
+      setEntries(list)
+      renderMissingThumbnails(list)
+      // Forget selected designs that are gone.
+      setSelected((current) => {
+        const present = new Set(list.map((entry) => entry.filePath))
+        const kept = [...current].filter((filePath) => present.has(filePath))
+        return kept.length === current.size ? current : new Set(kept)
+      })
+    })
   }, [])
-  useEffect(refresh, [refresh])
+  // New designs, renames, deletes and fresh thumbnails show up as they happen.
+  useEffect(() => {
+    refresh()
+    return window.desktop.on('library:changed', refresh)
+  }, [refresh])
+
+  const toggle = (filePath: string, range: boolean): void => {
+    const from =
+      range && anchor.current ? entries.findIndex((e) => e.filePath === anchor.current) : -1
+    anchor.current = filePath
+    setSelected((current) => {
+      const next = new Set(current)
+      if (from >= 0) {
+        // A range only adds: designs already selected stay selected.
+        const to = entries.findIndex((e) => e.filePath === filePath)
+        const [start, end] = from < to ? [from, to] : [to, from]
+        for (const entry of entries.slice(start, end + 1)) next.add(entry.filePath)
+      } else if (!next.delete(filePath)) next.add(filePath)
+      return next
+    })
+  }
+
+  const clearSelection = (): void => {
+    anchor.current = null
+    setSelected(new Set())
+  }
+
+  const removeSelected = async (): Promise<void> => {
+    const count = selected.size
+    const confirmed = await window.desktop.invoke('dialog:confirm', {
+      message: count === 1 ? 'Move 1 design to the trash?' : `Move ${count} designs to the trash?`,
+      detail: 'You can restore them from the system trash.',
+      confirmLabel: 'Move to Trash'
+    })
+    if (!confirmed) return
+    try {
+      await deleteDesigns([...selected])
+    } catch (error) {
+      console.error('Delete failed', error)
+      toast.error('Could not delete every design.')
+    }
+    clearSelection()
+    refresh()
+  }
 
   return (
     <div className="flex h-full flex-col gap-2">
-      {/* The new design is a blank tab, not a library file yet — it joins the
-          list below as soon as the user puts something in it. */}
-      <Button size="sm" onClick={() => tabs.newTab()}>
-        <Plus className="size-3.5" />
-        New design
-      </Button>
+      {selected.size > 0 ? (
+        <div className="flex h-8 items-center gap-2 text-xs">
+          <span className="flex-1 font-medium">{selected.size} selected</span>
+          {selected.size < entries.length && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelected(new Set(entries.map((entry) => entry.filePath)))}
+            >
+              Select all
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={clearSelection}>
+            Cancel
+          </Button>
+          <Button size="sm" variant="destructive" onClick={() => void removeSelected()}>
+            <Trash2 className="size-3.5" />
+            Delete
+          </Button>
+        </div>
+      ) : (
+        // The new design is a blank tab, not a library file yet — it joins
+        // the list below as soon as the user puts something in it.
+        <Button size="sm" onClick={() => tabs.newTab()}>
+          <Plus className="size-3.5" />
+          New design
+        </Button>
+      )}
       <div className="grid flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto pb-2">
         {entries.map((entry) => (
-          <DesignCard key={entry.filePath} entry={entry} onChanged={refresh} />
+          <DesignCard
+            key={entry.filePath}
+            entry={entry}
+            onChanged={refresh}
+            selected={selected.has(entry.filePath)}
+            selecting={selected.size > 0}
+            onToggle={(range) => toggle(entry.filePath, range)}
+          />
         ))}
         {entries.length === 0 && (
           <p className="col-span-2 pt-6 text-center text-xs text-neutral-400">
@@ -167,12 +309,12 @@ const MyDesignsPanel = observer(function MyDesignsPanel(): React.JSX.Element {
 const StockPanel = StockTemplatesSection.Panel as React.ComponentType<{ store: DesignStore }>
 
 const Panel = observer(function Panel({ store }: { store: DesignStore }): React.JSX.Element {
-  const [tab, setTab] = useState<'stock' | 'mine'>('stock')
+  const tab = view.tab
   return (
     <div className="flex h-full flex-col">
       <SegmentedTabs
         value={tab}
-        onValueChange={setTab}
+        onValueChange={(value) => runInAction(() => (view.tab = value))}
         tabs={[
           { value: 'stock', label: 'Library' },
           { value: 'mine', label: 'My designs' }

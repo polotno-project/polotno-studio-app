@@ -1,5 +1,6 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { DragEvent } from 'react'
+import { reaction } from 'mobx'
 import { observer } from 'mobx-react-lite'
 import { PolotnoContainer, SidePanelWrap, WorkspaceWrap } from 'polotno'
 import { Workspace } from 'polotno/canvas/workspace'
@@ -17,19 +18,47 @@ import { designFileKind, parseDesignFile } from './import-design'
 import { nameFromPath } from './tabs-model'
 import { importDesign } from './document'
 import { TemplatesSection } from './sections/templates-section'
+import { AiSection } from './sections/ai-section'
+import { PageSlot } from './agent-cursor'
+import { CodexNotice } from './codex-notice'
 
 // Our Templates section replaces the stock one (same slot) to add the
-// "My designs" tab. Every other stock section, upload included, stays.
+// "My designs" tab. Every other stock section, upload included, stays. The
+// AI section (Codex) sits on top.
 const SECTIONS = [
+  AiSection,
   TemplatesSection,
   ...DEFAULT_SECTIONS.filter((section) => section.name !== 'templates')
 ] as Section[]
+
+// Each page's slot carries the agent cursors (agent-cursor.tsx).
+const WORKSPACE_COMPONENTS = { PageControls: PageSlot }
+
+// The editor remounts per tab, and Polotno's SidePanel opens its default
+// section on mount. Each tab reopens the section it had (kept in its store);
+// a new tab opens the one the user was last in.
+let lastSection = 'photos'
 
 export const PolotnoEditor = observer(function PolotnoEditor({
   store
 }: {
   store: DesignStore
 }): React.JSX.Element {
+  const [section] = useState(() => store.openedSidePanel || lastSection)
+  // Tracked as it changes: a new tab's editor renders before this one's
+  // cleanup would run.
+  useEffect(
+    () =>
+      reaction(
+        () => store.openedSidePanel,
+        (opened) => {
+          if (opened) lastSection = opened
+        },
+        { fireImmediately: true }
+      ),
+    [store]
+  )
+
   const onGlobalDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     if (e.dataTransfer.types.includes('Files')) e.preventDefault()
   }, [])
@@ -80,13 +109,14 @@ export const PolotnoEditor = observer(function PolotnoEditor({
     <div className="h-full w-full" onDragOver={onGlobalDragOver} onDrop={onGlobalDrop}>
       <PolotnoContainer style={{ width: '100%', height: '100%' }}>
         <SidePanelWrap>
-          <SidePanel store={store} sections={SECTIONS} />
+          <SidePanel store={store} sections={SECTIONS} defaultSection={section} />
         </SidePanelWrap>
         <WorkspaceWrap>
           <Toolbar store={store} />
-          <Workspace store={store} />
+          <Workspace store={store} components={WORKSPACE_COMPONENTS} />
           <ZoomButtons store={store} />
           <PagesTimeline store={store} />
+          <CodexNotice />
         </WorkspaceWrap>
       </PolotnoContainer>
     </div>

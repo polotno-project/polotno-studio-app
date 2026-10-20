@@ -1,6 +1,7 @@
 import { observer } from 'mobx-react-lite'
 import { WorkspaceCanvas } from 'polotno/canvas/workspace-canvas'
 import { tabs } from './tabs-model'
+import { thumbnails } from './thumbnails'
 
 const NULL_COMPONENTS = {
   PageControls: () => null,
@@ -37,6 +38,17 @@ export const HiddenStages = observer(function HiddenStages(): React.JSX.Element 
             />
           </div>
         ))}
+      {/* A library design being drawn for its missing thumbnail. */}
+      {thumbnails.rendering && (
+        <div style={{ width: 800, height: 800 }}>
+          <WorkspaceCanvas
+            store={thumbnails.rendering}
+            visiblePagesOffset={0}
+            renderOnlyActivePage
+            components={NULL_COMPONENTS}
+          />
+        </div>
+      )}
     </div>
   )
 })

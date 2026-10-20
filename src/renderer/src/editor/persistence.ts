@@ -13,7 +13,7 @@ import { tabs, designSnapshot, type DesignTab } from './tabs-model'
 const DIRTY_DEBOUNCE_MS = 400
 const AUTOSAVE_DEBOUNCE_MS = 1000
 const AUTOSAVE_RETRY_MS = 5000
-const PREVIEW_WIDTH = 240
+export const PREVIEW_WIDTH = 240
 
 interface PersistenceState {
   // Serialized design at last load/save; dirty = snapshot differs from it.
@@ -35,10 +35,14 @@ const states = new Map<DocId, PersistenceState>()
 
 async function writePreview(tab: DesignTab): Promise<void> {
   try {
+    // quickMode: a full export below pixelRatio 1 rebuilds every element's
+    // buffer that small and back, so images on the canvas flicker pixelated
+    // after each autosave while the user works.
     const dataUrl = await tab.store.toDataURL({
       pixelRatio: PREVIEW_WIDTH / tab.store.width,
       mimeType: 'image/jpeg',
-      quality: 0.7
+      quality: 0.7,
+      quickMode: true
     })
     await window.desktop.invoke('design:writePreview', { docId: tab.docId, dataUrl })
   } catch {
@@ -142,7 +146,10 @@ export async function save(docId: DocId): Promise<boolean> {
   if (!tab) return false
   await materialize(tab)
   if (!tab.filePath) return false // no longer tracked
-  return writeTo(tab, tab.filePath)
+  await writeTo(tab, tab.filePath)
+  // My designs shows the design as saved.
+  void writePreview(tab)
+  return true
 }
 
 export async function saveAs(docId: DocId): Promise<boolean> {
@@ -162,7 +169,6 @@ async function autosave(tab: DesignTab): Promise<void> {
   if (!states.has(tab.docId)) return // detached meanwhile
   try {
     await save(tab.docId)
-    await writePreview(tab)
   } catch (error) {
     console.error('Autosave failed for tab', tab.name, error)
     const state = states.get(tab.docId)

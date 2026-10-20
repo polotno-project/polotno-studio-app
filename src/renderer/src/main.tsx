@@ -1,16 +1,17 @@
-import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { setAnimationsEnabled, setUploadFunc } from 'polotno/config'
 import { localFileToURL } from 'polotno/utils/file'
 import App from './App'
 import { loadSystemLocaleTranslations } from './editor/i18n'
 import { installThemeSync } from './editor/theme'
+import { installAiImageTools } from './editor/ai-image-tools'
 import './editor/bridge'
 import './index.css'
 
 setAnimationsEnabled(true)
 installThemeSync()
 loadSystemLocaleTranslations()
+installAiImageTools()
 
 // A design is one self-contained file, so an uploaded asset becomes a data URL
 // inside it — the same thing a file drop on the canvas already does. This is
@@ -33,8 +34,8 @@ void import('./editor/tabs-model').then(({ tabs }) => {
   })
 })
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-)
+// No React.StrictMode: its dev-only unmount/remount rehearsal breaks Polotno's
+// canvas overlays (crop frame, Expand frame, Generative fill selection). They
+// render through react-konva-utils' Portal, whose cleanup destroys the moved
+// group for good, so in `electron-vite dev` they never drew.
+ReactDOM.createRoot(document.getElementById('root')!).render(<App />)
