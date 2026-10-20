@@ -25,6 +25,13 @@ Set `VITE_POLOTNO_KEY` to your Polotno license key. Register the domain
 `electron` for that key at https://polotno.com/cabinet — the packaged app runs
 on `file://`, which the SDK reports as origin `electron`.
 
+Crash reporting goes to Sentry when the build has `MAIN_VITE_SENTRY_DSN` set
+(JS errors in every process plus native crashes; no tracing or replay). Builds
+without it report nothing. With `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and
+`SENTRY_PROJECT` also set, `npm run build` uploads source maps and deletes them
+from `out/`. The release workflow reads the `SENTRY_DSN` and
+`SENTRY_AUTH_TOKEN` secrets and the `SENTRY_ORG` / `SENTRY_PROJECT` variables.
+
 ## Connect an AI agent
 
 Open the app and click **Connect AI**. The app runs a local MCP server at

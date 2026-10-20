@@ -1,10 +1,12 @@
 import { app } from 'electron'
+import * as Sentry from '@sentry/electron/main'
 import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, extname, join, resolve } from 'node:path'
 import { createEditorWindow } from '../window'
 import { registerIpcHandlers } from '../ipc'
 import { initBridgeRouter, execAppCommand, execCommand } from '../bridge-router'
+import { initSentry } from '../sentry'
 import { EXPORT_EXTENSIONS, type ExportFormat } from '../../shared/commands'
 
 // Headless CLI: `polotno render a.json [b.json …] -o out.png|dir/` and
@@ -196,6 +198,7 @@ export function runCli(args: string[]): void {
   }
   // Isolated profile: Chromium locks userData, and the GUI app may be running.
   app.setPath('userData', join(tmpdir(), `polotno-cli-${process.pid}`))
+  initSentry()
 
   void app.whenReady().then(async () => {
     app.dock?.hide()
@@ -212,6 +215,9 @@ export function runCli(args: string[]): void {
         app.exit(error.exitCode)
       } else {
         console.error(String(error))
+        // app.exit skips the SDK's own shutdown flush.
+        Sentry.captureException(error)
+        await Sentry.flush(2000)
         app.exit(1)
       }
     }

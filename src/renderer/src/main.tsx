@@ -1,3 +1,4 @@
+import './sentry'
 import ReactDOM from 'react-dom/client'
 import { setAnimationsEnabled, setUploadFunc } from 'polotno/config'
 import { localFileToURL } from 'polotno/utils/file'

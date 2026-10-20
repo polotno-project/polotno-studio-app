@@ -1,3 +1,5 @@
+// Bridges renderer Sentry events to main over IPC (src/main/sentry.ts).
+import '@sentry/electron/preload'
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import type { InvokeApi, MainEvents, RendererEvents } from '../shared/ipc-contract'
 
