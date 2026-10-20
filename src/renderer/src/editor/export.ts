@@ -131,15 +131,20 @@ async function ensureGifLibrary(): Promise<void> {
   target.GIF = GIF
 }
 
-export async function exportGIF(
-  store: DesignStore,
-  options: { quality?: number; fps?: number } = {}
-): Promise<void> {
+type GifExportOptions = {
+  quality?: number
+  fps?: number
+  // progress is 0-1 across the whole export: rendering frames, then encoding.
+  onProgress?: (progress: number, phase: 'rendering' | 'encoding') => void
+}
+
+export async function exportGIF(store: DesignStore, options: GifExportOptions = {}): Promise<void> {
   await ensureGifLibrary()
   await store.saveAsGIF({
     fileName: `${getDesignFileName(store)}.gif`,
     pixelRatio: options.quality ?? 1,
-    fps: options.fps ?? 15
+    fps: options.fps ?? 15,
+    onProgress: options.onProgress
   })
 }
 

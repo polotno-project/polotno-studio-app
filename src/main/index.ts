@@ -6,9 +6,10 @@ import { registerIpcHandlers } from './ipc'
 import { collectOpenablePaths, requestOpenPath } from './open-files'
 import { initBridgeRouter } from './bridge-router'
 import { startMcpServer, stopMcpServer } from './mcp/launcher'
+import { shutdownAgents } from './agents'
 import { runCli } from './cli'
 import { initUpdater } from './updater'
-import { migrateDraftsToLibrary } from './library'
+import { migrateDraftsToLibrary, watchLibrary } from './library'
 import { initSentry } from './sentry'
 
 // Headless CLI subcommands (stage 3) branch before any window or lock exists,
@@ -47,15 +48,21 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
     electronApp.setAppUserModelId('com.polotno.app')
     app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
     // Exports are browser downloads. Untitled, their save dialog shows the
-    // blob: URL in its title bar (Windows).
-    session.defaultSession.on('will-download', (_event, item) => {
+    // blob: URL in its title bar (Windows). The export call resolves once the
+    // download starts, so only 'done' can say whether and where it was saved.
+    session.defaultSession.on('will-download', (_event, item, webContents) => {
       item.setSaveDialogOptions({ title: 'Export' })
+      item.once('done', (_doneEvent, state) => {
+        if (webContents.isDestroyed()) return
+        webContents.send('export:downloadDone', { state, filePath: item.getSavePath() })
+      })
     })
 
     registerIpcHandlers()
     initBridgeRouter()
     installAppMenu()
     void migrateDraftsToLibrary()
+    void watchLibrary()
     createEditorWindow()
     startMcpServer()
     initUpdater()
@@ -77,6 +84,7 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
   })
 
   app.on('will-quit', () => {
+    shutdownAgents()
     stopMcpServer()
   })
 }

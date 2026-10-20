@@ -1,13 +1,17 @@
 import { z } from 'zod'
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { CallToolResult, McpServer } from '@modelcontextprotocol/server'
 import { applyPatch, type Operation } from 'fast-json-patch'
 import { validateDesign } from '@polotno/schema'
-import { rpc } from './bridge-client'
+import { currentChat, rpc } from './bridge-client'
+import { readLocalImage } from './local-image'
+import { elideDataUrls, hasDataRefs, restoreDataUrls } from './data-urls'
+import { diffDesign, isEqual } from '../shared/design-diff'
+import { compactDesign, outlineDesign } from '../shared/compact-design'
 import {
   EXPORT_EXTENSIONS,
   type CommandResult,
   type DesignCommand,
+  type DesignDefaults,
   type ExportFormat
 } from '../shared/commands'
 
@@ -16,7 +20,9 @@ import {
 // Typed tools for targeted edits, raw JSON get/patch as the universal escape
 // hatch, render + lint as the agent's eyes.
 
-export type ToolResult = { kind: 'json'; value: unknown } | { kind: 'image'; dataUrl: string }
+// A json result may carry a render of the page it changed (check: true).
+export type ToolResult =
+  { kind: 'json'; value: unknown; image?: string } | { kind: 'image'; dataUrl: string }
 
 export interface ToolDef {
   name: string
@@ -53,7 +59,207 @@ async function exec(
   return unwrap(await rpc('design.exec', { docId: designId, command }))
 }
 
+type Json = Record<string, unknown>
+type DesignJson = { pages: { id: string; children: Json[] }[] }
+
+// Agents write numeric weights (700); the file format only takes strings.
+function coerceElement(element: Json): Json {
+  const out = { ...element }
+  if (typeof out.fontWeight === 'number') out.fontWeight = String(out.fontWeight)
+  if (Array.isArray(out.children)) out.children = (out.children as Json[]).map(coerceElement)
+  return out
+}
+
+// The store generates element ids on insert, nested group children
+// included; the schema requires them, so the validation copy gets stand-ins.
+function withPendingIds(element: Json, path = 'pending'): Json {
+  const out = { ...element, id: element.id ?? path }
+  if (Array.isArray(out.children)) {
+    out.children = (out.children as Json[]).map((child, i) => withPendingIds(child, `${path}-${i}`))
+  }
+  return out
+}
+
+function findElement(children: Json[], id: string): Json | undefined {
+  for (const child of children) {
+    if (child.id === id) return child
+    const nested = Array.isArray(child.children) && findElement(child.children as Json[], id)
+    if (nested) return nested
+  }
+  return undefined
+}
+
+// Restores get_design_json's asset references in values that skip the
+// element schema check (page backgrounds).
+async function withAssets<T>(designId: string, value: T): Promise<T> {
+  if (!hasDataRefs(value)) return value
+  return restoreDataUrls(value, (await exec(designId, { type: 'get_json' })).value)
+}
+
+// Element edits are checked against the file-format schema before they reach
+// the store. The live store accepts values a saved file cannot (fontWeight:
+// 700), and a design saved with them refuses to reopen. Also swaps the short
+// asset references get_design_json hands out back to their data URLs.
+async function checkedEdit(
+  designId: string,
+  edit: { add: Json; pageId?: string } | { update: Json; elementId: string }
+): Promise<Json> {
+  const design = (await exec(designId, { type: 'get_json' })).value as DesignJson
+  const candidate = structuredClone(design)
+  let result: Json
+  if ('add' in edit) {
+    result = coerceElement(restoreDataUrls(edit.add, design))
+    const page = candidate.pages.find((p) => p.id === edit.pageId) ?? candidate.pages[0]
+    page?.children.push(withPendingIds(result))
+  } else {
+    result = coerceElement(restoreDataUrls(edit.update, design))
+    const target = candidate.pages.map((p) => findElement(p.children, edit.elementId)).find(Boolean)
+    if (target) Object.assign(target, withPendingIds({ ...result, id: target.id }))
+  }
+  const check = validateDesign(candidate)
+  if (!check.valid) {
+    throw new Error(
+      `invalid_args: the element would make the design invalid: ${JSON.stringify(check.errors?.slice(0, 5))}`
+    )
+  }
+  return result
+}
+
+// Polotno's defaults don't change while the app runs; asked once.
+let defaults: Promise<DesignDefaults> | null = null
+
+async function compact(id: string, design: unknown): Promise<unknown> {
+  defaults ??= exec(id, { type: 'get_defaults' }).then(({ value }) => value as DesignDefaults)
+  try {
+    return compactDesign(design, await defaults)
+  } catch {
+    defaults = null
+    return design
+  }
+}
+
+// The page an id belongs to: a page id itself, or the page holding that
+// element (at any depth).
+function pageFor(design: DesignJson, id: string | undefined): string | undefined {
+  if (!id) return undefined
+  return design.pages.find((page) => page.id === id || findElement(page.children, id))?.id
+}
+
+const check = z
+  .boolean()
+  .optional()
+  .describe(
+    'Also return the render of the changed page and its lint findings, instead of calling render_page and lint_design'
+  )
+
+// The edit's result, plus the page's render and lint findings when asked.
+// Renders the first page touched; lints all of them (the whole design when
+// the edit spans pages).
+async function checked(
+  id: string,
+  wanted: boolean | undefined,
+  value: Json,
+  targets: (string | undefined)[] = []
+): Promise<ToolResult> {
+  if (!wanted) return json(value)
+  const design = (await exec(id, { type: 'get_json' })).value as DesignJson
+  const pages = [...new Set(targets.map((target) => pageFor(design, target)).filter(Boolean))]
+  const pageId = pages[0]
+  const render = (await exec(id, { type: 'render', pageId })).value as { dataUrl: string }
+  const findings = (await exec(id, { type: 'lint', pageId: pages.length > 1 ? undefined : pageId }))
+    .value
+  return { kind: 'json', value: { ...value, findings }, image: render.dataUrl }
+}
+
 const designId = z.string().describe('The design id (from list_designs or create_design)')
+
+// The designs agents last read, by rev. A patch's index paths ("/pages/0/
+// children/3") mean what they meant in the copy the agent read; the user may
+// have added, removed, or edited elements since. Patching that copy and
+// diffing it keeps the edit pointed at the right elements. Kept per chat,
+// like `seen` below, whose nodes are the latest read's own: what the chat
+// changes itself since (sawChange) is in its read too, so a patch doesn't take
+// it for the user's, while another chat's changes still count as someone
+// else's.
+const READS_KEPT = 4
+const reads = new Map<string, Map<number, unknown>>()
+
+// What agents last saw of each page and element, by id: the latest read,
+// plus what they changed themselves since. update_element and set_page
+// compare against it, like a patch does against its read, so a property the
+// user changed meanwhile keeps the user's value. Nodes the agents never saw
+// (no read yet) are set directly. Kept per chat (outside agents share one):
+// another chat's read must not hide the user's changes from this one.
+const seen = new Map<string, Map<string, Json>>()
+
+function seenKey(id: string): string {
+  return `${currentChat() ?? ''}|${id}`
+}
+
+function rememberSeen(id: string, design: unknown): void {
+  const nodes = new Map<string, Json>()
+  const walk = (items: Json[]): void => {
+    for (const item of items) {
+      nodes.set(item.id as string, item)
+      if (Array.isArray(item.children)) walk(item.children as Json[])
+    }
+  }
+  const pages = (design as DesignJson | undefined)?.pages ?? []
+  for (const page of pages) nodes.set(page.id, page as unknown as Json)
+  walk(pages.flatMap((page) => page.children))
+  seen.set(seenKey(id), nodes)
+}
+
+function sawChange(id: string, nodeId: string, props: Json): void {
+  const node = seen.get(seenKey(id))?.get(nodeId)
+  if (node) Object.assign(node, structuredClone(props))
+}
+
+// Sets props on a page or element as one undo step, keeping the ones the user
+// changed since the agent saw them. Returns what was kept, if anything.
+async function setSeen(
+  id: string,
+  target: 'element' | 'page',
+  nodeId: string,
+  props: Json
+): Promise<{ rev?: number; skipped?: unknown[] } | null> {
+  const known = seen.get(seenKey(id))?.get(nodeId)
+  if (!known) return null
+  const base = Object.fromEntries(Object.keys(props).map((key) => [key, known[key]]))
+  const { value, rev } = await exec(id, {
+    type: 'apply_changes',
+    changes: [{ kind: 'set', target, id: nodeId, props, base }]
+  })
+  const { skipped } = value as { skipped: { reason: string; props?: string[] }[] }
+  if (skipped.some((item) => !item.props)) {
+    throw new Error(`${target}_not_found: ${nodeId} (${skipped[0].reason})`)
+  }
+  const kept = new Set(skipped.flatMap((item) => item.props ?? []))
+  sawChange(id, nodeId, Object.fromEntries(Object.entries(props).filter(([key]) => !kept.has(key))))
+  return { rev, skipped: skipped.length ? skipped : undefined }
+}
+
+const KEPT_NOTE =
+  'The user changed these while you worked; their values were kept. Re-read before changing them again.'
+
+function rememberRead(id: string, rev: number | undefined, value: unknown): void {
+  rememberSeen(id, value)
+  if (rev === undefined) return
+  const byRev = reads.get(seenKey(id)) ?? new Map<number, unknown>()
+  byRev.delete(rev)
+  byRev.set(rev, value)
+  while (byRev.size > READS_KEPT) byRev.delete(byRev.keys().next().value as number)
+  reads.set(seenKey(id), byRev)
+}
+
+// Above this (characters of compact JSON) agents' tool-result limits cut the
+// read off: Claude Code saves a text result over 50,000 characters to a file
+// in ~/.claude/projects (no setting turns that off) and hands the model a
+// pointer, so the design would land on disk outside the app.
+const FULL_DESIGN_LIMIT = 40_000
+
+const OUTLINE_NOTE =
+  'Pages with "outlined": true list their elements under "outline" in children order, one line each ("<id> <type> <x>,<y> <width>x<height> \\"text\\""), or only an elementCount; read them in full with get_design_json({pages: [index]}). Patch paths (/pages/i/children/j) address the full design either way.'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export const TOOLS: ToolDef[] = [
@@ -160,7 +366,11 @@ export const TOOLS: ToolDef[] = [
       duration: z.number().optional().describe('Page duration in ms (for video designs)')
     },
     handler: async ({ designId: id, background, duration }: any) => {
-      const { value, rev } = await exec(id, { type: 'add_page', background, duration })
+      const { value, rev } = await exec(id, {
+        type: 'add_page',
+        background: await withAssets(id, background),
+        duration
+      })
       return json({ ...(value as object), rev })
     }
   },
@@ -185,10 +395,18 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'set_page',
     description: 'Set page properties (background color/image URL, duration, width/height, …).',
-    schema: { designId, pageId: z.string(), props: z.record(z.string(), z.unknown()) },
-    handler: async ({ designId: id, pageId, props }: any) => {
-      const { rev } = await exec(id, { type: 'set_page', pageId, props })
-      return json({ ok: true, rev })
+    schema: { designId, pageId: z.string(), props: z.record(z.string(), z.unknown()), check },
+    handler: async ({ designId: id, pageId, props, check: wanted }: any) => {
+      const resolved = await withAssets(id, props)
+      const merged = await setSeen(id, 'page', pageId, resolved)
+      if (merged?.skipped) {
+        const { rev, skipped } = merged
+        return checked(id, wanted, { ok: true, rev, skipped, note: KEPT_NOTE }, [pageId])
+      }
+      const rev = merged
+        ? merged.rev
+        : (await exec(id, { type: 'set_page', pageId, props: resolved })).rev
+      return checked(id, wanted, { ok: true, rev }, [pageId])
     }
   },
   {
@@ -201,29 +419,155 @@ export const TOOLS: ToolDef[] = [
       element: z
         .object({ type: z.enum(['text', 'image', 'svg', 'figure', 'line', 'video', 'group']) })
         .catchall(z.unknown()),
+      atIndex: z.number().optional().describe('Z-order index to insert at'),
+      check
+    },
+    handler: async ({ designId: id, pageId, element, atIndex, check: wanted }: any) => {
+      const { value, rev } = await exec(id, {
+        type: 'add_element',
+        pageId,
+        element: await checkedEdit(id, { add: element, pageId }),
+        atIndex
+      })
+      const { elementId } = value as { elementId: string }
+      return checked(id, wanted, { elementId, rev }, [elementId])
+    }
+  },
+  {
+    name: 'place_image',
+    description:
+      'Place a local image file (PNG, JPEG, WebP, GIF or SVG — e.g. one you just generated) on a page. The file is embedded in the design, so it can be deleted afterwards. Without width/height it keeps its aspect ratio and fits inside the page; without x/y it is centered. With as: "background" it becomes the page background instead (cover-fitted, not an element). With replace: <image element id> the file goes into that image instead (an edited version of it): it keeps its position, size, rotation and effects as they are then, also if the user changed them while you worked, and is center-cropped to fill it; don\'t add a new image and remove the old one. Returns elementId plus the placed box.',
+    schema: {
+      designId,
+      pageId: z.string().optional().describe('Defaults to the page the user is on'),
+      filePath: z.string().describe('Absolute path to the image file'),
+      as: z
+        .enum(['element', 'background'])
+        .optional()
+        .describe('"background" sets the page background; default "element"'),
+      replace: z
+        .string()
+        .optional()
+        .describe('An image element id: put the file into that image instead of adding one'),
+      x: z.number().optional(),
+      y: z.number().optional(),
+      width: z
+        .number()
+        .positive()
+        .optional()
+        .describe('Omit to derive from height and aspect ratio'),
+      height: z
+        .number()
+        .positive()
+        .optional()
+        .describe('Omit to derive from width and aspect ratio'),
+      props: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('Extra element properties, e.g. name, opacity, cornerRadius'),
       atIndex: z.number().optional().describe('Z-order index to insert at')
     },
-    handler: async ({ designId: id, pageId, element, atIndex }: any) => {
-      const { value, rev } = await exec(id, { type: 'add_element', pageId, element, atIndex })
-      return json({ ...(value as object), rev })
+    handler: async ({
+      designId: id,
+      pageId,
+      filePath,
+      as,
+      x,
+      y,
+      width,
+      height,
+      props,
+      atIndex,
+      replace
+    }: any) => {
+      const image = await readLocalImage(filePath)
+      if (replace) {
+        if (image.type !== 'image') {
+          throw new Error('invalid_args: replace takes a PNG, JPEG, WebP or GIF file')
+        }
+        const { value, rev } = await exec(id, {
+          type: 'replace_image',
+          elementId: replace,
+          src: image.dataUrl,
+          imageWidth: image.width,
+          imageHeight: image.height
+        })
+        const { elementId, ...crop } = value as { elementId: string } & Json
+        // The agent knows the picture it put in: not a change of the user's.
+        sawChange(id, elementId, { src: image.dataUrl, ...crop })
+        return json({ ok: true, elementId, replaced: true, rev })
+      }
+      const info = (await exec(id, { type: 'get_info' })).value as {
+        activePageId: string | null
+        pages: { id: string; width: number; height: number }[]
+      }
+      const page = info.pages.find((p) => p.id === (pageId ?? info.activePageId))
+      if (!page) throw new Error(`page_not_found: no page ${pageId}`)
+
+      if (as === 'background') {
+        const { rev } = await exec(id, {
+          type: 'set_page',
+          pageId: page.id,
+          props: { background: image.dataUrl }
+        })
+        return json({ ok: true, pageId: page.id, background: true, rev })
+      }
+
+      const aspect = image.width / image.height
+      if (width === undefined && height === undefined) {
+        const scale = Math.min(1, page.width / image.width, page.height / image.height)
+        width = image.width * scale
+        height = image.height * scale
+      } else {
+        width ??= height * aspect
+        height ??= width / aspect
+      }
+      x ??= (page.width - width) / 2
+      y ??= (page.height - height) / 2
+      const element = await checkedEdit(id, {
+        add: { ...props, type: image.type, src: image.dataUrl, x, y, width, height },
+        pageId: page.id
+      })
+      const { value, rev } = await exec(id, {
+        type: 'add_element',
+        pageId: page.id,
+        element,
+        atIndex
+      })
+      return json({ ...(value as object), pageId: page.id, x, y, width, height, rev })
     }
   },
   {
     name: 'update_element',
     description: 'Update properties of an element by id.',
-    schema: { designId, elementId: z.string(), props: z.record(z.string(), z.unknown()) },
-    handler: async ({ designId: id, elementId, props }: any) => {
-      const { rev } = await exec(id, { type: 'update_element', elementId, props })
-      return json({ ok: true, rev })
+    schema: {
+      designId,
+      elementId: z.string(),
+      props: z.record(z.string(), z.unknown()),
+      check
+    },
+    handler: async ({ designId: id, elementId, props, check: wanted }: any) => {
+      const resolved = await checkedEdit(id, { update: props, elementId })
+      const merged = await setSeen(id, 'element', elementId, resolved)
+      if (merged?.skipped) {
+        const { rev, skipped } = merged
+        return checked(id, wanted, { ok: true, rev, skipped, note: KEPT_NOTE }, [elementId])
+      }
+      const rev = merged
+        ? merged.rev
+        : (await exec(id, { type: 'update_element', elementId, props: resolved })).rev
+      return checked(id, wanted, { ok: true, rev }, [elementId])
     }
   },
   {
     name: 'remove_element',
     description: 'Remove elements by id.',
-    schema: { designId, elementIds: z.array(z.string()) },
-    handler: async ({ designId: id, elementIds }: any) => {
+    schema: { designId, elementIds: z.array(z.string()), check },
+    handler: async ({ designId: id, elementIds, check: wanted }: any) => {
+      const before = wanted && ((await exec(id, { type: 'get_json' })).value as DesignJson)
+      const pageId = before ? pageFor(before, elementIds[0]) : undefined
       const { rev } = await exec(id, { type: 'remove_elements', elementIds })
-      return json({ ok: true, rev })
+      return checked(id, wanted, { ok: true, rev }, [pageId])
     }
   },
   {
@@ -243,39 +587,96 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'get_design_json',
     description:
-      'Full design JSON (store.toJSON() shape) with the current rev. Use rev as baseRev when patching.',
-    schema: { designId },
-    handler: async ({ designId: id }: any) => {
+      'Design JSON (store.toJSON() shape) with the current rev. Use rev as baseRev when patching. Properties at their Polotno default are left out (an element without "opacity" has opacity 1); set them like any other, "add" or "replace" both work. Fractions are rounded to 2 decimals. A very large design comes back with only the current page in full and the others outlined. Embedded assets (long data: URLs) are shortened to "data-elided:<mime>;bytes=…;sha=…" references; keep or copy a reference as-is (in patches, add_element, update_element) and it resolves to the original asset.',
+    schema: {
+      designId,
+      pages: z
+        .array(z.union([z.number(), z.string()]))
+        .optional()
+        .describe(
+          'Only these pages in full (index or page id); the others come as outlines. Omit for the whole design.'
+        )
+    },
+    handler: async ({ designId: id, pages }: any) => {
       const { value, rev } = await exec(id, { type: 'get_json' })
-      return json({ rev, json: value })
+      rememberRead(id, rev, value)
+      const design = elideDataUrls(await compact(id, value))
+      if (pages?.length) {
+        const wanted = new Set<unknown>(pages)
+        const isWanted = (pageId: string, index: number): boolean =>
+          wanted.has(pageId) || wanted.has(index)
+        let picked = outlineDesign(design, isWanted)
+        if (JSON.stringify(picked).length > FULL_DESIGN_LIMIT) {
+          picked = outlineDesign(design, isWanted, { brief: true })
+        }
+        if (pages.length > 1 && JSON.stringify(picked).length > FULL_DESIGN_LIMIT) {
+          throw new Error(
+            'too_large: these pages together are too large to read at once. Ask for fewer pages.'
+          )
+        }
+        return json({ rev, json: picked, note: OUTLINE_NOTE })
+      }
+      if (JSON.stringify(design).length <= FULL_DESIGN_LIMIT) return json({ rev, json: design })
+      // Too big for one tool result: the page the user is on in full, the
+      // others outlined (or, for very many pages, only counted).
+      const { value: info } = await exec(id, { type: 'get_info' })
+      const active = (info as { activePageId: string | null }).activePageId
+      const isActive = (pageId: string, index: number): boolean =>
+        active ? pageId === active : index === 0
+      let outlined = outlineDesign(design, isActive)
+      if (JSON.stringify(outlined).length > FULL_DESIGN_LIMIT) {
+        outlined = outlineDesign(design, isActive, { brief: true })
+      }
+      return json({
+        rev,
+        json: outlined,
+        note: `This design is too large to read whole. ${OUTLINE_NOTE}`
+      })
     }
   },
   {
     name: 'patch_design_json',
     description:
-      'Apply an RFC 6902 JSON Patch — the escape hatch for bulk/structural edits. Pass baseRev for optimistic concurrency; the result is schema-validated before it touches the design.',
+      'Apply an RFC 6902 JSON Patch — the escape hatch for bulk/structural edits. Pass the baseRev of the get_design_json you based the paths on: the patch applies to that copy, and only what it changes reaches the live design, so the user can keep editing meanwhile. Properties the user changed since your read keep their value and come back as "skipped". The result is schema-validated before it touches the design.',
     schema: {
       designId,
       patch: z.array(z.record(z.string(), z.unknown())).describe('RFC 6902 operations'),
-      baseRev: z.number().optional()
+      baseRev: z.number().optional(),
+      check
     },
-    handler: async ({ designId: id, patch, baseRev }: any) => {
+    handler: async ({ designId: id, patch, baseRev, check: wanted }: any) => {
       const current = await exec(id, { type: 'get_json' })
-      if (baseRev !== undefined && current.rev !== undefined && baseRev !== current.rev) {
+      const read = baseRev === undefined ? undefined : reads.get(seenKey(id))?.get(baseRev)
+      if (!read && baseRev !== undefined && current.rev !== undefined && baseRev !== current.rev) {
         throw new Error(
           `rev_conflict: design is at rev ${current.rev}, you based the patch on rev ${baseRev}. Re-read with get_design_json.`
         )
       }
-      let patched: unknown
+      const base = (read ?? current.value) as any
+      // Elision only rewrites leaf strings, so the agent's paths address the
+      // full design unchanged; only references inside op values need restoring.
+      const ops = restoreDataUrls(patch, base)
+      let patched: any
       try {
         patched = applyPatch(
-          structuredClone(current.value),
-          patch as unknown as Operation[],
+          structuredClone(base),
+          ops as unknown as Operation[],
           true,
           false
         ).newDocument
       } catch (error) {
-        throw new Error(`invalid_patch: ${String(error)}`)
+        // fast-json-patch's message embeds the whole document; name the
+        // failing operation only.
+        const { name, index, operation } = error as {
+          name?: string
+          index?: number
+          operation?: unknown
+        }
+        throw new Error(
+          name && operation
+            ? `invalid_patch: ${name} at operation ${index}: ${JSON.stringify(operation)}. Paths address the design you read with get_design_json; re-read it if it changed.`
+            : `invalid_patch: ${(error as Error).message}`
+        )
       }
       const check = validateDesign(patched)
       if (!check.valid) {
@@ -283,8 +684,42 @@ export const TOOLS: ToolDef[] = [
           `invalid_result: the patched design fails schema validation: ${JSON.stringify(check.errors?.slice(0, 5))}`
         )
       }
-      const { rev } = await exec(id, { type: 'load_json', json: patched })
-      return json({ ok: true, rev })
+
+      const diff = diffDesign(base, patched)
+      if ('fallback' in diff) {
+        // Loading the whole patched copy would undo anything changed since the
+        // read, so it is only safe when nothing was.
+        if (!isEqual(base, current.value)) {
+          throw new Error(
+            `rev_conflict: this patch can't be merged into a design that changed since your read (${diff.fallback}). Re-read with get_design_json and patch again.`
+          )
+        }
+        const { rev } = await exec(id, { type: 'load_json', json: patched })
+        rememberSeen(id, patched)
+        return checked(id, wanted, { ok: true, rev })
+      }
+      const { value, rev } = await exec(id, { type: 'apply_changes', changes: diff.changes })
+      const { skipped } = value as { skipped: unknown[] }
+      // The agent now knows the design as it patched it.
+      rememberSeen(id, patched)
+      // The pages changed, for check.
+      const targets = diff.changes.map((change) => {
+        const { id: target, parentId } = change as { id?: string; parentId?: string }
+        return target ?? parentId
+      })
+      return checked(
+        id,
+        wanted,
+        skipped.length
+          ? {
+              ok: true,
+              rev,
+              skipped,
+              note: KEPT_NOTE
+            }
+          : { ok: true, rev },
+        targets
+      )
     }
   },
   {
@@ -361,12 +796,14 @@ export function toCallToolResult(result: ToolResult): CallToolResult {
     const mimeType = /data:([^;]+)/.exec(meta)?.[1] ?? 'image/png'
     return { content: [{ type: 'image', data, mimeType }] }
   }
+  const text = typeof result.value === 'string' ? result.value : JSON.stringify(result.value)
+  if (!result.image) return { content: [{ type: 'text', text }] }
+  const [meta, data] = result.image.split(',')
+  const mimeType = /data:([^;]+)/.exec(meta)?.[1] ?? 'image/png'
   return {
     content: [
-      {
-        type: 'text',
-        text: typeof result.value === 'string' ? result.value : JSON.stringify(result.value)
-      }
+      { type: 'text', text },
+      { type: 'image', data, mimeType }
     ]
   }
 }
@@ -375,7 +812,7 @@ export function registerTools(server: McpServer): void {
   for (const tool of TOOLS) {
     server.registerTool(
       tool.name,
-      { description: tool.description, inputSchema: tool.schema },
+      { description: tool.description, inputSchema: z.object(tool.schema) },
       async (args: Record<string, never>) => toCallToolResult(await tool.handler(args))
     )
   }

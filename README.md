@@ -8,7 +8,11 @@ The app has a built-in MCP server. Any AI agent (Claude, Cursor, Codex, …) can
 create, edit, see, and export designs while you edit the same designs in the
 editor. Agent edits and your edits share one undo stack.
 
+Linux: `.deb`, `.rpm`, `.pacman` and AppImage, see [docs/linux-install.md](docs/linux-install.md).
+
 ## Development
+
+Requires Node.js 22.13 or newer (`.nvmrc`).
 
 ```bash
 npm install
@@ -38,11 +42,12 @@ running to serve agents.
 | --- | --- |
 | Claude Desktop | **Download for Claude Desktop (.mcpb)**, then double-click the file |
 | Claude Code | **Copy Claude Code command**, then paste it in a terminal |
+| Codex (CLI, app, IDE) | **Copy Codex config**, then paste it into `~/.codex/config.toml` |
 | Cursor | **Add to Cursor** |
 | VS Code | **Add to VS Code** |
 | Any MCP client | **Copy config JSON** (streamable HTTP + `Authorization: Bearer <token>`) |
 
-Agents get 19 tools (create/edit/render/lint/export) and the bundled
+Agents get 20 tools (create/edit/place images/render/lint/export) and the bundled
 `polotno-design` skill as MCP resources under `polotno://skill/`.
 
 ## Headless CLI
@@ -62,6 +67,10 @@ Export menu and the `export_design` MCP tool use the same two names.
 
 Exit codes: 0 ok, 1 render failure, 2 bad arguments, 3 invalid design JSON,
 4 lint found errors.
+
+The CLI renders in a hidden window, so it needs a display. On a Linux machine
+without one (SSH, CI) it exits 1 with a hint; run it under Xvfb:
+`xvfb-run -a polotno render …`.
 
 ## File format
 

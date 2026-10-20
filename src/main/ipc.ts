@@ -1,6 +1,6 @@
 import { app, ipcMain, dialog, shell, BrowserWindow, Menu } from 'electron'
 import { promises as fs } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import type { InvokeApi } from '../shared/ipc-contract'
 import { documents } from './documents'
@@ -11,7 +11,8 @@ import {
   renameLibraryDesign,
   duplicateLibraryDesign,
   deleteLibraryDesign,
-  writePreview
+  writePreview,
+  libraryDir
 } from './library'
 import { persistSession, loadSession } from './session-store'
 import { listRecent, addRecent } from './recent'
@@ -19,6 +20,31 @@ import { markRendererReady } from './open-files'
 import { getMcpStatus, restartMcpServer } from './mcp/launcher'
 import { regenerateMcpToken } from './mcp/token'
 import { getUpdateStatus, installUpdate } from './updater'
+import {
+  agentImage,
+  closeAgentConversations,
+  deleteChat,
+  getAgentModels,
+  getChats,
+  moveAgentChats,
+  newChat,
+  selectChat,
+  getAgentStatus,
+  listAgents,
+  resetAllAgents,
+  runAgent,
+  setActiveAgent,
+  setAgentModel,
+  signInToAgent,
+  stopAgent
+} from './agents'
+import {
+  cancelImageEdit,
+  editImageWithCodex,
+  getCodexStatus,
+  signInToCodex
+} from './agents/codex/provider'
+import { deleteChatsOf, renameChatsOf } from './agents/chats'
 import {
   readDesignFile,
   readDesignFileBase64,
@@ -55,14 +81,32 @@ export function registerIpcHandlers(): void {
   })
   handle('doc:setFilePath', (_event, { docId, filePath }) => {
     documents.setFilePath(docId, filePath)
+    void moveAgentChats(docId, filePath)
     watchDocument(docId)
     void addRecent(filePath)
     persistSession()
   })
   handle('doc:close', (_event, { docId }) => {
+    // An agent run on a closed design would keep spending usage on edits that
+    // can no longer land.
+    void closeAgentConversations(docId)
     unwatchDocument(docId)
     documents.close(docId)
     persistSession()
+  })
+  // A reload (View > Reload) replaces a window's tabs with new ones: the old
+  // ones close the same way, without a doc:close. The saved session is left
+  // alone; the reloaded window restores its tabs from it.
+  app.on('web-contents-created', (_event, contents) => {
+    contents.on('did-start-navigation', ({ isMainFrame, isSameDocument }) => {
+      if (!isMainFrame || isSameDocument) return
+      for (const { docId, wcId } of documents.all()) {
+        if (wcId !== contents.id) continue
+        void closeAgentConversations(docId)
+        unwatchDocument(docId)
+        documents.close(docId)
+      }
+    })
   })
   handle('doc:reorder', (_event, { docIds }) => {
     documents.reorder(docIds)
@@ -83,21 +127,32 @@ export function registerIpcHandlers(): void {
   handle('library:create', async (_event, { name, content }) => ({
     filePath: await createLibraryDesign(name, content)
   }))
-  handle('library:rename', async (_event, { filePath, name }) => ({
-    filePath: await renameLibraryDesign(filePath, name)
-  }))
+  handle('library:rename', async (_event, { filePath, name }) => {
+    const renamed = await renameLibraryDesign(filePath, name)
+    await renameChatsOf(filePath, renamed)
+    return { filePath: renamed }
+  })
   handle('library:duplicate', async (_event, { filePath }) => ({
     filePath: await duplicateLibraryDesign(filePath)
   }))
-  handle('library:delete', (_event, { filePath }) => deleteLibraryDesign(filePath))
+  handle('library:delete', async (_event, { filePath }) => {
+    await deleteLibraryDesign(filePath)
+    await deleteChatsOf(filePath)
+  })
   handle('design:writePreview', (_event, { docId, dataUrl }) => {
     const entry = documents.get(docId)
     if (entry?.filePath) void writePreview(entry.filePath, dataUrl)
+  })
+  handle('library:writePreview', async (_event, { filePath, dataUrl }) => {
+    // Only for files in the library folder, which the list came from.
+    if (dirname(filePath) !== libraryDir()) throw new Error('Not a library design.')
+    await writePreview(filePath, dataUrl)
   })
   handle('session:list', async () => ({ filePaths: await loadSession() }))
 
   handle('dialog:confirm', async (event, { message, detail, confirmLabel }) => {
     const { response } = await dialog.showMessageBox(windowOf(event), {
+      title: 'Polotno',
       type: 'warning',
       message,
       detail,
@@ -110,6 +165,7 @@ export function registerIpcHandlers(): void {
 
   handle('dialog:externalChange', async (event, { name }) => {
     const { response } = await dialog.showMessageBox(windowOf(event), {
+      title: 'Polotno',
       type: 'question',
       message: `"${name}" changed on disk`,
       detail: 'The file was modified outside this app while you have unsaved changes.',
@@ -130,6 +186,7 @@ export function registerIpcHandlers(): void {
   handle('mcp:regenerateToken', () => {
     const token = regenerateMcpToken()
     restartMcpServer()
+    resetAllAgents()
     return { token }
   })
   handle('mcp:saveMcpb', async (event) => {
@@ -160,4 +217,23 @@ export function registerIpcHandlers(): void {
   })
   handle('update:getStatus', () => getUpdateStatus())
   handle('update:install', () => installUpdate())
+  handle('agent:list', () => listAgents())
+  handle('agent:setActive', (_event, { agent }) => setActiveAgent(agent))
+  handle('agent:status', () => getAgentStatus())
+  handle('agent:signIn', () => signInToAgent())
+  handle('agent:models', () => getAgentModels())
+  handle('agent:setModel', (_event, { model }) => setAgentModel(model))
+  handle('agent:run', (_event, { docId, prompt }) => runAgent(docId, prompt))
+  handle('agent:stop', (_event, { chatId }) => stopAgent(chatId))
+  handle('agent:reset', (_event, { docId }) => newChat(docId))
+  handle('agent:chats', (_event, { docId }) => getChats(docId))
+  handle('agent:selectChat', (_event, { docId, chatId }) => selectChat(docId, chatId))
+  handle('agent:deleteChat', (_event, { docId, chatId }) => deleteChat(docId, chatId))
+  handle('agent:image', (_event, { id }) => agentImage(id))
+  handle('imageEdit:status', () => getCodexStatus())
+  handle('imageEdit:signIn', () => signInToCodex())
+  handle('imageEdit:run', (_event, { id, png, instruction }) =>
+    editImageWithCodex(id, png, instruction)
+  )
+  handle('imageEdit:cancel', (_event, { id }) => cancelImageEdit(id))
 }

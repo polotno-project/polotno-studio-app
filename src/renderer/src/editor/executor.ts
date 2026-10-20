@@ -1,4 +1,5 @@
 import type { DesignCommand } from '../../../shared/commands'
+import { applyChanges } from './apply-changes'
 import type { DesignStore } from './store'
 
 export class CommandError extends Error {
@@ -72,6 +73,11 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
     case 'get_json':
       return store.toJSON()
 
+    case 'get_defaults': {
+      const { designDefaults } = await import('./element-defaults')
+      return designDefaults()
+    }
+
     case 'get_info':
       return {
         width: store.width,
@@ -79,21 +85,28 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
         unit: store.unit,
         dpi: store.dpi,
         pageCount: store.pages.length,
+        activePageId: store.activePage?.id ?? store.pages[0]?.id ?? null,
+        // A page may have its own size; these are resolved to numbers.
         pages: store.pages.map((page) => ({
           id: page.id,
+          width: page.computedWidth as number,
+          height: page.computedHeight as number,
           elementCount: page.children.length
         }))
       }
 
     case 'load_json': {
       try {
-        store.loadJSON(command.json)
+        store.loadJSON(command.json, { keepHistory: true })
       } catch (error) {
         throw new CommandError('invalid_json', String(error))
       }
       await store.waitLoading()
       return null
     }
+
+    case 'apply_changes':
+      return applyChanges(store, command.changes)
 
     case 'set_size':
       store.setSize(command.width, command.height, command.magicResize ?? false)
@@ -139,6 +152,31 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
       return null
     }
 
+    case 'replace_image': {
+      const element = elementOf(store, command.elementId) as NonNullable<ElementModel> & {
+        width: number
+        height: number
+      }
+      if (element.type !== 'image') {
+        throw new CommandError('invalid_command', `${command.elementId} is not an image`)
+      }
+      // Center crop that fills the element's box (Polotno crops are
+      // fractions of the picture).
+      const frame = element.width / element.height
+      const picture = command.imageWidth / command.imageHeight
+      const cropWidth = picture > frame ? frame / picture : 1
+      const cropHeight = picture > frame ? 1 : picture / frame
+      const crop = {
+        cropX: (1 - cropWidth) / 2,
+        cropY: (1 - cropHeight) / 2,
+        cropWidth,
+        cropHeight
+      }
+      element.set({ src: command.src, ...crop })
+      await store.waitLoading()
+      return { elementId: element.id, ...crop }
+    }
+
     case 'remove_elements': {
       for (const id of command.elementIds) elementOf(store, id)
       store.deleteElements(command.elementIds)
@@ -163,12 +201,19 @@ export async function executeCommand(store: DesignStore, command: DesignCommand)
       const maxSide = command.maxSide ?? 1024
       const fromMax = maxSide / Math.max(store.width, store.height)
       const pixelRatio = command.pixelRatio ?? Math.min(1, fromMax)
+      // quickMode, as for thumbnails: the agent renders while the user edits,
+      // and a full export below pixelRatio 1 flickers the canvas pixelated.
       const dataUrl = await store.toDataURL({
         pageId: page.id,
         pixelRatio,
-        mimeType: command.mimeType ?? 'image/png'
+        mimeType: command.mimeType ?? 'image/png',
+        quickMode: true
       })
-      return { dataUrl, width: Math.round(store.width * pixelRatio), height: Math.round(store.height * pixelRatio) }
+      return {
+        dataUrl,
+        width: Math.round(store.width * pixelRatio),
+        height: Math.round(store.height * pixelRatio)
+      }
     }
 
     case 'lint': {

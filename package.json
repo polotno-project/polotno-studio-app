@@ -5,6 +5,10 @@
   "main": "./out/main/index.js",
   "author": "Polotno",
   "homepage": "https://polotno.com",
+  "desktopName": "polotno-app.desktop",
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -19,15 +23,20 @@
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux"
+    "build:linux": "npm run build && electron-builder --linux",
+    "test": "node --test scripts/*.test.mjs",
+    "bench:agents": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/agent-bench.mts"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
     "chokidar": "^5.0.0",
     "electron-log": "^5.4.4",
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.9",
+    "streamdown": "^2.7.0",
+    "use-stick-to-bottom": "^1.1.6"
   },
   "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.300",
     "@base-ui/react": "^1.7.0",
     "@dnd-kit/abstract": "^0.5.0",
     "@dnd-kit/dom": "^0.5.0",
@@ -72,7 +81,9 @@
     "@fontsource/shadows-into-light": "^5.3.0",
     "@fontsource/space-grotesk": "^5.3.0",
     "@fontsource/ubuntu": "^5.3.0",
+    "@modelcontextprotocol/node": "^2.1.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/server": "^2.3.1",
     "@polotno/pdf-export": "^0.13.0",
     "@polotno/pdf-import": "^0.9.0",
     "@polotno/schema": "^0.7.0",
@@ -103,10 +114,10 @@
     "jszip": "^3.10.1",
     "konva": "^10.3.0",
     "lucide-react": "^1.31.0",
-    "mobx": "7.0.3",
+    "mobx": "7.0.6",
     "mobx-react-lite": "^5.1.0",
     "playwright-core": "^1.62.1",
-    "polotno": "^4.14.1",
+    "polotno": "^4.16.1",
     "prettier": "^3.7.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

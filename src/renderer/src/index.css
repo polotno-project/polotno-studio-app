@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+/* Streamdown (AI panel markdown) styles its output with Tailwind classes. */
+@source '../../../node_modules/streamdown/dist/*.js';
 
 html,
 body,
@@ -39,4 +41,91 @@ body {
    elsewhere this falls back to plain 0.5rem padding. */
 .window-controls-inset {
   padding-right: calc(100% - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100%) + 0.5rem);
+}
+
+/* AI panel replies: the panel is narrow, so tighten Streamdown's spacing and
+   let wide tables scroll inside the message. */
+.ai-markdown > * + * {
+  margin-top: 0.5rem;
+}
+.ai-markdown :where(ul, ol) {
+  padding-left: 1.1rem;
+}
+.ai-markdown :where(table) {
+  font-size: 0.75rem;
+}
+/* Streamdown colors tables and inline code with shadcn tokens (border-border,
+   bg-muted, bg-sidebar) this app doesn't define: borders fell back to the text
+   color (white in dark mode) and the table got a second, outer frame. One
+   neutral frame, a tinted header, and a tinted chip for code instead. */
+.ai-markdown [data-streamdown='table-wrapper'] {
+  @apply my-0 border-0 bg-transparent p-0;
+}
+.ai-markdown [data-streamdown='table-wrapper'] > div,
+.ai-markdown [data-streamdown='table-wrapper'] :where(table, thead, tbody, tr) {
+  @apply border-neutral-200 bg-transparent dark:border-neutral-700;
+}
+.ai-markdown [data-streamdown='table-header'] {
+  @apply bg-neutral-50 dark:bg-neutral-800/60;
+}
+.ai-markdown :where(td, th) {
+  @apply px-2.5 py-1.5 text-xs;
+}
+.ai-markdown :not(pre) > code {
+  @apply bg-neutral-100 text-[0.85em] dark:bg-neutral-800;
+}
+
+/* The agent's cursor on the canvas (agent-cursor.tsx): it glides between
+   targets, and outlines what it changed (or sweeps over what it read). */
+.agent-cursor {
+  transition:
+    transform 450ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 300ms ease-out;
+}
+.agent-highlight,
+.agent-scan {
+  border: 2px solid var(--agent-color);
+  background: color-mix(in srgb, var(--agent-color) 8%, transparent);
+  animation: agent-highlight 1.8s ease-out forwards;
+}
+.agent-scan {
+  border-style: dashed;
+  background: linear-gradient(
+      100deg,
+      transparent 35%,
+      color-mix(in srgb, var(--agent-color) 22%, transparent) 50%,
+      transparent 65%
+    )
+    0 0 / 250% 100% no-repeat;
+  animation:
+    agent-highlight 1.8s ease-out forwards,
+    agent-scan 1.2s ease-in-out infinite;
+}
+@keyframes agent-highlight {
+  0% {
+    opacity: 0;
+  }
+  15%,
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes agent-scan {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-cursor {
+    transition: opacity 300ms ease-out;
+  }
+  .agent-scan {
+    animation: agent-highlight 1.8s ease-out forwards;
+  }
 }
