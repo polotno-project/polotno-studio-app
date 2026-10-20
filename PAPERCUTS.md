@@ -62,3 +62,4 @@
 - 2026-10-20 [claude-opus-5-5] testing the dev app while another worktree's dev app runs: both share userData 'polotno-app' and its single-instance lock; launching with --user-data-dir=<tmp> gives an isolated instance
 - 2026-10-20 [claude-opus-5-5] reproducing the CI macOS failure locally: 'electron-builder --mac --dir' only builds arm64; the universal merge (where x64ArchFiles errors surface) needs '--universal'
 - 2026-10-20 [claude-opus-5-5] stopping a background 'node capture.mjs' with pkill -f 'scratchpad/capture.mjs' silently matched nothing (it was started by relative name), so the next run hit EADDRINUSE; kill by port (lsof -ti tcp:8999) instead
+- 2026-10-20 [claude-opus-5-5] bg-remove research: onnx-community/ISNet-ONNX looks like a generic IS-Net export but is tagged AGPL-3.0 — check HF license tags, not the model family's license
