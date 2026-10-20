@@ -6,6 +6,9 @@
   "author": "Polotno",
   "homepage": "https://polotno.com",
   "desktopName": "polotno-app.desktop",
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",

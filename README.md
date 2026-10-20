@@ -12,6 +12,8 @@ Linux: `.deb`, `.rpm`, `.pacman` and AppImage, see [docs/linux-install.md](docs/
 
 ## Development
 
+Requires Node.js 22.13 or newer (`.nvmrc`).
+
 ```bash
 npm install
 npm run dev          # editor with hot reload
