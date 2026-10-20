@@ -16,3 +16,4 @@ Goal: crash/error reporting via Sentry. User decisions: always on (no opt-out to
 - [x] SENTRY_AUTH_TOKEN secret (org auth token, created in Sentry UI) — needed for source-map upload in release.yml
 - [ ] Verify on the first tagged release: source-map upload succeeds (no 401/403 in the build log) and a production event's frames show original source
 - [x] PR opened: https://github.com/polotno-project/polotno-studio-app/pull/9
+- [x] CI fix: macOS universal packaging failed — @sentry/node lists @sentry/bundler-plugins (build-time only) as a dependency, so oxc-parser's arm64-only .node binary (+ Babel, the 15 MB sentry CLI) shipped in the app. Moved @sentry/electron to devDependencies so electron-vite bundles it into out/main (repo convention); nothing from @sentry ships in node_modules. Re-verified main/renderer/native-crash events with the bundled SDK, `electron-builder --mac --universal --dir`, packaged CLI render.
