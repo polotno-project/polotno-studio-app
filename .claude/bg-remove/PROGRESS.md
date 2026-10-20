@@ -118,3 +118,5 @@ isolated `--user-data-dir`; `window.polotnoApp.tabs.active.store`). UI was in Ru
 - Rebased onto origin/master (CHANGELOG.md landed there; BACKLOG.md conflict resolved by keeping both sides). Typecheck, lint and prettier re-run clean.
 - Added an Unreleased entry to CHANGELOG.md.
 - Pushed the branch, opened a PR, requested a Codex review.
+## Handoff 2026-10-20
+- macOS (Apple Vision) implementation handed to Orca worktree `bg-remove-mac` (branch nikigan/bg-remove-mac, Claude agent); it cherry-picks ad285be and continues this file there.
