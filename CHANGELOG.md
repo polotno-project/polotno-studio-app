@@ -26,8 +26,6 @@ User-facing changes in each release of Polotno App. Downloads are on
 - **Templates panel.** My designs updates live with thumbnails, supports bulk
   delete (checkboxes, Ctrl/⌘-click, Shift-click, Select all) and marks designs
   that are open or being edited.
-- **Crash reporting.** Errors and crashes in release builds are reported to
-  Sentry, without your IP address or location.
 
 ### Changed
 
