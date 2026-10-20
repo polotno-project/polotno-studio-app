@@ -5,8 +5,9 @@
   "main": "./out/main/index.js",
   "author": "Polotno",
   "homepage": "https://polotno.com",
+  "desktopName": "polotno-app.desktop",
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "scripts": {
     "format": "prettier --write .",
@@ -114,7 +115,7 @@
     "mobx": "7.0.6",
     "mobx-react-lite": "^5.1.0",
     "playwright-core": "^1.62.1",
-    "polotno": "^4.15.3",
+    "polotno": "^4.16.1",
     "prettier": "^3.7.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

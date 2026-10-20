@@ -140,6 +140,9 @@ export interface MainEvents {
   'library:changed': Record<string, never>
   // The MCP server started listening or went away (Connect panel stays live).
   'mcp:status': McpStatus
+  // An export's download finished: saved (completed), cancelled in the save
+  // dialog, or failed (interrupted).
+  'export:downloadDone': { state: 'completed' | 'cancelled' | 'interrupted'; filePath: string }
   'update:status': UpdateStatus
 }
 
