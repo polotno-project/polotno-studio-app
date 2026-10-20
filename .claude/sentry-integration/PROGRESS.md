@@ -15,3 +15,4 @@ Goal: crash/error reporting via Sentry. User decisions: always on (no opt-out to
 - [x] GitHub: secret SENTRY_DSN, variables SENTRY_ORG=polotno / SENTRY_PROJECT=polotno-studio-app set via gh
 - [x] SENTRY_AUTH_TOKEN secret (org auth token, created in Sentry UI) — needed for source-map upload in release.yml
 - [ ] Verify on the first tagged release: source-map upload succeeds (no 401/403 in the build log) and a production event's frames show original source
+- [x] PR opened: https://github.com/polotno-project/polotno-studio-app/pull/9
