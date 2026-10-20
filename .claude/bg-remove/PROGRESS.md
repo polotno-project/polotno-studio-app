@@ -52,3 +52,6 @@ From agent research (sources in its report, not re-verified by me):
 - Decide: ship Vision-only first (mac 14+), or both at once.
 - Benchmark BiRefNet_lite WebGPU vs WASM inside Electron 39 (mac/win/linux).
 - Legal: DIS5K terms.
+
+## Handoff 2026-10-20
+- macOS (Apple Vision) implementation handed to Orca worktree `bg-remove-mac` (branch nikigan/bg-remove-mac, Claude agent); it cherry-picks ad285be and continues this file there.
