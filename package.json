@@ -105,7 +105,7 @@
     "mobx": "7.0.3",
     "mobx-react-lite": "^5.1.0",
     "playwright-core": "^1.62.1",
-    "polotno": "^4.14.1",
+    "polotno": "^4.16.1",
     "prettier": "^3.7.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

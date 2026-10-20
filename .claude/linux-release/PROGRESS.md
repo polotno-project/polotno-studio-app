@@ -64,6 +64,11 @@ skipped here to avoid merge conflicts and marked "done in windows-release".
       Codex review (PR #5, P2): overlapping GIF exports (two tabs) stacked the window.GIF wrapper and
       could leave a stale one → exports now run one at a time (module-level promise queue). Harness:
       two concurrent exports get 91 events each (no cross-talk), window.GIF === original afterwards.
+      REPLACED (review: lavrton, "implement that from SDK side"): Polotno 4.16.0 added
+      `GifExportOptions.onProgress(progress 0-1, 'rendering' | 'encoding')`; bumped polotno to ^4.16.1,
+      dropped the window.GIF subclass and the export queue, export-menu maps the phases. ensureGifLibrary
+      stays (4.16.1 still loads gif.js from cdnjs without window.GIF). Typecheck + electron-vite build pass;
+      not yet eyeballed in the app.
 - [x] 3.2 Vector PDF of the welcome template fails ("Monaco" → FONT_FAILED) — done in windows-release.
 - [x] 3.3 Dialog titles "polotno-app" → explicit `title: 'Polotno'` — done in windows-release.
 

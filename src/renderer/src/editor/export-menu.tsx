@@ -59,9 +59,9 @@ export async function runExport(format: MenuFormat): Promise<void> {
         const id = toast.loading('Rendering GIF… 0%')
         try {
           await exportGIF(store, {
-            onProgress: (phase, p) =>
+            onProgress: (progress, phase) =>
               toast.loading(
-                `${phase === 'capture' ? 'Rendering' : 'Encoding'} GIF… ${Math.round(p)}%`,
+                `${phase === 'rendering' ? 'Rendering' : 'Encoding'} GIF… ${Math.round(progress * 100)}%`,
                 { id }
               )
           })
