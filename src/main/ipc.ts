@@ -46,6 +46,11 @@ import {
 } from './agents/codex/provider'
 import { deleteChatsOf, renameChatsOf } from './agents/chats'
 import {
+  cancelRemoveBackground,
+  removeBackground,
+  removeBackgroundAvailable
+} from './remove-background'
+import {
   readDesignFile,
   readDesignFileBase64,
   writeDesignFile,
@@ -236,4 +241,7 @@ export function registerIpcHandlers(): void {
     editImageWithCodex(id, png, instruction)
   )
   handle('imageEdit:cancel', (_event, { id }) => cancelImageEdit(id))
+  handle('removeBackground:available', () => removeBackgroundAvailable())
+  handle('removeBackground:run', (_event, { id, image }) => removeBackground(id, image))
+  handle('removeBackground:cancel', (_event, { id }) => cancelRemoveBackground(id))
 }

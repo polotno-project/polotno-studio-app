@@ -115,7 +115,10 @@
     "reset": "Reset"
   },
   "error": {
-    "removeBackground": "Ops! Something went wrong. Background can not be removed."
+    "removeBackground": "Ops! Something went wrong. Background can not be removed.",
+    "removeBackgroundNoSubject": "No subject found.",
+    "removeBackgroundUnreadable": "Can't read this image.",
+    "removeBackgroundFailed": "Couldn't remove the background."
   },
   "sidePanel": {
     "templates": "Templates",

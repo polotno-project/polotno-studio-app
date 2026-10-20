@@ -1,6 +1,8 @@
 import {
   getTranslations,
   setExpandFunc,
+  setRemoveBackgroundEnabled,
+  setRemoveBackgroundFunc,
   setRemoveObjectFunc,
   setReplaceObjectFunc,
   setTranslations
@@ -18,8 +20,10 @@ import { tabs } from './tabs-model'
 // have Codex redraw the image, then put the result back only inside the
 // area, so outside it the original stays (as JPEG for an opaque photo, see
 // composite).
-// Background removal is not routed here: an image model redraws the subject
-// instead of cutting it out. Upscale is not offered: image models can't.
+// Background removal doesn't go to Codex (an image model redraws the subject
+// instead of cutting it out): it runs on the device, through Apple Vision on
+// macOS 14+ (src/main/remove-background.ts), and is hidden elsewhere.
+// Upscale is not offered: image models can't.
 
 const MAGENTA = [255, 0, 255]
 // The image sent to Codex; its model outputs about 1.5k px anyway.
@@ -262,8 +266,57 @@ function sayWhoRuns(): void {
   )
 }
 
+type RemoveBackgroundError = 'NoSubject' | 'Unreadable' | 'Failed'
+
+function removeBackgroundFailure(error: RemoveBackgroundError, cause?: unknown): Error {
+  const messages = getTranslations().error as Record<string, string>
+  return failure(messages[`removeBackground${error}`], cause)
+}
+
+// Polotno hands over the image's src; the helper wants its bytes. The result
+// goes back as a data URL (Polotno rejects blob: URLs).
+async function removeBackground(src: string, signal?: AbortSignal): Promise<string> {
+  let image: Uint8Array
+  try {
+    const response = await fetch(src, { signal })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    image = new Uint8Array(await response.arrayBuffer())
+  } catch (error) {
+    if (signal?.aborted) throw abortError()
+    throw removeBackgroundFailure('Unreadable', error)
+  }
+  if (signal?.aborted) throw abortError()
+
+  const id = crypto.randomUUID()
+  const cancel = (): void => void window.desktop.invoke('removeBackground:cancel', { id })
+  signal?.addEventListener('abort', cancel, { once: true })
+  try {
+    const result = await window.desktop.invoke('removeBackground:run', { id, image })
+    if (signal?.aborted || result.state === 'canceled') throw abortError()
+    if (result.state === 'done') return result.dataUrl
+    throw removeBackgroundFailure(
+      ({ noSubject: 'NoSubject', unreadable: 'Unreadable', failed: 'Failed' } as const)[
+        result.state
+      ]
+    )
+  } finally {
+    signal?.removeEventListener('abort', cancel)
+  }
+}
+
+async function installRemoveBackground(): Promise<void> {
+  if (await window.desktop.invoke('removeBackground:available')) {
+    setRemoveBackgroundFunc(removeBackground)
+  } else {
+    // No handler alone already hides the entry; this also keeps it hidden if
+    // the Polotno Cloud default ever turns on.
+    setRemoveBackgroundEnabled(false)
+  }
+}
+
 export function installAiImageTools(): void {
   sayWhoRuns()
+  void installRemoveBackground()
   setReplaceObjectFunc(({ image, mask, prompt, signal }) =>
     run(image, mask, instructions.replace(prompt), signal)
   )

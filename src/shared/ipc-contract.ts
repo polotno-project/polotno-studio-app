@@ -122,7 +122,21 @@ export interface InvokeApi {
     dataUrl: string
   }
   'imageEdit:cancel': (p: { id: string }) => void
+  // On-device background removal (src/main/remove-background.ts): macOS 14+
+  // only; elsewhere the AI edit menu has no Remove background entry.
+  'removeBackground:available': () => boolean
+  'removeBackground:run': (p: { id: string; image: Uint8Array }) => RemoveBackgroundResult
+  'removeBackground:cancel': (p: { id: string }) => void
 }
+
+// noSubject: Vision found nothing to keep (a landscape, a texture).
+// unreadable: the image format can't be decoded.
+export type RemoveBackgroundResult =
+  | { state: 'done'; dataUrl: string }
+  | { state: 'canceled' }
+  | { state: 'noSubject' }
+  | { state: 'unreadable' }
+  | { state: 'failed' }
 
 export type MenuAction = 'newTab' | 'openFile' | 'save' | 'saveAs' | 'closeTab' | 'export'
 

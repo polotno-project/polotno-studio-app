@@ -52,3 +52,64 @@ From agent research (sources in its report, not re-verified by me):
 - Decide: ship Vision-only first (mac 14+), or both at once.
 - Benchmark BiRefNet_lite WebGPU vs WASM inside Electron 39 (mac/win/linux).
 - Legal: DIS5K terms.
+
+## Implementation: Apple Vision on macOS 14+ (branch nikigan/bg-remove-mac) — started 2026-10-20
+Scope: mac-only. ONNX/BiRefNet path stays in BACKLOG.md.
+
+Files:
+- `native/remove-background/main.swift` — production CLI. stdin image bytes → stdout transparent PNG.
+  Upright via `CGImageSourceCreateThumbnailAtIndex(... WithTransform)` (EXIF orientation applied, as the
+  browser shows it), longest side ≤ `--max-side` (4096 default, Polotno's own request cap; never upscales).
+  Exit codes: 0 ok, 1 failed, 2 usage, 3 no subject, 4 unreadable. Timing line on stderr.
+- `scripts/build-remove-background.mjs` — `xcrun swiftc -O -target {arm64,x86_64}-apple-macos14` + lipo →
+  `out/helpers/remove-background` (~180 KB). No-op off macOS; skips when up to date. Hooked into
+  `npm run build` (last step) and `npm run dev`.
+- `electron-builder.yml` — `mac.extraResources` → `Contents/Resources/helpers/remove-background`;
+  `files` excludes `native/*` and `out/helpers/*` (keeps the Mach-O out of app.asar).
+- `src/main/remove-background.ts` — availability (darwin && getSystemVersion major ≥ 14 && helper exists),
+  spawn per request, cancel = kill, 30 s timeout, electron-log `remove-background.log`, kill on will-quit.
+  `POLOTNO_REMOVE_BACKGROUND_HELPER` env overrides the path (point at a missing file to test "unavailable").
+- IPC: `removeBackground:available|run|cancel` (src/shared/ipc-contract.ts); result is a union
+  (done/canceled/noSubject/unreadable/failed) because IPC rejections lose error fields.
+- Renderer (`ai-image-tools.ts`): `setRemoveBackgroundFunc` when available, else `setRemoveBackgroundEnabled(false)`.
+  Handler fetches `src` bytes (with signal), returns data URL; abort → cancel IPC → AbortError.
+  Errors carry `userMessage` from new i18n keys `error.removeBackground{NoSubject,Unreadable,Failed}` (en, ru).
+
+Verified facts (2026-10-20):
+- Polotno 4.16.1 flags.js: `removeBackgroundEnabled = !disabledByClient && (defaultEnabled || handler != null)`.
+  So no handler ⇒ hidden; `setRemoveBackgroundEnabled(false)` ⇒ hidden even with a handler.
+- @electron/universal 2.0.3: a Mach-O that is already universal in both arch builds is skipped
+  ("already universal across builds, skipping lipo") — no `x64ArchFiles` needed. Identical *thin* binaries
+  would throw without x64ArchFiles.
+- electron-builder 26.15.3 MacTargetHelper.getOptionsForFile: hardened runtime on by default for every
+  signed file; non-main binaries get `entitlementsInherit`. @electron/osx-sign 1.3.3 walkAsync signs every
+  binary file under Contents/ (Resources included).
+- Helper CLI checks: dog 1600×1200 280 ms (first run incl. model load ~1.5 s wall), portrait 1400×2098
+  247 ms, flat gray → exit 3, garbage → exit 4, bad flag → exit 2, EXIF orientation 6 → 1200×1600 output.
+
+## Status
+- [x] Swift helper + build script + builder config
+- [x] Main IPC + renderer handler + i18n; typecheck + eslint on changed files clean
+- [x] Dev app: run, undo, cancel, no-subject, hidden when unavailable
+- [x] Packaged build: helper in .app, signed
+- [ ] Notarization: not verifiable locally (no Developer ID / Apple credentials here) — check the next CI release
+
+## Verification 2026-10-20 (macOS 26.6, M-series)
+Driven over CDP (scratchpad e2e/run.mjs: playwright-core connectOverCDP to `--remoteDebuggingPort 9333`,
+isolated `--user-data-dir`; `window.polotnoApp.tabs.active.store`). UI was in Russian (system locale).
+- Dev: AI edit menu lists "Удалить фон"; click → src becomes a PNG data URL in ~1 s (882 ms in main, 205 ms
+  in Vision, rest is spawn + model load on first use). Result clean (dog, soft edges).
+- Undo → original JPEG back, redo → PNG: one history step.
+- Cancel: `store.setTool('remove-background')`, `el.pendingEdit.cancel()` after 150 ms → run rejects
+  `TOOL_FAILED canceled`, log "canceled in 127 ms", no helper process left, src unchanged.
+- Flat gray image → status label on the image shows the new no-subject message. The first wording was cut
+  off on a 300 px image (label is one line), so all three messages were shortened.
+- `POLOTNO_REMOVE_BACKGROUND_HELPER=/nonexistent` → `removeBackground:available` false, menu shows only
+  Generative fill + Expand, log "helper missing at /nonexistent".
+- typecheck OK; eslint clean on changed files; full `npm run lint` still 48 errors (pre-existing, BACKLOG),
+  warnings 362 → 348.
+- `npm run build:unpack`: helper at Contents/Resources/helpers/remove-background, universal, not in app.asar,
+  signed by electron-builder with flags=0x10000(runtime), secure timestamp, entitlementsInherit; app passes
+  `codesign --verify --deep --strict`. Packaged app: feature works (365 ms end to end).
+- `electron-builder --mac --dir --universal`: merge OK, helper untouched, verify OK. x86_64 slice under
+  Rosetta: 571 ms, correct output.
