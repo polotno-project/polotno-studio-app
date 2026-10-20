@@ -22,6 +22,10 @@ jobs:
       - run: npm run build
         env:
           VITE_POLOTNO_KEY: ${{ secrets.VITE_POLOTNO_KEY }}
+      # rpmbuild for the rpm target, bsdtar for the pacman target.
+      - name: Linux packaging tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y rpm libarchive-tools
       - name: Package (unsigned, no publish)
         run: npx electron-builder --publish never
       - name: CLI smoke test (render bundled templates)
@@ -42,6 +46,49 @@ jobs:
           call dist\win-unpacked\resources\bin\polotno.cmd render
           if %ERRORLEVEL% neq 2 exit /b 1
           exit /b 0
+      # Installs the deb the way users do and runs the `polotno` CLI with the
+      # userns restriction ON: only the deb's AppArmor profile lets Chromium's
+      # sandbox start (chrome-sandbox isn't setuid, nothing adds --no-sandbox),
+      # so a render here proves the profile works. Runs before the step below,
+      # which lifts the restriction.
+      - name: deb smoke test (install, sandboxed CLI, MIME, remove)
+        if: runner.os == 'Linux'
+        run: |
+          set -x
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=1
+          sudo apt-get update -qq
+          # Desktop systems have update-desktop-database; the runner doesn't, and
+          # without it postinst can't write mimeinfo.cache (checked below).
+          sudo apt-get install -y desktop-file-utils
+          sudo apt-get install -y ./dist/polotno-app_*_amd64.deb
+          test "$(readlink -f /usr/bin/polotno)" = /opt/Polotno/polotno
+          sudo aa-status | grep -qw polotno
+          grep -q 'application/x-polotno:\*\.polotno' /usr/share/mime/globs2
+          # hicolor has no 1024x1024 dir; without standard sizes GNOME shows a gear.
+          test -e /usr/share/icons/hicolor/512x512/apps/polotno.png
+          grep -q '^application/x-polotno=polotno-app.desktop' /usr/share/applications/mimeinfo.cache
+          xvfb-run -a polotno render src/renderer/src/templates/social-media-post.json \
+            -o /tmp/deb-smoke.png --pixel-ratio 1
+          test -s /tmp/deb-smoke.png
+          set +e; xvfb-run -a polotno render; code=$?; set -e
+          test "$code" -eq 2
+          # No display: a clear error and exit 1, not Chromium's core dump (139).
+          set +e; env -u DISPLAY -u WAYLAND_DISPLAY polotno render /tmp/none.json; code=$?; set -e
+          test "$code" -eq 1
+          sudo apt-get remove -y polotno-app
+          test ! -e /usr/bin/polotno
+          test ! -e /etc/apparmor.d/polotno
+      # Stock Fedora, openSUSE and Arch containers: install the rpm/pacman,
+      # check what it registers, render with the CLI, remove it.
+      - name: rpm/pacman smoke test (Fedora, openSUSE, Arch containers)
+        if: runner.os == 'Linux'
+        run: |
+          for pair in fedora=fedora:latest opensuse=opensuse/tumbleweed arch=archlinux:latest; do
+            echo "::group::${pair%%=*}"
+            docker run --rm --security-opt seccomp=unconfined -v "$PWD":/w -w /w "${pair#*=}" \
+              scripts/linux-package-smoke.sh "${pair%%=*}"
+            echo "::endgroup::"
+          done
       # Runs the packaged binary, so it also covers the Linux packaging. Ubuntu
       # 24.04 blocks unprivileged user namespaces via AppArmor, which Chromium's
       # sandbox needs; lift that on the runner instead of passing --no-sandbox,
@@ -50,7 +97,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          xvfb-run -a ./dist/linux-unpacked/polotno-app render \
+          xvfb-run -a ./dist/linux-unpacked/polotno render \
             src/renderer/src/templates/social-media-post.json -o /tmp/cli-smoke.png --pixel-ratio 1
           test -s /tmp/cli-smoke.png
       # PR builds for test machines: `gh run download <run-id> -n polotno-Linux`.
@@ -60,6 +107,9 @@ jobs:
           name: polotno-${{ runner.os }}
           path: |
             dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
+            dist/*.pacman
             dist/*.dmg
             dist/*.zip
             dist/*.exe
