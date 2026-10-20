@@ -67,3 +67,5 @@
 - 2026-10-20 [claude-opus-5-5] bg-remove research: onnx-community/ISNet-ONNX looks like a generic IS-Net export but is tagged AGPL-3.0 — check HF license tags, not the model family's license
 - 2026-10-20 [claude-opus-5-5] npm run dev in a fresh worktree: MCP server crashes with ERR_MODULE_NOT_FOUND out/mcp-server.cjs (dev doesn't build it); run 'npm run build:mcp' once first
 - 2026-10-20 [claude-opus-5-5] restarting 'npm run dev' from a script: pkill on the npm/electron-vite shell leaves the Electron app running; the next dev run then quits on the single-instance lock while CDP still talks to the old app. Kill node_modules/electron/dist processes too
+- 2026-10-20 [claude-opus-5-5] pip install into a venv under the session scratchpad (Temp\claude\<long path>\scratchpad) fails on Windows without long-path support (onnx wheel paths exceed MAX_PATH); create the venv at a short path like %TEMP%\bfv
+- 2026-10-20 [claude-opus-5-5] cherry-picking on the Windows PC failed with 'unable to auto-detect email address' (no global git identity there); used GIT_AUTHOR_*/GIT_COMMITTER_* env vars matching the repo history instead of writing config

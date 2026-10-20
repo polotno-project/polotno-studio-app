@@ -50,7 +50,7 @@ From agent research (sources in its report, not re-verified by me):
 
 ## Next steps (not started)
 - Decide: ship Vision-only first (mac 14+), or both at once.
-- Benchmark BiRefNet_lite WebGPU vs WASM inside Electron 39 (mac/win/linux).
+- Benchmark BiRefNet_lite WebGPU vs WASM inside Electron 39 (mac/win/linux). Windows done 2026-10-20, see below.
 - Legal: DIS5K terms.
 
 ## Implementation: Apple Vision on macOS 14+ (branch nikigan/bg-remove-mac) — started 2026-10-20
@@ -120,3 +120,112 @@ isolated `--user-data-dir`; `window.polotnoApp.tabs.active.store`). UI was in Ru
 - Pushed the branch, opened a PR, requested a Codex review.
 ## Handoff 2026-10-20
 - macOS (Apple Vision) implementation handed to Orca worktree `bg-remove-mac` (branch nikigan/bg-remove-mac, Claude agent); it cherry-picks ad285be and continues this file there.
+
+## BiRefNet benchmark (Windows)
+Run 2026-10-20 by Claude (Opus 5.5) per `.claude/bg-remove/birefnet-benchmark-brief.md`, on branch nikigan/bg-remove-bench-win.
+Harness: `.claude/bg-remove/bench/` (not part of the app; `npm i` there; models/images/out are gitignored).
+`node run.mjs [case…]` runs each case in a fresh Electron process; `node compare.mjs` prints the table.
+
+### Machine
+- AMD Ryzen 9 5900X (12C/24T), 32 GB RAM, Windows 11 Pro 26H2 build 26300.9711.
+- NVIDIA GeForce RTX 3070 8 GB, driver 616.92 (32.0.16.1692). A "Meta Virtual Monitor" adapter is also present.
+- Electron 39.8.10 / Chrome 142.0.7444.265 (the repo's installed electron).
+- `navigator.gpu.requestAdapter({ powerPreference: 'high-performance' })`: vendor `nvidia`, architecture `ampere`,
+  device/description empty, not a fallback adapter, `shader-f16` yes, maxStorageBuffersPerShaderStage **10**,
+  maxStorageBufferBindingSize 2147483644, maxBufferSize 2147483648.
+- Page and worker are `crossOriginIsolated: true` (custom `bench://` protocol serving COOP/COEP), so WASM runs
+  multi-threaded (ORT default numThreads = 4).
+
+### Setup
+- Models: onnx-community/BiRefNet_lite-ONNX `onnx/model_fp16.onnx` (114.5 MB) and `onnx/model.onnx` (224 MB), MIT.
+  runes/birefnet-lite-webgpu `birefnet_lite_webgpu_fp16.onnx` (123 MB), HF license tag MIT. It is the same weights after
+  graph surgery (per its card: ORT BASIC constant folding, Concat/Split fan-out capped at 6, Sum→Add, fp16 with fp32 I/O).
+  All graphs: `input_image` f32 [1,3,1024,1024] → `output_image` f32 logits [1,1,1024,1024].
+- Our own fp32 patched graph `birefnet_lite_webgpu_fp32.onnx` (244 MB), built with `bench/patch_webgpu.py`. Same recipe,
+  no fp16: 4083 → 4715 nodes; 4 Concat, 59 Split and 20 Sum nodes rewritten.
+- Runtimes: onnxruntime-web 1.30.0; transformers.js 4.3.1 (bundles onnxruntime-web 1.31.0-dev.20260914);
+  onnxruntime-node 1.30.0 (its win32/x64 build ships DirectML.dll).
+- In ORT-web 1.30, `ort.webgpu.min.mjs` (`onnxruntime-web/webgpu`) is the **native C++ WebGPU EP** (asyncify wasm).
+  The older **JSEP** WebGPU EP survives only in `ort.all.min.mjs`. Both were tested ("native" and "JSEP" below).
+- Test images (Wikimedia Commons, CC BY / CC BY-SA, kept local only): curly-hair portrait 1280×1918, dog 1280×1707,
+  sneakers product shot 1280×850, crowded market 640×430.
+- Per case:
+  - Timings: model fetch; session create ("load"); first `session.run` on the portrait; median of 5 warm portrait runs;
+    one run on each other image. Pre/post-processing is excluded (resize/normalize 20–40 ms; sigmoid and mask
+    upscale 30–155 ms). transformers.js times are end-to-end pipeline calls.
+  - Correctness: compare the full-res alpha to the onnxruntime-node CPU fp32 reference. The table shows the worst of the
+    4 images for mean abs diff (MAD, 0–255) and for IoU at α≥128.
+  - Memory: Windows private-bytes peaks of the renderer, GPU and main processes (`app.getAppMetrics()`). "VRAM Δ" is the
+    device-wide `nvidia-smi` peak minus the baseline.
+
+### Results
+| case | result | load ms | 1st infer ms | warm median ms | renderer MB | GPU proc MB | main MB | VRAM Δ MB | max MAD | worst IoU |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **ORT-web WebGPU native, own patched fp32** | **correct** | 1,796 | 3,981 (rerun 2,135) | **1,291** (rerun 1,273) | 1,205 | 8,593 | 596 | 6,682 | 0.15 | 0.995 |
+| ORT-web WebGPU native, runes patched fp16 | **all-NaN on portrait** (other 3 correct) | 1,833 | 1,105 | 709 (rerun 688) | 937 | 5,106 | 365 | 4,430 | 193 | 0.000 |
+| ORT-web WebGPU native, stock fp16 | FAIL: too many storage buffers | 3,993 | — | — | 747 | 753 | 345 | 208 | — | — |
+| ORT-web WebGPU native, stock fp32 | FAIL: too many storage buffers | 3,861 | — | — | 1,234 | 1,171 | 554 | 933 | — | — |
+| ORT-web WebGPU JSEP, own patched fp32 | wrong output (garbage, no NaN) | 1,764 | 2,487 | 1,130 | 1,316 | 9,097 | 599 | 6,735 | 192 | 0.000 |
+| ORT-web WebGPU JSEP, runes patched fp16 | wrong (1st run garbage, then all-NaN) | 1,968 | 1,339 | 796 | 953 | 5,227 | 370 | 4,716 | 185 | 0.000 |
+| ORT-web WebGPU JSEP, stock fp16 / fp32 | FAIL: std::bad_alloc | 4,439 / 3,999 | — | — | 4,122 / 4,162 | 3,890 / 6,888 | 349 / 561 | 3,073 / 5,648 | — | — |
+| ORT-web WASM ×4 threads: stock fp16, stock fp32, runes fp16, own fp32 | FAIL: std::bad_alloc | 956–2,797 | — | — | 3,834–5,564 | ~130 | — | — | — | — |
+| transformers.js `background-removal`, webgpu fp16 / fp32 | FAIL: too many storage buffers (11 > 10) | 4,738 / 4,393 | — | — | 772 / 1,227 | — | — | — | — | — |
+| transformers.js `background-removal`, wasm fp16 / fp32 | FAIL: std::bad_alloc | 5,114 / 3,884 | — | — | 6,792 / 3,993 | — | — | — | — | — |
+| ORT-node DirectML (main process), stock fp16 | correct | 3,888 | 2,421 | 1,787 (rerun 1,745) | — | — | 12,029 | 6,202 | 0.02 | 0.9998 |
+| ORT-node DirectML, runes patched fp16 | correct | 1,975 | 3,258 | 2,884 | — | — | 9,138 | 5,438 | 0.02 | 0.9997 |
+| ORT-node DirectML, stock fp32 | FAIL: 8007000E (E_OUTOFMEMORY) | — | — | — | — | — | 9,867 | — | — | — |
+| ORT-node CPU, stock fp32 (reference) | correct | 3,083 | 4,827 | 4,684 | — | — | 17,383 | — | 0 | 1 |
+| ORT-node CPU, own patched fp32 | correct (identical alpha) | 1,135 | 4,478 | 4,457 | — | — | 10,032 | — | 0.00 | 1.000 |
+
+- Every case writes its cutout PNGs to `bench/out/<case>/` (gitignored).
+- I checked the working cases' cutouts by eye. Hair, whiskers, shoelaces and the gap between the sneakers are clean.
+  On the busy scene the model keeps only the nearest person, the same as the reference.
+
+Exact errors:
+- WebGPU native with the stock graph (ORT-web 1.30, and transformers.js): `shader_helper.cc:308 … numbers_storage_buffers_
+  <= limits_.maxStorageBuffersPerShaderStage was false. Too many storage buffers in shader. Current: 11, Max is 10`.
+- JSEP with the stock graph, and every WASM case: `failed to call OrtRun(). ERROR_CODE: 6, ERROR_MESSAGE: std::bad_alloc`
+  (the 4 GB wasm32 heap).
+  - WASM also fails with numThreads=1, with enableCpuMemArena=false + enableMemPattern=false, and with all three,
+    on both the stock and our patched fp32 graph.
+  - For scale, the native CPU runs' private bytes peak at 10–17 GB.
+- DirectML fp32: `Non-zero status code returned while running DmlFusedNode_15_51 … 8007000E` (out of memory on the 8 GB card).
+
+### fp16 NaN investigation (native WebGPU)
+- The NaN is deterministic and depends on the input:
+  - The portrait gives all-NaN logits on every run (first and warm), whatever the image order.
+  - dog, product and busy are correct (MAD ≤ 0.17).
+  - The same fp16 graphs are correct on DirectML, so the weights are fine. The overflow is in ORT-web's WebGPU fp16 kernels.
+- Our own fp16 conversion (`bench/to_fp16_mixed.py`, onnxconverter-common, fp32 I/O):
+  - Keeping LayerNorm/Softmax/ReduceMean/Pow/Sqrt/Div/Erf/Exp/Sigmoid in fp32: portrait still NaN.
+  - Also keeping Gemm/MatMul in fp32: still NaN.
+  - Keeping **Conv** in fp32: correct on all 4 (MAD ≤ 0.18), but warm 2,017 ms, slower than full fp32.
+  - So one or more fp16 Conv kernels overflow. I didn't try to narrow it down to specific Conv nodes.
+- JSEP is wrong at fp32 too, so its problem isn't precision. Treat JSEP as unusable for this model.
+
+### Recommendation
+1. **WebGPU does not work without patching.** The stock export fails on every in-browser path: the native EP hits the
+   storage-buffer limit, and JSEP/WASM hit bad_alloc. transformers.js's `background-removal` pipeline fails the same way.
+2. **Ship candidate: onnxruntime-web native WebGPU EP (`onnxruntime-web/webgpu`) in a worker + our own patched fp32 graph**
+   (244 MB, MIT weights).
+   - It's the only in-browser path that is correct on all test images.
+   - On the RTX 3070: ~1.3 s warm, ~1.8 s session create, 2–4 s first inference (shader compile).
+   - No native module, so it sidesteps the onnxruntime-node darwin/x64 gap noted above.
+   - We'd host the patched graph ourselves: the runes repo only ships fp16.
+3. **Don't ship fp16 yet.** The runes fp16 graph is 1.8× faster (~0.7 s) at half the download, but it returns NaN on a
+   real photo (the portrait). Fixing it needs per-Conv mixed precision and a bigger image set. Worth a follow-up because
+   it halves the download.
+4. **There's no in-browser CPU fallback at 1024².** For machines without usable WebGPU, the remaining option is
+   onnxruntime-node from the main process (DirectML fp16 ~1.8 s, CPU ~4.7 s, both correct). That needs a native module
+   per platform. The other way out is a smaller model.
+5. **Memory is the main risk.**
+   - The working WebGPU case peaks at ~6.7 GB VRAM Δ (GPU process ~8.6 GB private) on an 8 GB card, and DirectML fp32
+     runs out of memory on the same card.
+   - It will likely fail on 4 GB discrete GPUs and may struggle on integrated GPUs.
+   - The likely cause is BiRefNet's unrolled deformable convolutions (~784 MB tensors, per the runes card).
+   - Before committing to this model: release the session after each use, and test on an iGPU / 4 GB GPU.
+
+### Follow-ups
+- Run the harness on a low-VRAM or integrated-GPU Windows machine, and on mac/linux.
+- Per-node fp16 block list (find the overflowing Convs) → ~120 MB model at ~0.7 s, if it holds.
+- Still open from above: DIS5K training-data terms.

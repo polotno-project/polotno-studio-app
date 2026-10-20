@@ -1,0 +1,6 @@
+node_modules/
+models/
+out/
+out-*/
+images/
+*.log
