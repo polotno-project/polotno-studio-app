@@ -18,3 +18,4 @@
 - 2026-10-09 [claude-opus-5-5] 'npm run dev' in a fresh worktree: MCP server crash-loops with ERR_MODULE_NOT_FOUND out/mcp-server.cjs because dev doesn't build it — needs 'npm run build:mcp' first
 - 2026-10-09 [claude-opus-5-5] dev: editing a renderer module that triggers a full page reload (tabs-model.ts) re-registers every open doc while main keeps the old entries, so session.json lists each file twice until restart; main changes also need a manual app restart (dev isn't run with --watch)
 - 2026-10-09 [claude-opus-5-5] stopping the dev app from a shell: SIGTERM only closes the window (save flush) and macOS keeps the Electron process alive holding the single-instance lock — needs Cmd+Q or kill -9 after the window is gone
+- 2026-10-20 [claude-opus-5-5] testing the dev app while another worktree's dev app runs: both share userData 'polotno-app' and its single-instance lock; launching with --user-data-dir=<tmp> gives an isolated instance

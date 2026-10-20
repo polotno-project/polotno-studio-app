@@ -1,0 +1,13 @@
+# Sentry integration
+
+Goal: crash/error reporting via Sentry. User decisions: always on (no opt-out toggle), errors + native crashes only (no tracing/replay), source maps uploaded from the Release workflow.
+
+- [x] `@sentry/electron` 8.3 (dependency) + `@sentry/vite-plugin` 11.8 (dev)
+- [x] Main: src/main/sentry.ts `initSentry()` — DSN from build-time `MAIN_VITE_SENTRY_DSN`, no DSN = no-op; release `polotno-app@<version>`; called in the GUI branch of src/main/index.ts and in runCli right after the isolated userData is set (SDK caches under userData)
+- [x] CLI: unexpected (non-CliError) failures are captured + flushed before app.exit
+- [x] Preload imports `@sentry/electron/preload`; electron.vite.config.ts excludes it from externalizeDeps (sandboxed preload can't require node_modules)
+- [x] Renderer: src/renderer/src/sentry.ts imported first in main.tsx
+- [x] Source maps: plugin + `sourcemap: 'hidden'` only when SENTRY_AUTH_TOKEN is set; maps deleted after upload; upload failure doesn't fail the build
+- [x] release.yml passes secrets SENTRY_DSN / SENTRY_AUTH_TOKEN and vars SENTRY_ORG / SENTRY_PROJECT; README documents it
+- [x] Verified against a local envelope-capture server (DSN http://key@127.0.0.1:8999/1, app with --user-data-dir): renderer error, renderer unhandled rejection, main unhandled rejection, native renderer crash (Page.crash → fatal minidump event), all with release polotno-app@0.1.4. No screenshots/local variables attached (SDK defaults off). CLI render still exits 0.
+- [ ] Repo owner: create the Sentry project, add the secrets/variables

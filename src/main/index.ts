@@ -9,6 +9,7 @@ import { startMcpServer, stopMcpServer } from './mcp/launcher'
 import { runCli } from './cli'
 import { initUpdater } from './updater'
 import { migrateDraftsToLibrary } from './library'
+import { initSentry } from './sentry'
 
 // Headless CLI subcommands (stage 3) branch before any window or lock exists,
 // so the GUI path and the CLI path never fight.
@@ -23,6 +24,8 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
 } else if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
+  initSentry()
+
   // macOS delivers double-clicked files via open-file (possibly before ready).
   app.on('open-file', (event, filePath) => {
     event.preventDefault()
