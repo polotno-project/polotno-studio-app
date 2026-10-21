@@ -31,15 +31,32 @@ const countNaN = (a) => {
   for (let i = 0; i < a.length; i++) if (a[i] !== a[i]) n++
   return n
 }
-const MEAN = [0.485, 0.456, 0.406]
-const STD = [0.229, 0.224, 0.225]
+// same as prob.cjs: 'sigmoid' for BiRefNet logits, 'minmax' for IS-Net's sigmoid output (per-image min-max)
+function toProb(out, mode) {
+  const p = new Float32Array(out.length)
+  if (mode === 'minmax') {
+    let mi = Infinity
+    let ma = -Infinity
+    for (const v of out) {
+      if (v < mi) mi = v
+      if (v > ma) ma = v
+    }
+    const k = ma > mi ? 1 / (ma - mi) : 0
+    for (let i = 0; i < out.length; i++) p[i] = (out[i] - mi) * k
+  } else if (mode === 'identity') {
+    p.set(out)
+  } else {
+    for (let i = 0; i < out.length; i++) p[i] = 1 / (1 + Math.exp(-out[i]))
+  }
+  return p
+}
 
 async function loadBitmap(name) {
   const blob = await (await fetch(`/images/${name}.jpg`)).blob()
   return { blob, bmp: await createImageBitmap(blob) }
 }
 
-function preprocess(bmp) {
+function preprocess(bmp, { mean: MEAN, std: STD }) {
   const c = new OffscreenCanvas(S, S)
   const g = c.getContext('2d', { willReadFrequently: true })
   g.imageSmoothingQuality = 'high'
@@ -56,12 +73,13 @@ function preprocess(bmp) {
 }
 
 // logits (1024x1024) -> full-res alpha + cutout PNG
-async function postprocess(bmp, logits) {
+async function postprocess(bmp, logits, mode) {
   const N = S * S
+  const prob = toProb(logits, mode)
   const mi = new ImageData(S, S)
   for (let i = 0; i < N; i++) {
     mi.data[i * 4] = mi.data[i * 4 + 1] = mi.data[i * 4 + 2] = 255
-    mi.data[i * 4 + 3] = 255 / (1 + Math.exp(-logits[i]))
+    mi.data[i * 4 + 3] = 255 * prob[i]
   }
   const mc = new OffscreenCanvas(S, S)
   mc.getContext('2d').putImageData(mi, 0, 0)
@@ -117,21 +135,21 @@ async function runOrt(cfg, result) {
     result.wasmNumThreads = ort.env.wasm.numThreads
     log(`session created in ${result.loadMs.toFixed(0)} ms (numThreads=${ort.env.wasm.numThreads})`)
     const run = async (chw) => {
-      const out = await session.run({ input_image: new ort.Tensor('float32', chw, [1, 3, S, S]) })
-      return out.output_image.data
+      const out = await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', chw, [1, 3, S, S]) })
+      return out[session.outputNames[0]].data
     }
     result.images = {}
     for (const [idx, name] of cfg.images.entries()) {
       stage = 'infer:' + name
       const { bmp } = await loadBitmap(name)
       let t0 = performance.now()
-      const chw = preprocess(bmp)
+      const chw = preprocess(bmp, cfg.prep)
       const preMs = performance.now() - t0
       t0 = performance.now()
       const logits = await run(chw)
       const runMs = performance.now() - t0
       t0 = performance.now()
-      const { alpha, png } = await postprocess(bmp, logits)
+      const { alpha, png } = await postprocess(bmp, logits, cfg.prep.out)
       const postMs = performance.now() - t0
       result.images[name] = { preMs, runMs, postMs, width: bmp.width, height: bmp.height, nanCount: countNaN(logits) }
       save(name + '.alpha', alpha)

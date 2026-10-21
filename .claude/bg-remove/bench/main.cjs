@@ -1,4 +1,4 @@
-// BiRefNet_lite benchmark — Electron main. One case per process: `electron main.cjs <caseId>`.
+// BiRefNet_lite / IS-Net benchmark — Electron main. One case per process: `electron main.cjs <caseId>`.
 // Renderer cases run in a Web Worker inside a throwaway BrowserWindow served from a
 // cross-origin-isolated custom protocol; node-* cases run onnxruntime-node in this process.
 const { app, BrowserWindow, protocol, ipcMain, nativeImage } = require('electron')
@@ -16,8 +16,16 @@ const MODELS = {
   patched32: 'models/birefnet_lite_webgpu_fp32.onnx',
   mixed16: 'models/birefnet_lite_webgpu_fp16mixed.onnx',
   chunked32: 'models/birefnet_lite_webgpu_fp32_chunked.onnx',
-  chunked16: 'models/birefnet_lite_webgpu_fp16mixed_chunked.onnx'
+  chunked16: 'models/birefnet_lite_webgpu_fp16mixed_chunked.onnx',
+  isnet32: 'models/isnet_fp32.onnx', // export_isnet.py
+  isnet16: 'models/isnet_fp16.onnx'
 }
+// input normalization + output -> probability, per model family
+const PREP = {
+  birefnet: { mean: [0.485, 0.456, 0.406], std: [0.229, 0.224, 0.225], out: 'sigmoid' },
+  isnet: { mean: [0.5, 0.5, 0.5], std: [1, 1, 1], out: 'minmax' }
+}
+const prepFor = (key) => PREP[key.startsWith('isnet') ? 'isnet' : 'birefnet']
 const BUNDLES = {
   native: 'node_modules/onnxruntime-web/dist/ort.webgpu.min.mjs', // native C++ WebGPU EP (asyncify wasm)
   jsep: 'node_modules/onnxruntime-web/dist/ort.all.min.mjs', // JSEP WebGPU EP
@@ -26,19 +34,27 @@ const BUNDLES = {
 
 function caseConfig(id) {
   let m
-  if ((m = id.match(/^ort-webgpu-(native|jsep)-(fp16|fp32|patched|patched32|mixed16|chunked32|chunked16)$/)))
-    return { id, kind: 'ort', bundle: BUNDLES[m[1]], ep: 'webgpu', model: MODELS[m[2]] }
-  if ((m = id.match(/^ort-wasm-(fp16|fp32|patched|patched32|mixed16|chunked32|chunked16)$/)))
-    return { id, kind: 'ort', bundle: BUNDLES.wasm, ep: 'wasm', model: MODELS[m[1]] }
+  if ((m = id.match(/^ort-webgpu-(native|jsep)-(\w+)$/)))
+    return { id, kind: 'ort', bundle: BUNDLES[m[1]], ep: 'webgpu', model: MODELS[m[2]], prep: prepFor(m[2]) }
+  if ((m = id.match(/^ort-wasm-(\w+)$/)))
+    return { id, kind: 'ort', bundle: BUNDLES.wasm, ep: 'wasm', model: MODELS[m[1]], prep: prepFor(m[1]) }
   if ((m = id.match(/^tfjs-(webgpu|wasm)-(fp16|fp32)$/)))
     return { id, kind: 'tfjs', device: m[1], dtype: m[2] }
-  if ((m = id.match(/^node-(dml|cpu|webgpu)-(fp16|fp32|patched|patched32|mixed16|chunked32|chunked16)$/)))
-    return { id, kind: 'node', ep: m[1], model: MODELS[m[2]] }
+  if ((m = id.match(/^node-(dml|cpu|webgpu)-(\w+)$/)))
+    return { id, kind: 'node', ep: m[1], model: MODELS[m[2]], prep: prepFor(m[2]) }
   throw new Error('unknown case ' + id)
 }
+const toProb = require('./prob.cjs')
 
 const caseId = process.argv.find((a) => /^(ort|tfjs|node)-/.test(a))
-const cfg = caseConfig(caseId)
+let cfg
+try {
+  cfg = caseConfig(caseId)
+  if ('model' in cfg && !cfg.model) throw new Error('unknown model in ' + caseId)
+} catch (e) {
+  console.error(e.message) // a throw here would leave Electron running with no window
+  process.exit(2)
+}
 const outDir = path.join(ROOT, process.env.BENCH_OUT || 'out', caseId)
 fs.mkdirSync(outDir, { recursive: true })
 const log = (...a) => console.log(`[${caseId}]`, ...a)
@@ -107,8 +123,7 @@ async function runNodeCase() {
     const bgra = img.resize({ width: 1024, height: 1024, quality: 'best' }).toBitmap()
     const N = 1024 * 1024
     const chw = new Float32Array(3 * N)
-    const mean = [0.485, 0.456, 0.406]
-    const std = [0.229, 0.224, 0.225]
+    const { mean, std } = cfg.prep
     for (let i = 0; i < N; i++) {
       chw[i] = (bgra[i * 4 + 2] / 255 - mean[0]) / std[0]
       chw[N + i] = (bgra[i * 4 + 1] / 255 - mean[1]) / std[1]
@@ -119,8 +134,9 @@ async function runNodeCase() {
   const post = (name, p, logits) => {
     const N = 1024 * 1024
     const m = Buffer.alloc(N * 4)
+    const prob = toProb(logits, cfg.prep.out)
     for (let i = 0; i < N; i++) {
-      const a = Math.round(255 / (1 + Math.exp(-logits[i])))
+      const a = Math.round(255 * prob[i])
       m[i * 4] = m[i * 4 + 1] = m[i * 4 + 2] = a
       m[i * 4 + 3] = 255
     }
@@ -148,16 +164,16 @@ async function runNodeCase() {
   for (const [idx, name] of IMAGES.entries()) {
     const p = prep(name)
     const t = performance.now()
-    const out = await session.run({ input_image: p.tensor })
+    const out = await session.run({ [session.inputNames[0]]: p.tensor })
     const runMs = performance.now() - t
-    post(name, p, out.output_image.data)
+    post(name, p, out[session.outputNames[0]].data)
     result.images[name] = { runMs }
     if (idx === 0) {
       result.firstInferMs = runMs
       const warm = []
       for (let i = 0; i < WARM_RUNS; i++) {
         const t1 = performance.now()
-        await session.run({ input_image: p.tensor })
+        await session.run({ [session.inputNames[0]]: p.tensor })
         warm.push(performance.now() - t1)
       }
       result.warmRunsMs = warm
