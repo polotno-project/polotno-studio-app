@@ -80,6 +80,19 @@ function sampleVram() {
     mem.vramPeakMB = Math.max(mem.vramPeakMB, v)
   })
 }
+// macOS: unified memory, so Metal buffers show up in the process's phys_footprint (no nvidia-smi).
+function sampleFootprint() {
+  if (process.platform !== 'darwin') return
+  const gpu = app.getAppMetrics().find((p) => p.type === 'GPU')
+  for (const [key, pid] of [['gpuFootprintPeakMB', gpu?.pid], ['rendererFootprintPeakMB', rendererPid]]) {
+    if (!pid) continue
+    execFile('footprint', ['-f', 'bytes', '-p', String(pid)], (err, out) => {
+      const m = !err && out.match(/Footprint: (\d+) B/)
+      if (m) mem[key] = Math.max(mem[key] ?? 0, Number(m[1]) / 2 ** 20)
+    })
+  }
+}
+const footprintTimer = setInterval(sampleFootprint, 300)
 const metricsTimer = setInterval(sampleMetrics, 100)
 const vramTimer = setInterval(sampleVram, 250)
 
@@ -87,12 +100,15 @@ function finish(result) {
   sampleMetrics()
   clearInterval(metricsTimer)
   clearInterval(vramTimer)
+  clearInterval(footprintTimer)
   const r = (x) => Math.round(x)
   result.memory = {
     rendererPrivatePeakMB: r(mem.rendererPeakMB),
     gpuProcessPrivatePeakMB: r(mem.gpuProcPeakMB),
     mainProcessPrivatePeakMB: r(mem.browserPeakMB),
-    vramDeltaPeakMB: mem.vramBaseMB === null ? null : r(mem.vramPeakMB - mem.vramBaseMB)
+    vramDeltaPeakMB: mem.vramBaseMB === null ? null : r(mem.vramPeakMB - mem.vramBaseMB),
+    gpuFootprintPeakMB: mem.gpuFootprintPeakMB == null ? null : r(mem.gpuFootprintPeakMB),
+    rendererFootprintPeakMB: mem.rendererFootprintPeakMB == null ? null : r(mem.rendererFootprintPeakMB)
   }
   result.case = { ...cfg, ...(process.env.BENCH_SESSION ? JSON.parse(process.env.BENCH_SESSION) : {}) }
   result.versions = { electron: process.versions.electron, chrome: process.versions.chrome }

@@ -69,3 +69,4 @@
 - 2026-10-20 [claude-opus-5-5] restarting 'npm run dev' from a script: pkill on the npm/electron-vite shell leaves the Electron app running; the next dev run then quits on the single-instance lock while CDP still talks to the old app. Kill node_modules/electron/dist processes too
 - 2026-10-20 [claude-opus-5-5] pip install into a venv under the session scratchpad (Temp\claude\<long path>\scratchpad) fails on Windows without long-path support (onnx wheel paths exceed MAX_PATH); create the venv at a short path like %TEMP%\bfv
 - 2026-10-20 [claude-opus-5-5] cherry-picking on the Windows PC failed with 'unable to auto-detect email address' (no global git identity there); used GIT_AUTHOR_*/GIT_COMMITTER_* env vars matching the repo history instead of writing config
+- 2026-10-21 [claude-opus-5-5] bg-remove bench: fetch_unsplash.mjs crashes with ENOENT on a fresh checkout because images/ is gitignored and the script doesn't mkdir it

@@ -421,3 +421,60 @@ BiRefNet is right on essentially all of them, at about 9× the time and about 7�
 - Report or work around the `storageBufferCacheMode: 'disabled'` crash upstream. With exact buffer release, VRAM
   should approach the ~1.2 GB lower bound.
 - Still open from above: DIS5K training-data terms.
+
+## Cross-platform implementation (branch nikigan/bg-remove-mac) — started 2026-10-21
+Per `.claude/bg-remove/implementation-brief.md`. Research commits cherry-picked from `origin/nikigan/bg-remove-bench-win`
+(7491939^..07351a4; PROGRESS.md/PAPERCUTS.md conflicts resolved by keeping both sides).
+
+Decisions (user, 2026-10-21):
+- Hosting: **GitHub release assets on polotno-project/polotno-studio-app** (a dedicated non-semver models release).
+- IS-Net is **not bundled**: download on first use, like BiRefNet.
+
+Facts found:
+- Production renderer is `file://` and that is load-bearing (Polotno key origin "electron", `src/main/window.ts`), so the
+  editor page can't simply be served with COOP/COEP. ORT-web forces `numThreads = 1` when `!crossOriginIsolated`.
+- Polotno 4.16.1: `store.setTool('remove-background', { elementId }).run({ options })` reruns the tool from our own UI and
+  passes `options` to the handler as the 3rd arg (`request.options`); the result is committed as one undo step. The
+  handler gets the element's *current* src, so a retry must carry the original src in `options`.
+
+## Benchmark (macOS) — 2026-10-21
+Machine: MacBook Pro, Apple M4 Pro, 48 GB unified memory, macOS 26.6.2. Electron 39 (repo), onnxruntime-web 1.30.0.
+Same harness and same 30 Unsplash photos (`BENCH_OUT=out-unsplash`). Models rebuilt here from the README steps;
+SHA-256: IS-Net fp16 `ec26ae23…f332`, IS-Net fp32 `10e5e8e0…4984`, BiRefNet chunked fp32 `34b041d6…0fceb`.
+Harness additions: macOS `footprint` sampling of the GPU and renderer processes (unified memory: Metal buffers count
+in the GPU process's phys_footprint; there's no nvidia-smi), a "median per image" column, and `vision.cjs` (the app's
+Swift helper on the same images → `out-unsplash/vision/`).
+
+| case | load ms | 1st infer ms | warm median ms | median per image (30) | GPU proc footprint MB | renderer footprint MB |
+|---|---|---|---|---|---|---|
+| ORT-web WebGPU native, IS-Net fp16 | 456 | 329 | **114** | 114 | **956** | 785 |
+| ORT-web WebGPU native, IS-Net fp32 | 433 | 300 | 156 | 156 | 1,586 | — |
+| ORT-web WASM ×(default, isolated) threads, IS-Net fp16 | 175 | 1,657 | 1,634 | 1,632 | 237 | — |
+| ORT-web WASM **1 thread** (what a non-isolated page gets), IS-Net fp16 | 225 | 6,678 | **6,590** | 6,247 | 234 | — |
+| ORT-web WebGPU native, BiRefNet chunked fp32 (bucket cache) | 1,317 | 2,197 | **1,161** | 1,166 | **6,083** | 1,278 |
+| same, `storageBufferCacheMode: 'lazyRelease'` | 1,358 | 1,248 | 1,196 | 1,205 | **4,456** | 1,255 |
+| Apple Vision (Swift helper, process per image) | — | — | — | 141 in Vision (160 wall) | — | — |
+
+- No NaN anywhere. Worker `crossOriginIsolated: true` in the harness.
+- On the M4 Pro, `lazyRelease` costs almost nothing (1.20 vs 1.16 s) and saves 1.6 GB, so use it.
+- BiRefNet is ~1.2 s per image here (RTX 3070: 0.7 s), IS-Net ~0.11 s (RTX 3070: 0.08 s).
+- **Unified memory: BiRefNet takes ~4.5 GB of system RAM** with lazyRelease, on top of the app. On an 8 GB Mac that's
+  swap or a jetsam kill; don't offer `hq` below 16 GB of RAM on Apple Silicon.
+- **WASM single-threaded is 4× slower** (6.6 vs 1.6 s), so the inference context should be cross-origin isolated.
+
+Agreement against BiRefNet (IoU at α≥128):
+- IS-Net fp16: median 0.978, 25/30 ≥ 0.9. Outliers potted-plant 0.69, birthday-cake 0.72, wine-glass 0.55, bicycle 0.89,
+  bouquet 0.89 — identical to the Windows run, so the Mac WebGPU port is consistent.
+- Vision: median 0.981, 27/30 ≥ 0.9. Outliers bicycle 0.55, wine-glass 0.84, bouquet 0.89, group-of-friends 0.92.
+
+Quality by eye (contact sheets original | BiRefNet | IS-Net | Vision, all 30):
+| | good | minor flaws | clearly wrong |
+|---|---|---|---|
+| Vision | 26 | 2 (bouquet: drops the lower leaves, small hole; group: rough feet) | **2** |
+| IS-Net fp16 | 21 | 6 | 3 (jacket, pot, cake — as on Windows) |
+| BiRefNet chunked fp32 | 28 | 2 | 0 |
+- Vision's failures: **bicycle** — both wheels filled solid black (spokes and the gaps kept); **child** — a block of
+  the green background stays attached to the hair on the left.
+- Vision gets all three IS-Net failures right (solid black jacket, green pot, full cake), and its hair edges are the
+  cleanest of the three on the portraits.
+- So Vision stays the macOS default, and BiRefNet as a retry fixes exactly the cases where Vision goes wrong.

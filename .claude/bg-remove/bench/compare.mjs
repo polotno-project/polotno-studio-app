@@ -42,16 +42,18 @@ for (const id of ids) {
   const maxMad = ok ? Math.max(...per.map((p) => p.mad)) : null
   const nan = r.images ? Object.values(r.images).reduce((s, x) => s + (x.nanCount ?? 0), 0) : null
   all[id] = { per, nan }
+  const runs = r.images ? Object.values(r.images).map((x) => x.runMs).filter((x) => x != null).sort((a, b) => a - b) : []
+  r.medianImageMs = runs.length ? runs[runs.length >> 1] : null
   const load = r.kind === 'tfjs' ? r.loadMs : r.loadMs
   rows.push(
     `| ${id} | ${r.error ? 'FAIL' : 'ok'} | ${f0(r.fetchMs)} | ${f0(load)} | ${f0(r.firstInferMs)} | ${f0(r.warmMedianMs)} | ` +
-      `${f0(r.memory?.rendererPrivatePeakMB || null)} | ${f0(r.memory?.gpuProcessPrivatePeakMB)} | ${f0(r.memory?.mainProcessPrivatePeakMB)} | ${f0(r.memory?.vramDeltaPeakMB)} | ` +
+      `${f0(r.memory?.rendererPrivatePeakMB || null)} | ${f0(r.memory?.gpuProcessPrivatePeakMB)} | ${f0(r.memory?.mainProcessPrivatePeakMB)} | ${f0(r.memory?.vramDeltaPeakMB)} | ${f0(r.memory?.gpuFootprintPeakMB)} | ${f0(r.medianImageMs)} | ` +
       `${maxMad == null ? '—' : maxMad.toFixed(2)} | ${worstIou == null ? '—' : worstIou.toFixed(4)} | ${nan ?? '—'} |`
   )
 }
 console.log(
-  '| case | status | fetch ms | load ms | 1st infer ms | warm median ms | renderer MB | GPU proc MB | main MB | VRAM Δ MB | max MAD vs ref (0–255) | worst IoU vs ref | NaN logits |'
+  '| case | status | fetch ms | load ms | 1st infer ms | warm median ms | renderer MB | GPU proc MB | main MB | VRAM Δ MB | GPU footprint MB (mac) | median per image ms | max MAD vs ref (0–255) | worst IoU vs ref | NaN logits |'
 )
-console.log('|---|---|---|---|---|---|---|---|---|---|---|---|---|')
+console.log('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
 console.log(rows.join('\n'))
 fs.writeFileSync(path.join(OUT, `compare-${REF}.json`), JSON.stringify(all, null, 1))

@@ -33,7 +33,7 @@ git clone --depth 1 https://github.com/xuebinqin/DIS /tmp/dis
 ```
 
 ## Images
-`node fetch_unsplash.mjs` downloads the 30-photo Unsplash set (via Polotno's proxy, `unsplash-manifest.json`) into
+`mkdir -p images models && node fetch_unsplash.mjs` downloads the 30-photo Unsplash set (via Polotno's proxy, `unsplash-manifest.json`) into
 `images/` and prints its `BENCH_ORDER`. The original 4 Wikimedia images (portrait, dog, product, busy) aren't
 reproducible. Use the Unsplash set.
 
@@ -52,3 +52,6 @@ REF=ort-webgpu-native-chunked32 node compare.mjs                                
   threads.
 - `mem_profile.py <model.onnx>` gives a model's static activation-memory lower bound.
 - VRAM is sampled with `nvidia-smi` only, so other GPUs show none. On macOS, memory is working-set size.
+- macOS: `BENCH_OUT=out-unsplash ../../../node_modules/.bin/electron vision.cjs` runs the app's Apple Vision helper
+  (`out/helpers/remove-background`, built by `npm run dev`/`build`) on the same images, as case `vision`. GPU memory is
+  the GPU process's `footprint` (unified memory), in compare.mjs's "GPU footprint" column.
