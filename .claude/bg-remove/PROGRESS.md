@@ -478,3 +478,40 @@ Quality by eye (contact sheets original | BiRefNet | IS-Net | Vision, all 30):
 - Vision gets all three IS-Net failures right (solid black jacket, green pot, full cake), and its hair edges are the
   cleanest of the three on the portraits.
 - So Vision stays the macOS default, and BiRefNet as a retry fixes exactly the cases where Vision goes wrong.
+
+### Design (2026-10-21)
+- **Engines**: `vision` (macOS 14+, Swift helper, unchanged), `standard` (IS-Net fp16), `hq` (BiRefNet chunked fp32).
+  Default: vision where available, else standard. hq only on request (retry toast, or the "high quality" setting).
+- **Where ONNX runs: a hidden BrowserWindow** on a privileged `polotno-bg://` scheme served by main with COOP/COEP,
+  not a worker in the editor page. Why:
+  - the editor page must stay `file://` (Polotno key), and without isolation WASM is 1 thread (4× slower, measured);
+  - the editor page keeps its cross-origin images/iframes untouched (no COEP there);
+  - models load from `userData/models` through the same scheme (no 245 MB over IPC);
+  - destroying the window frees the multi-GB GPU memory for sure, and a GPU/renderer crash in hq doesn't touch the editor.
+  Page: `src/renderer/background-host.html` (+ worker), preload `src/preload/background-host.ts`; main relays jobs.
+  In dev the scheme proxies to the Vite dev server and adds the same headers.
+- **hq gate**: WebGPU adapter that isn't a fallback adapter (probed in the editor renderer) and, on macOS (unified
+  memory), ≥ 16 GB RAM. Session uses `storageBufferCacheMode: 'lazyRelease'`; the host window is closed right after an
+  hq job, and after 60 s idle otherwise.
+- **Models**: `src/main/background-models.ts` catalog (file, URL on a GitHub release, SHA-256, size); download on first
+  use with `net.fetch` → `.part` file, SHA-256 while streaming, rename; progress events to the renderer; cancel.
+- **UX**: after a non-hq result, a toast "Background removed" with "Try high quality". It reruns the tool via
+  `store.setTool('remove-background', { elementId }).run({ options: { quality: 'hq', original } })` → separate undo step.
+  First hq use (model not downloaded): native confirm explaining ~245 MB download / a few seconds / capable GPU, with a
+  checkbox "Always use high quality". The setting also lives in the Edit menu as a checkbox (menu labels are English
+  like the rest of the app menu).
+
+### Status (2026-10-21)
+- [x] Benchmark on macOS (above)
+- [x] Engine abstraction: main dispatcher, hidden COI host window + worker, models download/verify, IPC
+- [x] Standard engine (IS-Net) end to end in dev with Vision disabled: WebGPU, 1.1 s cold (load 579, run 343 ms)
+- [x] hq retry toast → BiRefNet on the original → separate undo step (undo: hq → standard → original); 4.2 s cold
+- [ ] Vision → hq retry on macOS; confirm dialog; cancel (download, run); no-subject; WASM fallback
+- [ ] scripts/ for model builds, release upload instructions, third-party notices, CHANGELOG
+- [ ] Packaged build (wasm asset in asar, scheme serving from out/renderer)
+
+Dev-mode gotchas (fixed): the scheme proxy to Vite must keep the query string (`?worker_file`, `?import&url`) and
+forward only `Accept` (forwarding every request header makes `net.fetch` fail; a conditional request gets a 304 that
+can't be wrapped in a Response). Vite's HMR client can't connect from the scheme (harmless, filtered from the log).
+On macOS, kill the dev Electron with -9: SIGTERM closes the window but the app stays (and keeps the single-instance
+lock and the debug port).

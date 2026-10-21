@@ -118,7 +118,9 @@
     "removeBackground": "Ops! Something went wrong. Background can not be removed.",
     "removeBackgroundNoSubject": "No subject found.",
     "removeBackgroundUnreadable": "Can't read this image.",
-    "removeBackgroundFailed": "Couldn't remove the background."
+    "removeBackgroundFailed": "Couldn't remove the background.",
+    "removeBackgroundGpuMemory": "Not enough GPU memory for high quality.",
+    "removeBackgroundDownload": "Couldn't download the model."
   },
   "sidePanel": {
     "templates": "Templates",
@@ -174,5 +176,18 @@
     "addPage": "Add page",
     "duplicatePage": "Duplicate page",
     "removeAudio": "Remove audio"
+  },
+  "backgroundRemoval": {
+    "downloading": "Downloading the background removal model",
+    "downloadingHq": "Downloading the high-quality model",
+    "progress": "{received} of {total} MB",
+    "cancel": "Cancel",
+    "done": "Background removed",
+    "notRight": "Not right? Try high quality.",
+    "tryHq": "High quality",
+    "confirmHq": "Use high-quality background removal?",
+    "confirmHqDetail": "It downloads a {size} MB model once, takes a few seconds per image and needs a capable graphics card.",
+    "download": "Download",
+    "alwaysHq": "Always use high quality"
   }
 }

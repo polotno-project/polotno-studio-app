@@ -122,21 +122,57 @@ export interface InvokeApi {
     dataUrl: string
   }
   'imageEdit:cancel': (p: { id: string }) => void
-  // On-device background removal (src/main/remove-background.ts): macOS 14+
-  // only; elsewhere the AI edit menu has no Remove background entry.
-  'removeBackground:available': () => boolean
-  'removeBackground:run': (p: { id: string; image: Uint8Array }) => RemoveBackgroundResult
+  // On-device background removal (src/main/remove-background.ts): Apple
+  // Vision on macOS 14+, our ONNX models elsewhere and for "high quality".
+  // `webgpu`: the renderer found a GPU adapter for high quality.
+  'removeBackground:engines': (p: { webgpu: boolean }) => RemoveBackgroundEngines
+  // Downloads a model on first use; progress comes as removeBackground:progress.
+  'removeBackground:download': (p: { id: string; model: BackgroundModel }) => ModelDownloadResult
+  // First use of high quality: what it costs, with "always use it" (native dialog).
+  'removeBackground:confirmHq': (p: {
+    message: string
+    detail: string
+    confirmLabel: string
+    cancelLabel: string
+    alwaysLabel: string
+  }) => { confirmed: boolean; always: boolean }
+  'removeBackground:setQuality': (p: { quality: RemoveBackgroundQuality }) => void
+  'removeBackground:run': (p: {
+    id: string
+    image: Uint8Array
+    engine: RemoveBackgroundEngine
+  }) => RemoveBackgroundResult
+  // Cancels a run or a download.
   'removeBackground:cancel': (p: { id: string }) => void
 }
 
-// noSubject: Vision found nothing to keep (a landscape, a texture).
+// vision: Apple Vision (macOS 14+). standard: IS-Net, where Vision isn't
+// available. hq: BiRefNet, heavier and better, only when asked for.
+export type RemoveBackgroundEngine = 'vision' | 'standard' | 'hq'
+export type BackgroundModel = 'standard' | 'hq'
+export type RemoveBackgroundQuality = 'standard' | 'high'
+export type ModelDownloadResult = 'done' | 'canceled' | 'failed'
+
+export interface RemoveBackgroundEngines {
+  vision: boolean
+  // hq is allowed on this machine (memory); the renderer also checks WebGPU.
+  hq: boolean
+  quality: RemoveBackgroundQuality
+  installed: Record<BackgroundModel, boolean>
+  // Download sizes in bytes.
+  sizes: Record<BackgroundModel, number>
+}
+
+// noSubject: nothing to keep was found (a landscape, a texture).
 // unreadable: the image format can't be decoded.
+// gpuMemory: the GPU ran out of memory (high quality).
 export type RemoveBackgroundResult =
   | { state: 'done'; dataUrl: string }
   | { state: 'canceled' }
   | { state: 'noSubject' }
   | { state: 'unreadable' }
   | { state: 'failed' }
+  | { state: 'gpuMemory' }
 
 export type MenuAction = 'newTab' | 'openFile' | 'save' | 'saveAs' | 'closeTab' | 'export'
 
@@ -158,6 +194,7 @@ export interface MainEvents {
   // dialog, or failed (interrupted).
   'export:downloadDone': { state: 'completed' | 'cancelled' | 'interrupted'; filePath: string }
   'update:status': UpdateStatus
+  'removeBackground:progress': { id: string; received: number; total: number }
 }
 
 // Fire-and-forget renderer -> main messages (ipcRenderer.send).

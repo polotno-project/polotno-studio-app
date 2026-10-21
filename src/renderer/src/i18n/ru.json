@@ -123,7 +123,9 @@
     "removeBackground": "Ой! Что-то пошло не так. Невозможно удалить фон.",
     "removeBackgroundNoSubject": "Объект не найден.",
     "removeBackgroundUnreadable": "Не удаётся прочитать изображение.",
-    "removeBackgroundFailed": "Не удалось удалить фон."
+    "removeBackgroundFailed": "Не удалось удалить фон.",
+    "removeBackgroundGpuMemory": "Не хватает видеопамяти для высокого качества.",
+    "removeBackgroundDownload": "Не удалось скачать модель."
   },
   "sidePanel": {
     "templates": "Шаблоны",
@@ -179,5 +181,18 @@
     "addPage": "Добавить страницу",
     "duplicatePage": "Дублировать страницу",
     "removeAudio": "Удалить аудио"
+  },
+  "backgroundRemoval": {
+    "downloading": "Скачивание модели для удаления фона",
+    "downloadingHq": "Скачивание модели высокого качества",
+    "progress": "{received} из {total} МБ",
+    "cancel": "Отмена",
+    "done": "Фон удалён",
+    "notRight": "Не то? Попробуйте высокое качество.",
+    "tryHq": "Высокое качество",
+    "confirmHq": "Удалять фон в высоком качестве?",
+    "confirmHqDetail": "Один раз скачается модель на {size} МБ. Каждое изображение займёт несколько секунд, нужна производительная видеокарта.",
+    "download": "Скачать",
+    "alwaysHq": "Всегда использовать высокое качество"
   }
 }

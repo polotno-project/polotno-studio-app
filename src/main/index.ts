@@ -1,6 +1,6 @@
-import { app, BrowserWindow, session } from 'electron'
+import { app, session } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { createEditorWindow } from './window'
+import { createEditorWindow, getEditorWindow } from './window'
 import { installAppMenu } from './menu'
 import { registerIpcHandlers } from './ipc'
 import { collectOpenablePaths, requestOpenPath } from './open-files'
@@ -11,6 +11,7 @@ import { runCli } from './cli'
 import { initUpdater } from './updater'
 import { migrateDraftsToLibrary, watchLibrary } from './library'
 import { initSentry } from './sentry'
+import { registerBackgroundHostScheme } from './background-host'
 
 // Headless CLI subcommands (stage 3) branch before any window or lock exists,
 // so the GUI path and the CLI path never fight.
@@ -26,6 +27,7 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
   app.quit()
 } else {
   initSentry()
+  registerBackgroundHostScheme()
 
   // macOS delivers double-clicked files via open-file (possibly before ready).
   app.on('open-file', (event, filePath) => {
@@ -34,7 +36,7 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
   })
 
   app.on('second-instance', (_event, argv) => {
-    const win = BrowserWindow.getAllWindows()[0]
+    const win = getEditorWindow()
     if (win) {
       if (win.isMinimized()) win.restore()
       win.focus()
@@ -75,7 +77,7 @@ if (CLI_COMMANDS.has(cliArgs[0])) {
     }
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createEditorWindow()
+      if (!getEditorWindow()) createEditorWindow()
     })
   })
 

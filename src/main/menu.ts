@@ -4,14 +4,27 @@ import type { MenuAction } from '../shared/ipc-contract'
 import { documents } from './documents'
 import { execCommand } from './bridge-router'
 import { checkForUpdatesInteractive } from './updater'
+import { getEditorWindow } from './window'
+import {
+  onRemoveBackgroundQualityChange,
+  removeBackgroundQualityMenu,
+  setRemoveBackgroundQuality
+} from './remove-background'
 
 function sendMenuAction(action: MenuAction): void {
-  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  const win = BrowserWindow.getFocusedWindow() ?? getEditorWindow()
   win?.webContents.send('menu:action', { action })
 }
 
+let rebuildOnQualityChange = true
+
 export function installAppMenu(): void {
   const isMac = process.platform === 'darwin'
+  if (rebuildOnQualityChange) {
+    rebuildOnQualityChange = false
+    onRemoveBackgroundQualityChange(installAppMenu)
+  }
+  const removeBackgroundQuality = removeBackgroundQualityMenu()
 
   const checkForUpdatesItem: Electron.MenuItemConstructorOptions = {
     label: 'Check for Updates…',
@@ -93,7 +106,20 @@ export function installAppMenu(): void {
         { role: 'cut' },
         { role: 'copy' },
         { role: 'paste' },
-        { role: 'selectAll' }
+        { role: 'selectAll' },
+        // Shown once the editor found a GPU that can run it.
+        ...(removeBackgroundQuality.visible
+          ? [
+              { type: 'separator' as const },
+              {
+                label: 'High-Quality Background Removal',
+                type: 'checkbox' as const,
+                checked: removeBackgroundQuality.checked,
+                click: (item: Electron.MenuItem) =>
+                  void setRemoveBackgroundQuality(item.checked ? 'high' : 'standard')
+              }
+            ]
+          : [])
       ]
     },
     { role: 'viewMenu' },

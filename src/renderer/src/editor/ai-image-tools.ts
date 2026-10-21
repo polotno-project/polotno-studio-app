@@ -1,17 +1,25 @@
 import {
   getTranslations,
   setExpandFunc,
-  setRemoveBackgroundEnabled,
   setRemoveBackgroundFunc,
   setRemoveObjectFunc,
   setReplaceObjectFunc,
   setTranslations
 } from 'polotno/config'
+import type { ImageEditResult, RemoveBackgroundRequest } from 'polotno/config'
+import type { StoreType } from 'polotno/model/store'
 import { reaction } from 'mobx'
 import { padImageForFrame, prepareImageInput } from 'polotno/utils/image-edit'
 import { toast } from 'sonner'
 import { agent } from './agent-model'
 import { tabs } from './tabs-model'
+import { hasWebGpu } from '../background-host/webgpu'
+import type {
+  BackgroundModel,
+  RemoveBackgroundEngine,
+  RemoveBackgroundEngines,
+  RemoveBackgroundResult
+} from '../../../shared/ipc-contract'
 
 // Polotno's canvas AI tools (Generative fill: replace / remove, and Expand)
 // run on the user's own Codex. Polotno draws the selection, prepares the
@@ -21,8 +29,9 @@ import { tabs } from './tabs-model'
 // area, so outside it the original stays (as JPEG for an opaque photo, see
 // composite).
 // Background removal doesn't go to Codex (an image model redraws the subject
-// instead of cutting it out): it runs on the device, through Apple Vision on
-// macOS 14+ (src/main/remove-background.ts), and is hidden elsewhere.
+// instead of cutting it out): it runs on the device (src/main/
+// remove-background.ts), through Apple Vision on macOS 14+ and our own
+// models elsewhere, with a heavier model to retry when a result is wrong.
 // Upscale is not offered: image models can't.
 
 const MAGENTA = [255, 0, 255]
@@ -266,57 +275,177 @@ function sayWhoRuns(): void {
   )
 }
 
-type RemoveBackgroundError = 'NoSubject' | 'Unreadable' | 'Failed'
+type RemoveBackgroundError = 'NoSubject' | 'Unreadable' | 'Failed' | 'GpuMemory' | 'Download'
 
 function removeBackgroundFailure(error: RemoveBackgroundError, cause?: unknown): Error {
   const messages = getTranslations().error as Record<string, string>
   return failure(messages[`removeBackground${error}`], cause)
 }
 
-// Polotno hands over the image's src; the helper wants its bytes. The result
-// goes back as a data URL (Polotno rejects blob: URLs).
-async function removeBackground(src: string, signal?: AbortSignal): Promise<string> {
-  let image: Uint8Array
-  try {
-    const response = await fetch(src, { signal })
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    image = new Uint8Array(await response.arrayBuffer())
-  } catch (error) {
-    if (signal?.aborted) throw abortError()
-    throw removeBackgroundFailure('Unreadable', error)
+function backgroundRemovalText(key: string, values: Record<string, string | number> = {}): string {
+  // Our own section in the Polotno translations (i18n/*.json).
+  const texts = (getTranslations() as unknown as { backgroundRemoval: Record<string, string> })
+    .backgroundRemoval
+  return texts[key].replace(/\{(\w+)\}/g, (_match, name: string) => String(values[name]))
+}
+
+// What our own "Try high quality" passes to the handler through
+// `run({ options })`: the element's src is the first result by then, and the
+// retry must start from the image before it.
+interface RemoveBackgroundOptions {
+  quality?: 'hq'
+  original?: string
+}
+
+// High quality needs WebGPU: on WASM it takes ~10 s and 3 GB per image.
+async function backgroundEngines(): Promise<RemoveBackgroundEngines & { hqUsable: boolean }> {
+  const gpu = await hasWebGpu()
+  const engines = await window.desktop.invoke('removeBackground:engines', { webgpu: gpu })
+  return { ...engines, hqUsable: engines.hq && gpu }
+}
+
+const megabytes = (bytes: number): number => Math.round(bytes / 2 ** 20)
+
+// First use downloads the model, with progress and Cancel in a toast. High
+// quality first says what it costs and offers to make it the default.
+async function ensureModel(
+  model: BackgroundModel,
+  engines: RemoveBackgroundEngines,
+  signal: AbortSignal
+): Promise<void> {
+  if (engines.installed[model]) return
+  if (model === 'hq') {
+    const { confirmed, always } = await window.desktop.invoke('removeBackground:confirmHq', {
+      message: backgroundRemovalText('confirmHq'),
+      detail: backgroundRemovalText('confirmHqDetail', { size: megabytes(engines.sizes.hq) }),
+      confirmLabel: backgroundRemovalText('download'),
+      cancelLabel: backgroundRemovalText('cancel'),
+      alwaysLabel: backgroundRemovalText('alwaysHq')
+    })
+    if (!confirmed) throw abortError()
+    if (always) void window.desktop.invoke('removeBackground:setQuality', { quality: 'high' })
   }
-  if (signal?.aborted) throw abortError()
+  if (signal.aborted) throw abortError()
 
   const id = crypto.randomUUID()
   const cancel = (): void => void window.desktop.invoke('removeBackground:cancel', { id })
-  signal?.addEventListener('abort', cancel, { once: true })
+  const show = (received: number, total: number): void => {
+    toast.loading(backgroundRemovalText(model === 'hq' ? 'downloadingHq' : 'downloading'), {
+      id,
+      description: backgroundRemovalText('progress', {
+        received: megabytes(received),
+        total: megabytes(total)
+      }),
+      duration: Infinity,
+      action: { label: backgroundRemovalText('cancel'), onClick: cancel }
+    })
+  }
+  show(0, engines.sizes[model])
+  const offProgress = window.desktop.on('removeBackground:progress', (progress) => {
+    if (progress.id === id) show(progress.received, progress.total)
+  })
+  signal.addEventListener('abort', cancel, { once: true })
   try {
-    const result = await window.desktop.invoke('removeBackground:run', { id, image })
-    if (signal?.aborted || result.state === 'canceled') throw abortError()
-    if (result.state === 'done') return result.dataUrl
-    throw removeBackgroundFailure(
-      ({ noSubject: 'NoSubject', unreadable: 'Unreadable', failed: 'Failed' } as const)[
-        result.state
-      ]
-    )
+    const result = await window.desktop.invoke('removeBackground:download', { id, model })
+    if (result === 'canceled' || signal.aborted) throw abortError()
+    if (result === 'failed') throw removeBackgroundFailure('Download')
   } finally {
-    signal?.removeEventListener('abort', cancel)
+    offProgress()
+    toast.dismiss(id)
+    signal.removeEventListener('abort', cancel)
   }
 }
 
-async function installRemoveBackground(): Promise<void> {
-  if (await window.desktop.invoke('removeBackground:available')) {
-    setRemoveBackgroundFunc(removeBackground)
-  } else {
-    // No handler alone already hides the entry; this also keeps it hidden if
-    // the Polotno Cloud default ever turns on.
-    setRemoveBackgroundEnabled(false)
+// After a result from Vision or the standard model: the heavier model reruns
+// on the original image, as a separate undo step.
+function offerHighQuality(store: StoreType, elementId: string, original: string): void {
+  toast(backgroundRemovalText('done'), {
+    description: backgroundRemovalText('notRight'),
+    action: {
+      label: backgroundRemovalText('tryHq'),
+      onClick: () => {
+        if (!store.canUseTool('remove-background', elementId)) return
+        const options: RemoveBackgroundOptions = { quality: 'hq', original }
+        // A failure shows on the image itself.
+        store
+          .setTool('remove-background', { elementId })
+          .run({ options: { ...options } })
+          .catch(() => undefined)
+      }
+    }
+  })
+}
+
+// Polotno hands over the image's src; the engines want its bytes. The result
+// goes back as a data URL (Polotno rejects blob: URLs).
+async function removeBackground(
+  src: string,
+  signal?: AbortSignal,
+  request?: RemoveBackgroundRequest
+): Promise<string | ImageEditResult> {
+  signal ??= new AbortController().signal
+  const options = (request?.options ?? {}) as RemoveBackgroundOptions
+  const store = tabs.active?.store
+  const elementId = store?.activeTool?.elementId
+  const source = options.original ?? src
+
+  const engines = await backgroundEngines()
+  const hq = engines.hqUsable && (options.quality === 'hq' || engines.quality === 'high')
+  const engine: RemoveBackgroundEngine = hq ? 'hq' : engines.vision ? 'vision' : 'standard'
+  if (engine !== 'vision') await ensureModel(engine, engines, signal)
+
+  let image: Uint8Array
+  try {
+    const response = await fetch(source, { signal })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    image = new Uint8Array(await response.arrayBuffer())
+  } catch (error) {
+    if (signal.aborted) throw abortError()
+    throw removeBackgroundFailure('Unreadable', error)
   }
+  if (signal.aborted) throw abortError()
+
+  const id = crypto.randomUUID()
+  const cancel = (): void => void window.desktop.invoke('removeBackground:cancel', { id })
+  signal.addEventListener('abort', cancel, { once: true })
+  let result: RemoveBackgroundResult
+  try {
+    result = await window.desktop.invoke('removeBackground:run', { id, image, engine })
+  } finally {
+    signal.removeEventListener('abort', cancel)
+  }
+  if (signal.aborted || result.state === 'canceled') throw abortError()
+  if (result.state !== 'done') {
+    throw removeBackgroundFailure(
+      (
+        {
+          noSubject: 'NoSubject',
+          unreadable: 'Unreadable',
+          failed: 'Failed',
+          gpuMemory: 'GpuMemory'
+        } as const
+      )[result.state]
+    )
+  }
+  const offer = engine !== 'hq' && engines.hqUsable && store && elementId
+  return {
+    src: result.dataUrl,
+    apply: ({ applyDefault }) => {
+      applyDefault()
+      if (offer) offerHighQuality(store, elementId, source)
+    }
+  }
+}
+
+// Every platform has an engine: Vision on macOS 14+, the downloaded models
+// elsewhere.
+function installRemoveBackground(): void {
+  setRemoveBackgroundFunc(removeBackground)
 }
 
 export function installAiImageTools(): void {
   sayWhoRuns()
-  void installRemoveBackground()
+  installRemoveBackground()
   setReplaceObjectFunc(({ image, mask, prompt, signal }) =>
     run(image, mask, instructions.replace(prompt), signal)
   )
