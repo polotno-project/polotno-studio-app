@@ -113,3 +113,8 @@ isolated `--user-data-dir`; `window.polotnoApp.tabs.active.store`). UI was in Ru
   `codesign --verify --deep --strict`. Packaged app: feature works (365 ms end to end).
 - `electron-builder --mac --dir --universal`: merge OK, helper untouched, verify OK. x86_64 slice under
   Rosetta: 571 ms, correct output.
+
+## 2026-10-21 — wrap-up
+- Rebased onto origin/master (CHANGELOG.md landed there; BACKLOG.md conflict resolved by keeping both sides). Typecheck, lint and prettier re-run clean.
+- Added an Unreleased entry to CHANGELOG.md.
+- Pushed the branch, opened a PR, requested a Codex review.

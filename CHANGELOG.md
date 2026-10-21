@@ -3,6 +3,16 @@
 User-facing changes in each release of Polotno App. Downloads are on
 [GitHub Releases](https://github.com/polotno-project/polotno-studio-app/releases).
 
+## Unreleased
+
+### Added
+
+- **Remove background on macOS 14+.** The image AI menu cuts the subject out
+  on your Mac with Apple's Vision (the same as Remove Background in Preview),
+  usually in under a second, with no sign-in and nothing uploaded. Undo
+  restores the original; Cancel stops it. On Windows, Linux and older macOS
+  the entry is hidden.
+
 ## 0.2.0 — 2026-10-20
 
 ### Added
