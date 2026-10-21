@@ -543,14 +543,14 @@ Run with `POLOTNO_BACKGROUND_MODELS_URL=file:///<folder with the two .onnx>` unt
 1. Windows, dev and packaged (`npm run build:unpack`): Remove background on a photo → first-use download toast with
    progress and Cancel → cutout. Log: `%APPDATA%\polotno-app\logs\remove-background.log` should say `standard: done …
    webgpu`.
-2. Toast → High quality → native confirm (checkbox) → 245 MB download → hq result; then undo twice.
+2. Toast (first removal of a launch only) → _Try precise_ → native confirm (checkbox) → 245 MB download → hq result; then undo twice.
 3. Task Manager GPU memory: it should drop back after the hq job (the hidden page is closed right after hq).
 4. `--disable-gpu`: WASM path, check the time per image (threads: page must report `crossOriginIsolated`), and that no
-   High quality toast appears.
+   _Try precise_ toast appears.
 5. Cancel during the download and during an hq run; then run again (fresh page).
 6. File menu: "Precise Background Removal" appears once a remove-background ran (the renderer reports WebGPU), and
    toggling it switches engines.
-7. Low-VRAM / integrated GPU if available: hq either works or ends with "Not enough GPU memory for high quality" (we map
+7. Low-VRAM / integrated GPU if available: hq either works or ends with "Not enough GPU memory for precise mode" (we map
    ORT/Dawn out-of-memory errors, device loss and a GPU-process crash to that message) — not reproduced on the Mac.
 8. Linux: Electron's WebGPU may be off by default there → expect WASM for standard and no hq offer. Check the AppImage
    and a .deb: the host page loads from app.asar over `polotno-bg://`, and the sandbox doesn't block the worker threads.
