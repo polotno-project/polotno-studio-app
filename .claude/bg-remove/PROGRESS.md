@@ -597,3 +597,11 @@ mount):
 - cancel mid-run → "canceled in 2946 ms", next run works.
 - closing the editor with the hidden page alive quits the app (8 → 0 processes).
 VM shut down afterwards; it still has polotno-app 0.2.0 installed (roll back to `clean-install` before the next round).
+
+### 2026-10-22: models published, translations
+- Release `background-models-v1` (pre-release) created with the two .onnx files and THIRD_PARTY_NOTICES.md from the
+  local byte-for-byte build; SHA-256 of the public downloads matches `MODELS` in background-models.ts. "Latest" is still
+  0.2.0.
+- fr, id, pt-BR, zh-CN strings for the error messages and the `backgroundRemoval` section.
+- Next: test a real first-use download (standard on Windows/Linux, precise anywhere) without
+  `POLOTNO_BACKGROUND_MODELS_URL`, and click through the native confirm dialog.
