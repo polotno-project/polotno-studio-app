@@ -1,11 +1,13 @@
 // Runs each case in a fresh Electron process: `node run.mjs [caseId ...]`
 import { spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))
-const ELECTRON = path.join(ROOT, '../../../node_modules/electron/dist/electron.exe')
+// the repo's electron package exports its binary path (electron.exe / Electron.app/... / electron)
+const ELECTRON = createRequire(path.join(ROOT, '../../../package.json'))('electron')
 const ALL = [
   'node-cpu-fp32', // reference for correctness
   'node-dml-fp16',
