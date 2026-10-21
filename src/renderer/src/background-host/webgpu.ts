@@ -1,5 +1,5 @@
 // Whether this machine has a real WebGPU adapter: a software fallback adapter
-// would be slower than WASM. Used by the editor (to offer high quality) and
+// would be slower than WASM. Used by the editor (to offer precise mode) and
 // by the background removal worker (to pick a backend).
 
 // Just what this needs of WebGPU (no @webgpu/types for one call).

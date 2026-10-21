@@ -1,4 +1,4 @@
-import { app, dialog, Menu, BrowserWindow } from 'electron'
+import { app, dialog, Menu, BrowserWindow, nativeImage } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import type { MenuAction } from '../shared/ipc-contract'
 import { documents } from './documents'
@@ -17,6 +17,24 @@ function sendMenuAction(action: MenuAction): void {
 }
 
 let rebuildOnQualityChange = true
+
+// macOS: the SF Symbol Preview and Photos use for removing a background.
+// Electron renders it at 30 pt and 1x only, so it gets a 2x copy for Retina
+// and becomes a template (tinted for light and dark menus).
+function removeBackgroundIcon(): Electron.NativeImage | undefined {
+  if (process.platform !== 'darwin') return undefined
+  const symbol = nativeImage.createFromNamedImage('person.and.background.dotted')
+  if (symbol.isEmpty()) return undefined
+  const icon = nativeImage.createEmpty()
+  for (const scaleFactor of [1, 2]) {
+    icon.addRepresentation({
+      scaleFactor,
+      buffer: symbol.resize({ height: 16 * scaleFactor, quality: 'best' }).toPNG()
+    })
+  }
+  icon.setTemplateImage(true)
+  return icon
+}
 
 export function installAppMenu(): void {
   const isMac = process.platform === 'darwin'
@@ -112,8 +130,9 @@ export function installAppMenu(): void {
           ? [
               { type: 'separator' as const },
               {
-                label: 'High-Quality Background Removal',
+                label: 'Precise Background Removal',
                 type: 'checkbox' as const,
+                icon: removeBackgroundIcon(),
                 checked: removeBackgroundQuality.checked,
                 click: (item: Electron.MenuItem) =>
                   void setRemoveBackgroundQuality(item.checked ? 'high' : 'standard')

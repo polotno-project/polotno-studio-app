@@ -556,3 +556,9 @@ Run with `POLOTNO_BACKGROUND_MODELS_URL=file:///<folder with the two .onnx>` unt
    and a .deb: the host page loads from app.asar over `polotno-bg://`, and the sandbox doesn't block the worker threads.
 9. Windows closing behaviour: with the hidden page alive (within 60 s of a standard run), closing the editor must still
    quit the app (the editor's `closed` closes the page).
+
+### 2026-10-21: renamed "high quality" to "precise"
+User-facing name of the BiRefNet mode is now "precise" ("точный режим"): toast button _Try precise_, menu item
+_Edit → Precise Background Removal_ with the SF Symbol `person.and.background.dotted` as its icon (macOS only; Electron
+39 renders symbols at 30 pt 1x, so menu.ts adds a 2x copy and makes it a template). Code keeps `hq` as the identifier.
+Open question with the user: whether the toggle belongs in Edit (no Settings window exists).

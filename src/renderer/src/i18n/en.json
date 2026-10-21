@@ -119,7 +119,7 @@
     "removeBackgroundNoSubject": "No subject found.",
     "removeBackgroundUnreadable": "Can't read this image.",
     "removeBackgroundFailed": "Couldn't remove the background.",
-    "removeBackgroundGpuMemory": "Not enough GPU memory for high quality.",
+    "removeBackgroundGpuMemory": "Not enough GPU memory for precise mode.",
     "removeBackgroundDownload": "Couldn't download the model."
   },
   "sidePanel": {
@@ -179,15 +179,15 @@
   },
   "backgroundRemoval": {
     "downloading": "Downloading the background removal model",
-    "downloadingHq": "Downloading the high-quality model",
+    "downloadingHq": "Downloading the precise model",
     "progress": "{received} of {total} MB",
     "cancel": "Cancel",
     "done": "Background removed",
-    "notRight": "Not right? Try high quality.",
-    "tryHq": "High quality",
-    "confirmHq": "Use high-quality background removal?",
-    "confirmHqDetail": "It downloads a {size} MB model once, takes a few seconds per image and needs a capable graphics card.",
+    "notRight": "Not quite right? Try precise mode.",
+    "tryHq": "Try precise",
+    "confirmHq": "Use precise background removal?",
+    "confirmHqDetail": "A larger model that keeps hair, fur and thin parts more accurately. It downloads {size} MB once, takes a few seconds per image and needs a capable graphics card.",
     "download": "Download",
-    "alwaysHq": "Always use high quality"
+    "alwaysHq": "Always use precise mode"
   }
 }

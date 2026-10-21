@@ -289,7 +289,7 @@ function backgroundRemovalText(key: string, values: Record<string, string | numb
   return texts[key].replace(/\{(\w+)\}/g, (_match, name: string) => String(values[name]))
 }
 
-// What our own "Try high quality" passes to the handler through
+// What our own "Try precise" passes to the handler through
 // `run({ options })`: the element's src is the first result by then, and the
 // retry must start from the image before it.
 interface RemoveBackgroundOptions {
@@ -297,7 +297,7 @@ interface RemoveBackgroundOptions {
   original?: string
 }
 
-// High quality needs WebGPU: on WASM it takes ~10 s and 3 GB per image.
+// Precise mode needs WebGPU: on WASM it takes ~10 s and 3 GB per image.
 async function backgroundEngines(): Promise<RemoveBackgroundEngines & { hqUsable: boolean }> {
   const gpu = await hasWebGpu()
   const engines = await window.desktop.invoke('removeBackground:engines', { webgpu: gpu })
@@ -443,7 +443,7 @@ async function removeBackground(
 // elsewhere.
 function installRemoveBackground(): void {
   setRemoveBackgroundFunc(removeBackground)
-  // Tells main whether there's a GPU for high quality (its Edit menu item).
+  // Tells main whether there's a GPU for precise mode (its Edit menu item).
   void backgroundEngines().catch(() => undefined)
 }
 

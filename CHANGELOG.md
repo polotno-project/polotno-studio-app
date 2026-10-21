@@ -13,11 +13,11 @@ User-facing changes in each release of Polotno App. Downloads are on
   usually in under a second. On Windows, Linux and older macOS it uses an
   on-device model, downloaded once (about 85 MB) the first time. Undo restores
   the original; Cancel stops it.
-- **High-quality background removal.** When a cutout isn't right, _High
-  quality_ in the message after it reruns the image with a heavier model
+- **Precise background removal.** When a cutout isn't right, _Try precise_
+  in the message after it reruns the image with a larger, more accurate model
   (about 235 MB, downloaded once; needs a graphics card with WebGPU, and 16 GB
   of memory on Apple silicon). It takes a few seconds and is its own undo
-  step. To always use it, check _Edit → High-Quality Background Removal_.
+  step. To always use it, check _Edit → Precise Background Removal_.
 
 ## 0.2.0 — 2026-10-20
 

@@ -118,7 +118,7 @@ function runVision(id: string, image: Uint8Array): Promise<RemoveBackgroundResul
 }
 
 // BiRefNet takes 4.5 GB of GPU memory at best. On Apple Silicon that is
-// system memory, so below 16 GB high quality isn't offered. Discrete GPUs
+// system memory, so below 16 GB precise mode isn't offered. Discrete GPUs
 // don't say how much memory they have: a run that runs out says so.
 const HQ_MIN_UNIFIED_MEMORY = 15.5 * 2 ** 30
 
@@ -154,7 +154,7 @@ export async function setRemoveBackgroundQuality(value: RemoveBackgroundQuality)
     .catch((error) => log.warn(`could not save the quality setting: ${error.message}`))
 }
 
-// For the Edit menu's "High-Quality Background Removal" item.
+// For the Edit menu's "Precise Background Removal" item.
 export function removeBackgroundQualityMenu(): { visible: boolean; checked: boolean } {
   return { visible: webgpu && hqAllowed(), checked: quality === 'high' }
 }

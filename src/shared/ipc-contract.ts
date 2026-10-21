@@ -123,12 +123,12 @@ export interface InvokeApi {
   }
   'imageEdit:cancel': (p: { id: string }) => void
   // On-device background removal (src/main/remove-background.ts): Apple
-  // Vision on macOS 14+, our ONNX models elsewhere and for "high quality".
-  // `webgpu`: the renderer found a GPU adapter for high quality.
+  // Vision on macOS 14+, our ONNX models elsewhere and for "precise".
+  // `webgpu`: the renderer found a GPU adapter for precise mode.
   'removeBackground:engines': (p: { webgpu: boolean }) => RemoveBackgroundEngines
   // Downloads a model on first use; progress comes as removeBackground:progress.
   'removeBackground:download': (p: { id: string; model: BackgroundModel }) => ModelDownloadResult
-  // First use of high quality: what it costs, with "always use it" (native dialog).
+  // First use of precise mode: what it costs, with "always use it" (native dialog).
   'removeBackground:confirmHq': (p: {
     message: string
     detail: string
@@ -165,7 +165,7 @@ export interface RemoveBackgroundEngines {
 
 // noSubject: nothing to keep was found (a landscape, a texture).
 // unreadable: the image format can't be decoded.
-// gpuMemory: the GPU ran out of memory (high quality).
+// gpuMemory: the GPU ran out of memory (precise mode).
 export type RemoveBackgroundResult =
   | { state: 'done'; dataUrl: string }
   | { state: 'canceled' }
