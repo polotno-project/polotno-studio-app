@@ -12,7 +12,7 @@ files:
   # Shipped through mac.extraResources, not inside app.asar.
   - '!out/helpers/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md,THIRD_PARTY_NOTICES.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
@@ -24,6 +24,8 @@ extraResources:
     to: Polotno.mcpb
   - from: vendor/skills
     to: skills
+  - from: THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
 fileAssociations:
   - ext: polotno
     name: Polotno Design

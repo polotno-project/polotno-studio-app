@@ -7,11 +7,17 @@ User-facing changes in each release of Polotno App. Downloads are on
 
 ### Added
 
-- **Remove background on macOS 14+.** The image AI menu cuts the subject out
-  on your Mac with Apple's Vision (the same as Remove Background in Preview),
-  usually in under a second, with no sign-in and nothing uploaded. Undo
-  restores the original; Cancel stops it. On Windows, Linux and older macOS
-  the entry is hidden.
+- **Remove background, on every platform.** The image AI menu cuts the
+  subject out on your computer, with no sign-in and nothing uploaded. On
+  macOS 14+ it uses Apple's Vision (the same as Remove Background in Preview),
+  usually in under a second. On Windows, Linux and older macOS it uses an
+  on-device model, downloaded once (about 85 MB) the first time. Undo restores
+  the original; Cancel stops it.
+- **High-quality background removal.** When a cutout isn't right, _High
+  quality_ in the message after it reruns the image with a heavier model
+  (about 235 MB, downloaded once; needs a graphics card with WebGPU, and 16 GB
+  of memory on Apple silicon). It takes a few seconds and is its own undo
+  step. To always use it, check _Edit → High-Quality Background Removal_.
 
 ## 0.2.0 — 2026-10-20
 

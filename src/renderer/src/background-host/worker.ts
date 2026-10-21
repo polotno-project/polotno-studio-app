@@ -242,7 +242,13 @@ async function run({ id, model, modelUrl, image }: HostJob): Promise<HostResult>
   }
 }
 
-self.onmessage = async ({ data }: MessageEvent<HostJob>) => {
+// Bundled, onnxruntime starts its WASM threads from this same file (named
+// em-pthread); those must keep onnxruntime's own message handler.
+if (!self.name.startsWith('em-pthread')) {
+  self.onmessage = onJob
+}
+
+async function onJob({ data }: MessageEvent<HostJob>): Promise<void> {
   const result = await run(data)
   const transfer = result.result.state === 'done' ? [result.result.png.buffer as ArrayBuffer] : []
   self.postMessage(result, { transfer })

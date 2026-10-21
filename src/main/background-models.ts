@@ -9,7 +9,7 @@ import type { BackgroundModel, ModelDownloadResult } from '../shared/ipc-contrac
 // too big to ship in the installer). Both are our own ONNX exports, rebuilt
 // by scripts/background-models/ and published as assets of a GitHub release
 // that is not an app release (its tag isn't semver, so the updater skips it).
-// Licences and citations: build/third-party-notices/background-models.md.
+// Licences and citations: THIRD_PARTY_NOTICES.md.
 
 const log = logger.create({ logId: 'background-models' })
 log.transports.file.fileName = 'remove-background.log'

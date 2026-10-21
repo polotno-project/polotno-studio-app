@@ -129,6 +129,8 @@ let host: BrowserWindow | null = null
 let ready: Promise<void> | null = null
 let abandonReady: (() => void) | undefined
 let idleTimer: NodeJS.Timeout | undefined
+// The page has run BiRefNet, which keeps gigabytes of GPU memory.
+let heldHq = false
 const pending = new Map<string, Pending>()
 
 function settle(id: string, result: RemoveBackgroundResult, detail: string): void {
@@ -152,6 +154,7 @@ function closeHost(
   const window = host
   host = null
   ready = null
+  heldHq = false
   abandonReady?.()
   if (window && !window.isDestroyed()) window.destroy()
 }
@@ -219,10 +222,11 @@ ipcMain.on('background-host:result', (event, { id, result, detail }: HostResult)
   if (pending.size > 0) return
   // After a failure start the next job on a fresh page (the worker may be
   // dead, the GPU device lost).
-  if (result.state === 'failed')
+  if (result.state === 'failed') {
     return closeHost('reset after a failure', () => ({ state: 'failed' }))
-  // BiRefNet holds gigabytes of GPU memory: let it go right away.
-  if (job.model === 'hq') return closeHost('released after hq', () => ({ state: 'failed' }))
+  }
+  // Let BiRefNet's GPU memory go right away.
+  if (heldHq) return closeHost('released after hq', () => ({ state: 'failed' }))
   clearTimeout(idleTimer)
   idleTimer = setTimeout(() => closeHost('idle', () => ({ state: 'failed' })), IDLE_MS)
 })
@@ -234,6 +238,7 @@ export async function runBackgroundModel(
 ): Promise<RemoveBackgroundResult> {
   if (!modelInstalled(model)) return { state: 'failed' }
   clearTimeout(idleTimer)
+  if (model === 'hq') heldHq = true
   const result = new Promise<RemoveBackgroundResult>((resolve) => {
     const timer = setTimeout(() => {
       // A job can't be interrupted inside onnxruntime: drop the whole page.
@@ -271,8 +276,4 @@ app.on('child-process-gone', (_event, details) => {
 
 export function closeBackgroundHost(): void {
   closeHost('editor closed', () => ({ state: 'canceled' }))
-}
-
-export function isBackgroundHost(window: BrowserWindow): boolean {
-  return window === host
 }

@@ -506,12 +506,53 @@ Quality by eye (contact sheets original | BiRefNet | IS-Net | Vision, all 30):
 - [x] Engine abstraction: main dispatcher, hidden COI host window + worker, models download/verify, IPC
 - [x] Standard engine (IS-Net) end to end in dev with Vision disabled: WebGPU, 1.1 s cold (load 579, run 343 ms)
 - [x] hq retry toast → BiRefNet on the original → separate undo step (undo: hq → standard → original); 4.2 s cold
-- [ ] Vision → hq retry on macOS; confirm dialog; cancel (download, run); no-subject; WASM fallback
-- [ ] scripts/ for model builds, release upload instructions, third-party notices, CHANGELOG
-- [ ] Packaged build (wasm asset in asar, scheme serving from out/renderer)
+- [x] Vision → toast on macOS (fresh profile); click → native confirm dialog renders (RU: message, detail, checkbox
+  "Всегда использовать высокое качество", Отмена/Скачать). Pressing its buttons wasn't automated (native sheet).
+- [x] Cancel during an hq run → `canceled`, host page closed. No-subject: flat gray (kept 0%) and noise. IS-Net's
+  min-max turned noise into a fake cutout, so a raw-max < 0.5 check was added (photos: max ≈ 1.000 on all 30;
+  gray 0.044, noise 0.060).
+- [x] WASM fallback (`--disable-gpu`): "No available adapters" → wasm, 1.64 s per image (threaded; 1 thread was 6.6 s),
+  no hq toast.
+- [x] Toast duration 10 s (sonner's 4 s default expired before one could judge the result).
+- [x] scripts/background-models/ (build.sh + README with `gh release create` steps), THIRD_PARTY_NOTICES.md (shipped via
+  extraResources), CHANGELOG
+- [x] Packaged build (see below)
 
 Dev-mode gotchas (fixed): the scheme proxy to Vite must keep the query string (`?worker_file`, `?import&url`) and
 forward only `Accept` (forwarding every request header makes `net.fetch` fail; a conditional request gets a 304 that
 can't be wrapped in a Response). Vite's HMR client can't connect from the scheme (harmless, filtered from the log).
 On macOS, kill the dev Electron with -9: SIGTERM closes the window but the app stays (and keeps the single-instance
 lock and the debug port).
+
+### Packaged build (2026-10-21)
+- Bug found only in the packaged build: Vite bundles onnxruntime into the worker chunk, and ORT starts its WASM threads
+  from `import.meta.url` (that same chunk, `name: "em-pthread"`), so our top-level `self.onmessage` hijacked the thread
+  workers and every job hung until the 180 s timeout (dev was fine: ORT was a separate module there). Fixed by not
+  installing our handler when `self.name` starts with `em-pthread`.
+- `electron-builder --dir` (arm64, Apple Development signing): app.asar has `out/renderer/background-host.html`, the
+  worker chunk and the 27 MB `ort-wasm-simd-threaded.asyncify.wasm`; `Resources/THIRD_PARTY_NOTICES.md` present.
+- Packaged, Vision off, models from a local `file://` folder: download 88 MB → standard 1.1 s (load 511, run 351 ms)
+  → toast → High quality → hq 3.7 s (load 1349, run 2251) → host page closed → undo hq → undo standard → original.
+- Packaged `--disable-gpu`: WASM, threaded, 1.7 s per image. `quality: high` setting: hq directly, no toast; back to
+  standard: Vision + toast.
+- `scripts/background-models/build.sh` reproduces both models byte for byte on this Mac (same SHA-256 as the catalog);
+  release-ready files were built into the session scratchpad (`mbuild/out`).
+
+### Handback: Windows / Linux checks (for the RTX 3070 PC and a Linux box)
+Run with `POLOTNO_BACKGROUND_MODELS_URL=file:///<folder with the two .onnx>` until the release exists.
+1. Windows, dev and packaged (`npm run build:unpack`): Remove background on a photo → first-use download toast with
+   progress and Cancel → cutout. Log: `%APPDATA%\polotno-app\logs\remove-background.log` should say `standard: done …
+   webgpu`.
+2. Toast → High quality → native confirm (checkbox) → 245 MB download → hq result; then undo twice.
+3. Task Manager GPU memory: it should drop back after the hq job (the hidden page is closed right after hq).
+4. `--disable-gpu`: WASM path, check the time per image (threads: page must report `crossOriginIsolated`), and that no
+   High quality toast appears.
+5. Cancel during the download and during an hq run; then run again (fresh page).
+6. Edit menu: "High-Quality Background Removal" appears once a remove-background ran (the renderer reports WebGPU), and
+   toggling it switches engines.
+7. Low-VRAM / integrated GPU if available: hq either works or ends with "Not enough GPU memory for high quality" (we map
+   ORT/Dawn out-of-memory errors, device loss and a GPU-process crash to that message) — not reproduced on the Mac.
+8. Linux: Electron's WebGPU may be off by default there → expect WASM for standard and no hq offer. Check the AppImage
+   and a .deb: the host page loads from app.asar over `polotno-bg://`, and the sandbox doesn't block the worker threads.
+9. Windows closing behaviour: with the hidden page alive (within 60 s of a standard run), closing the editor must still
+   quit the app (the editor's `closed` closes the page).
