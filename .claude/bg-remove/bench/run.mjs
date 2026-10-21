@@ -12,11 +12,16 @@ const ALL = [
   'node-dml-fp32',
   'node-dml-patched',
   'node-dml-chunked32',
+  'node-cpu-isnet32', // IS-Net reference: REF=node-cpu-isnet32 node compare.mjs
+  'node-dml-isnet32',
+  'node-dml-isnet16',
   'ort-webgpu-native-fp16',
   'ort-webgpu-native-fp32',
   'ort-webgpu-native-patched',
   'ort-webgpu-native-chunked32', // deform_chunk.py + patch_webgpu.py
   'ort-webgpu-native-chunked16',
+  'ort-webgpu-native-isnet32', // export_isnet.py
+  'ort-webgpu-native-isnet16',
   'ort-webgpu-jsep-fp16',
   'ort-webgpu-jsep-fp32',
   'ort-webgpu-jsep-patched',
@@ -24,6 +29,8 @@ const ALL = [
   'ort-wasm-fp32',
   'ort-wasm-patched',
   'ort-wasm-chunked32',
+  'ort-wasm-isnet32',
+  'ort-wasm-isnet16',
   'tfjs-webgpu-fp16',
   'tfjs-webgpu-fp32',
   'tfjs-wasm-fp16',

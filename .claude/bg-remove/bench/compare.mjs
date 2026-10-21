@@ -1,12 +1,12 @@
 // Compares each case's full-res alpha to the onnxruntime-node CPU fp32 reference and
-// prints a markdown table of all results: `node compare.mjs`
+// prints a markdown table of all results: `node compare.mjs` (REF=<case> to compare against another case)
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))
 const OUT = path.join(ROOT, 'out')
-const REF = 'node-cpu-fp32'
+const REF = process.env.REF || 'node-cpu-fp32'
 const IMAGES = ['portrait', 'dog', 'product', 'busy']
 
 function diff(a, b) {
@@ -54,4 +54,4 @@ console.log(
 )
 console.log('|---|---|---|---|---|---|---|---|---|---|---|---|---|')
 console.log(rows.join('\n'))
-fs.writeFileSync(path.join(OUT, 'compare.json'), JSON.stringify(all, null, 1))
+fs.writeFileSync(path.join(OUT, `compare-${REF}.json`), JSON.stringify(all, null, 1))

@@ -175,6 +175,59 @@ Fix: `bench/deform_chunk.py` (run before `patch_webgpu.py`) rewrites the 10 defo
   - `enableMemPattern` true/false makes no difference.
 - fp16 still produces all-NaN on the portrait with the chunked graph, so the overflow isn't in the deform-conv path.
 
+### IS-Net, our own conversion (2026-10-21)
+Question: can a lighter model run on non-gaming hardware? IS-Net is the architecture IMG.LY ships. Only IMG.LY's
+library and the `onnx-community/ISNet-ONNX` conversion (AGPL) are excluded, so I converted the original weights myself.
+
+Provenance and licence:
+- Weights: `isnet-general-use.pth` from the README's Google Drive link in github.com/xuebinqin/DIS (commit b6764e2).
+- Code and metric: "Our code and evaluation metric use Apache License 2.0".
+- **The weights have no stated licence.** Like BiRefNet, IS-Net is trained on DIS5K, so it has the same open
+  DIS5K-terms question (see Legal above). Needs sign-off before shipping either model.
+
+Export (`bench/export_isnet.py`, torch 2.14 CPU, opset 17):
+- Fixed 1×3×1024×1024 input, output `sigmoid(d1)`.
+- Preprocessing as in IS-Net/Inference.py: RGB/255 − 0.5, std 1. The output is min-max normalized per image.
+- 44M params, 176 MB fp32 / 88 MB fp16 (`to_fp16_mixed.py`), 593 nodes of Conv/ReLU/Concat/Resize/MaxPool.
+- It runs on WebGPU unpatched: Concat fan-out is at most 4, and there are no deformable convs or attention.
+- `mem_profile.py`: activation lower-bound peak **0.24 GB** (BiRefNet chunked: 0.94 GB). Activations total 2.1 GB
+  (BiRefNet: 47 GB).
+
+| case | load ms | 1st infer ms | warm median ms | renderer MB | GPU proc MB | VRAM Δ MB |
+|---|---|---|---|---|---|---|
+| ORT-web WebGPU native, IS-Net fp32 | 841 | 445 | **93** | 1,026 | 1,619 | 1,305 |
+| ORT-web WebGPU native, IS-Net fp16 | 656 | 205 | **76** | 869 | 964 | **704** |
+| ORT-web WASM ×4 threads, IS-Net fp32 / fp16 | 260 / 277 | 2,478 / 2,381 | 3,233 / 3,233 | 1,122 / 998 | ~150 | — |
+| ORT-web WASM ×8 threads, IS-Net fp32 | 256 | 1,439 | **1,748** | 1,151 | 163 | — |
+| ORT-node CPU, IS-Net fp32 (IS-Net reference) | 325 | 472 | 515 | — | — | — (main 1,413) |
+| ORT-node DirectML, IS-Net fp32 / fp16 | 1,454 / 814 | 50 / 26 | 26 / 12 | — | — | 1,007 / 442 |
+| *for comparison: ORT-web WebGPU, BiRefNet chunked fp32* | 2,498 | 1,700 | 698 | 1,194 | 6,176 | 5,540 |
+
+Cost: about **7.5× faster on WebGPU, 4–8× less VRAM**, and WASM at 1.7–3.2 s per image is usable as a CPU fallback.
+
+Port correctness, against IS-Net on ORT-node CPU fp32:
+- WebGPU fp32/fp16 and WASM: MAD ≤ 0.85 and IoU ≥ 0.997 on portrait, dog and product.
+- DirectML: IoU ≥ 0.973 on all four images.
+- busy: ISNet's own mask is only 0.1–0.3% foreground, so IoU there is noise (0.30–0.39). WebGPU and WASM agree with
+  each other exactly; the gap from the reference is the different resize (canvas vs nativeImage).
+- No NaN in fp16, and fp16 matches fp32 (IoU ≥ 0.997 on the three real masks).
+
+Quality, against BiRefNet (checked by eye on a contact sheet, and with the numbers):
+
+| image | IoU vs BiRefNet | MAD |
+|---|---|---|
+| portrait | 0.983 | 7.7 |
+| product | 0.981 | 1.6 |
+| dog | 0.671 | 40.8 |
+| busy | 0.000 | 11.3 |
+
+- **portrait / product: about as good as BiRefNet.** Hair and laces hold up, with slightly softer edges.
+- **dog: ISNet keeps the head and collar but drops the chest, vest and lower leash.** That's a large, obvious error.
+- **busy: ISNet returns faint ghost blobs instead of the nearest person.** Raw sigmoid without min-max gives the same
+  result, so the low confidence is genuine.
+- Four images is too few to call it. IS-Net is clearly weaker on subject-vs-scene decisions, and close on clean
+  single-subject photos, which is the typical "remove background" input.
+
 ### Recommendation
 1. **WebGPU does not work without patching.** The stock export fails on every in-browser path: the native EP hits the
    storage-buffer limit, and JSEP/WASM hit bad_alloc. transformers.js's `background-removal` pipeline fails the same way.
@@ -198,11 +251,21 @@ Fix: `bench/deform_chunk.py` (run before `patch_webgpu.py`) rewrites the 10 defo
    - 4 GB discrete GPUs and integrated GPUs are still unproven.
    - Before committing to this model: release the session after each use, and test on an iGPU / 4 GB GPU with both
      cache modes.
+6. **For typical hardware, IS-Net (own conversion) is the realistic default, and BiRefNet the quality tier.**
+   - IS-Net fp16: 88 MB, ~80 ms and ~0.7 GB VRAM on WebGPU, 1.7–3.2 s on WASM. It should run on iGPUs, and it has a
+     CPU fallback inside the browser with no native module.
+   - Its quality is close on clean single subjects but clearly worse on harder scenes (dog body, busy scene).
+   - Option: IS-Net by default, BiRefNet chunked as a "high quality" mode or on strong GPUs (choose from
+     `requestAdapter()` info).
+   - Both models are blocked on the same DIS5K / weights-licence question.
 
 ### Follow-ups
 - Run the harness on a low-VRAM or integrated-GPU Windows machine, and on mac/linux.
 - Per-node fp16 block list (find the overflowing Convs). On the chunked graph this would give ~120 MB at ~0.56 s and
   ~3.1 GB VRAM Δ, if it holds.
+- IS-Net vs BiRefNet on a larger, typical image set (20–50 product/person/pet photos), so the quality call isn't
+  made on 4 images. Also time IS-Net WASM on a 4-core laptop.
+- Legal: licence of `isnet-general-use.pth` (none stated) and DIS5K terms, for both models.
 - Report or work around the `storageBufferCacheMode: 'disabled'` crash upstream. With exact buffer release, VRAM
   should approach the ~1.2 GB lower bound.
 - Still open from above: DIS5K training-data terms.
