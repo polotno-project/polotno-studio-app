@@ -154,7 +154,7 @@ export async function setRemoveBackgroundQuality(value: RemoveBackgroundQuality)
     .catch((error) => log.warn(`could not save the quality setting: ${error.message}`))
 }
 
-// For the Edit menu's "Precise Background Removal" item.
+// For the File menu's "Precise Background Removal" item.
 export function removeBackgroundQualityMenu(): { visible: boolean; checked: boolean } {
   return { visible: webgpu && hqAllowed(), checked: quality === 'high' }
 }

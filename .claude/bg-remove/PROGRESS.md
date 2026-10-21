@@ -548,7 +548,7 @@ Run with `POLOTNO_BACKGROUND_MODELS_URL=file:///<folder with the two .onnx>` unt
 4. `--disable-gpu`: WASM path, check the time per image (threads: page must report `crossOriginIsolated`), and that no
    High quality toast appears.
 5. Cancel during the download and during an hq run; then run again (fresh page).
-6. Edit menu: "High-Quality Background Removal" appears once a remove-background ran (the renderer reports WebGPU), and
+6. File menu: "Precise Background Removal" appears once a remove-background ran (the renderer reports WebGPU), and
    toggling it switches engines.
 7. Low-VRAM / integrated GPU if available: hq either works or ends with "Not enough GPU memory for high quality" (we map
    ORT/Dawn out-of-memory errors, device loss and a GPU-process crash to that message) — not reproduced on the Mac.
@@ -559,6 +559,6 @@ Run with `POLOTNO_BACKGROUND_MODELS_URL=file:///<folder with the two .onnx>` unt
 
 ### 2026-10-21: renamed "high quality" to "precise"
 User-facing name of the BiRefNet mode is now "precise" ("точный режим"): toast button _Try precise_, menu item
-_Edit → Precise Background Removal_ with the SF Symbol `person.and.background.dotted` as its icon (macOS only; Electron
+_File → Precise Background Removal_ (moved from Edit at the user's request) with the SF Symbol `person.and.background.dotted` as its icon (macOS only; Electron
 39 renders symbols at 30 pt 1x, so menu.ts adds a 2x copy and makes it a template). Code keeps `hq` as the identifier.
-Open question with the user: whether the toggle belongs in Edit (no Settings window exists).
+The toggle lives in the File menu (no Settings window exists).

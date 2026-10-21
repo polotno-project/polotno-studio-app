@@ -17,7 +17,7 @@ User-facing changes in each release of Polotno App. Downloads are on
   in the message after it reruns the image with a larger, more accurate model
   (about 235 MB, downloaded once; needs a graphics card with WebGPU, and 16 GB
   of memory on Apple silicon). It takes a few seconds and is its own undo
-  step. To always use it, check _Edit → Precise Background Removal_.
+  step. To always use it, check _File → Precise Background Removal_.
 
 ## 0.2.0 — 2026-10-20
 

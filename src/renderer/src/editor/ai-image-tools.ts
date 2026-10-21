@@ -443,7 +443,7 @@ async function removeBackground(
 // elsewhere.
 function installRemoveBackground(): void {
   setRemoveBackgroundFunc(removeBackground)
-  // Tells main whether there's a GPU for precise mode (its Edit menu item).
+  // Tells main whether there's a GPU for precise mode (its File menu item).
   void backgroundEngines().catch(() => undefined)
 }
 

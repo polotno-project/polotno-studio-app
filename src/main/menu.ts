@@ -106,6 +106,20 @@ export function installAppMenu(): void {
           accelerator: 'CmdOrCtrl+E',
           click: () => sendMenuAction('export')
         },
+        // Shown once the editor found a GPU that can run it.
+        ...(removeBackgroundQuality.visible
+          ? [
+              { type: 'separator' as const },
+              {
+                label: 'Precise Background Removal',
+                type: 'checkbox' as const,
+                icon: removeBackgroundIcon(),
+                checked: removeBackgroundQuality.checked,
+                click: (item: Electron.MenuItem) =>
+                  void setRemoveBackgroundQuality(item.checked ? 'high' : 'standard')
+              }
+            ]
+          : []),
         { type: 'separator' },
         {
           label: 'Close Tab',
@@ -120,26 +134,7 @@ export function installAppMenu(): void {
     // swallow the keystroke before the page sees it.
     {
       label: 'Edit',
-      submenu: [
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' },
-        // Shown once the editor found a GPU that can run it.
-        ...(removeBackgroundQuality.visible
-          ? [
-              { type: 'separator' as const },
-              {
-                label: 'Precise Background Removal',
-                type: 'checkbox' as const,
-                icon: removeBackgroundIcon(),
-                checked: removeBackgroundQuality.checked,
-                click: (item: Electron.MenuItem) =>
-                  void setRemoveBackgroundQuality(item.checked ? 'high' : 'standard')
-              }
-            ]
-          : [])
-      ]
+      submenu: [{ role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }]
     },
     { role: 'viewMenu' },
     // The Windows/Linux windowMenu role has a Close item on Ctrl+W, which
