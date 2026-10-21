@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { agent } from './agent-model'
 import { tabs } from './tabs-model'
 import { hasWebGpu } from '../background-host/webgpu'
+import { showPreciseToast } from './precise-toast'
 import type {
   BackgroundModel,
   RemoveBackgroundEngine,
@@ -362,21 +363,19 @@ async function ensureModel(
 let offeredPrecise = false
 
 function offerHighQuality(store: StoreType, elementId: string, original: string): void {
-  toast(backgroundRemovalText('done'), {
-    description: backgroundRemovalText('notRight'),
-    // Long enough to look at the result first.
-    duration: 10_000,
-    action: {
-      label: backgroundRemovalText('tryHq'),
-      onClick: () => {
-        if (!store.canUseTool('remove-background', elementId)) return
-        const options: RemoveBackgroundOptions = { quality: 'hq', original }
-        // A failure shows on the image itself.
-        store
-          .setTool('remove-background', { elementId })
-          .run({ options: { ...options } })
-          .catch(() => undefined)
-      }
+  showPreciseToast({
+    title: backgroundRemovalText('done'),
+    text: backgroundRemovalText('notRight'),
+    hint: backgroundRemovalText('preciseSetting'),
+    action: backgroundRemovalText('tryHq'),
+    onAction: () => {
+      if (!store.canUseTool('remove-background', elementId)) return
+      const options: RemoveBackgroundOptions = { quality: 'hq', original }
+      // A failure shows on the image itself.
+      store
+        .setTool('remove-background', { elementId })
+        .run({ options: { ...options } })
+        .catch(() => undefined)
     }
   })
 }
