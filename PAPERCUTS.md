@@ -71,3 +71,4 @@
 - 2026-10-20 [claude-opus-5-5] cherry-picking on the Windows PC failed with 'unable to auto-detect email address' (no global git identity there); used GIT_AUTHOR_*/GIT_COMMITTER_* env vars matching the repo history instead of writing config
 - 2026-10-21 [claude-opus-5-5] bg-remove bench: fetch_unsplash.mjs crashes with ENOENT on a fresh checkout because images/ is gitignored and the script doesn't mkdir it
 - 2026-10-21 [claude-opus-5-5] electron-vite 5.0.0 build.isolatedEntries crashes with 'process.stdout.clearLine is not a function' when stdout isn't a TTY (agents, CI); left it off
+- 2026-10-21 [claude-opus-5-5] npm ci on the Windows PC failed in postinstall (electron-builder ERR_REQUIRE_ESM): its system Node is 20.9 while package.json wants >=22.13, and npm only warns on engines — engine-strict=true in .npmrc would fail fast with a clear message

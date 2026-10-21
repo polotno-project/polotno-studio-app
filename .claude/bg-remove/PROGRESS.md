@@ -567,3 +567,20 @@ The toggle lives in the File menu (no Settings window exists).
 The toast after every removal was noisy; a toolbar button next to _AI edit_ (5f10183) wasn't clear to the user and was
 reverted. The toast now shows only after the first Vision/standard result of an app launch (`offeredPrecise` in
 ai-image-tools.ts); later the File menu toggle is the way to precise mode.
+
+### 2026-10-21: Windows checks (RTX 3070 PC, Windows 11, dev + `build:unpack`)
+Run through Orca on the PC (worktree `bg-remove-check`, portable Node 22: the PC's system Node 20.9 breaks
+`npm ci`). Models: the PC's own research exports (`isnet_fp16.onnx`, `birefnet_lite_webgpu_fp32_chunked.onnx`) copied in
+under the app's names, since the release doesn't exist yet. Results:
+- standard: WebGPU, 2.2 s cold (load 1.1 s) / 0.35-0.9 s warm on 1280x1918; toast once per launch, with the hint line.
+- precise: WebGPU, 6.7 s cold (load 3.1 s, run 3.4 s), 4.9-5.1 s with the page warm; GPU memory 2042 → 1451 MiB after
+  (page closed). Setting `quality: high` switches every removal to precise.
+- cancel during a precise run → canceled; the next precise and standard runs work (fresh page).
+- `--disable-gpu`: WASM, 3.7-3.9 s per image, page `crossOriginIsolated: true` (24 cores), no precise toast.
+- packaged (win-unpacked): same results; closing the editor with the hidden page alive quits the app (6 → 0 processes).
+- first-use download from a `file://` folder with non-matching files: fails on the SHA-256 check, no file left.
+- Chromium warned "powerPreference option is currently ignored … on Windows" on every adapter request: the probe no
+  longer passes it.
+Not checked on Windows: the native confirm dialog (files were preinstalled), the download progress toast UI and a
+successful real download (need the release), low-VRAM behaviour, the File menu item's visibility (native menu, not in
+CDP screenshots).

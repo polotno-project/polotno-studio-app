@@ -4,9 +4,7 @@
 
 // Just what this needs of WebGPU (no @webgpu/types for one call).
 interface Gpu {
-  requestAdapter(options?: {
-    powerPreference?: 'low-power' | 'high-performance'
-  }): Promise<{ info: { isFallbackAdapter: boolean } } | null>
+  requestAdapter(): Promise<{ info: { isFallbackAdapter: boolean } } | null>
 }
 
 let probe: Promise<boolean> | undefined
@@ -15,7 +13,9 @@ export function hasWebGpu(): Promise<boolean> {
   probe ??= (async () => {
     try {
       const gpu = (navigator as Navigator & { gpu?: Gpu }).gpu
-      const adapter = await gpu?.requestAdapter({ powerPreference: 'high-performance' })
+      // No powerPreference: onnxruntime picks its own adapter, and Chromium
+      // warns on Windows that it ignores the option.
+      const adapter = await gpu?.requestAdapter()
       return Boolean(adapter && !adapter.info.isFallbackAdapter)
     } catch {
       return false
