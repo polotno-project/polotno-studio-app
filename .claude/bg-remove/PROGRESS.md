@@ -90,6 +90,11 @@ From agent research (sources in its report, not re-verified by me):
 ## Handoff 2026-10-20
 - macOS (Apple Vision) implementation handed to Orca worktree `bg-remove-mac` (branch nikigan/bg-remove-mac, Claude agent); it cherry-picks ad285be and continues this file there.
 
+## Handoff 2026-10-21
+- The Windows research was pushed as `nikigan/bg-remove-bench-win`.
+- The cross-platform implementation (IS-Net standard engine, plus an optional BiRefNet "high quality" retry) is handed
+  to the Mac workspace `bg-remove-mac`, per `.claude/bg-remove/implementation-brief.md`.
+
 ## BiRefNet benchmark (Windows)
 Run 2026-10-20 by Claude (Opus 5.5) per `.claude/bg-remove/birefnet-benchmark-brief.md`, on branch nikigan/bg-remove-bench-win.
 Harness: `.claude/bg-remove/bench/` (not part of the app; `npm i` there; models/images/out are gitignored).
