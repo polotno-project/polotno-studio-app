@@ -14,7 +14,9 @@ const MODELS = {
   fp32: 'models/model.onnx',
   patched: 'models/birefnet_lite_webgpu_fp16.onnx',
   patched32: 'models/birefnet_lite_webgpu_fp32.onnx',
-  mixed16: 'models/birefnet_lite_webgpu_fp16mixed.onnx'
+  mixed16: 'models/birefnet_lite_webgpu_fp16mixed.onnx',
+  chunked32: 'models/birefnet_lite_webgpu_fp32_chunked.onnx',
+  chunked16: 'models/birefnet_lite_webgpu_fp16mixed_chunked.onnx'
 }
 const BUNDLES = {
   native: 'node_modules/onnxruntime-web/dist/ort.webgpu.min.mjs', // native C++ WebGPU EP (asyncify wasm)
@@ -24,13 +26,13 @@ const BUNDLES = {
 
 function caseConfig(id) {
   let m
-  if ((m = id.match(/^ort-webgpu-(native|jsep)-(fp16|fp32|patched|patched32|mixed16)$/)))
+  if ((m = id.match(/^ort-webgpu-(native|jsep)-(fp16|fp32|patched|patched32|mixed16|chunked32|chunked16)$/)))
     return { id, kind: 'ort', bundle: BUNDLES[m[1]], ep: 'webgpu', model: MODELS[m[2]] }
-  if ((m = id.match(/^ort-wasm-(fp16|fp32|patched|patched32|mixed16)$/)))
+  if ((m = id.match(/^ort-wasm-(fp16|fp32|patched|patched32|mixed16|chunked32|chunked16)$/)))
     return { id, kind: 'ort', bundle: BUNDLES.wasm, ep: 'wasm', model: MODELS[m[1]] }
   if ((m = id.match(/^tfjs-(webgpu|wasm)-(fp16|fp32)$/)))
     return { id, kind: 'tfjs', device: m[1], dtype: m[2] }
-  if ((m = id.match(/^node-(dml|cpu|webgpu)-(fp16|fp32|patched|patched32|mixed16)$/)))
+  if ((m = id.match(/^node-(dml|cpu|webgpu)-(fp16|fp32|patched|patched32|mixed16|chunked32|chunked16)$/)))
     return { id, kind: 'node', ep: m[1], model: MODELS[m[2]] }
   throw new Error('unknown case ' + id)
 }
