@@ -443,6 +443,8 @@ async function removeBackground(
 // elsewhere.
 function installRemoveBackground(): void {
   setRemoveBackgroundFunc(removeBackground)
+  // Tells main whether there's a GPU for high quality (its Edit menu item).
+  void backgroundEngines().catch(() => undefined)
 }
 
 export function installAiImageTools(): void {
