@@ -148,6 +148,11 @@ function mask(output: Float32Array, recipe: Recipe): Uint8ClampedArray {
     if (v < min) min = v
     if (v > max) max = v
   }
+  // Min-max would stretch a flat or noisy image's output (max ~0.05) into a
+  // made-up cutout; on photos with a subject the max is ~1.
+  if (recipe.output === 'minmax' && max < 0.5) {
+    throw new JobError({ state: 'noSubject' }, `confidence ${max.toFixed(3)}`)
+  }
   const alpha = new Uint8ClampedArray(output.length)
   if (recipe.output === 'minmax') {
     const k = max > min ? 255 / (max - min) : 0

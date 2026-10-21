@@ -361,6 +361,8 @@ async function ensureModel(
 function offerHighQuality(store: StoreType, elementId: string, original: string): void {
   toast(backgroundRemovalText('done'), {
     description: backgroundRemovalText('notRight'),
+    // Long enough to look at the result first.
+    duration: 10_000,
     action: {
       label: backgroundRemovalText('tryHq'),
       onClick: () => {

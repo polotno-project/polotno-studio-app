@@ -178,8 +178,11 @@ function openHost(): Promise<void> {
   })
   // The page's own warnings and errors (onnxruntime's included) go to the log.
   window.webContents.on('console-message', ({ level, message }) => {
-    if (level === 'warning' || level === 'error')
+    // (In dev, Vite's client can't reach its server from this scheme.)
+    if (is.dev && message.includes('ws://')) return
+    if (level === 'warning' || level === 'error') {
       log.warn(`page ${level}: ${message.slice(0, 1000)}`)
+    }
   })
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.webContents.on('will-navigate', (event) => event.preventDefault())
