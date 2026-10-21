@@ -5,9 +5,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))
-const OUT = path.join(ROOT, 'out')
+const OUT = path.join(ROOT, process.env.BENCH_OUT || 'out')
 const REF = process.env.REF || 'node-cpu-fp32'
-const IMAGES = ['portrait', 'dog', 'product', 'busy']
+const IMAGES = process.env.BENCH_ORDER ? process.env.BENCH_ORDER.split(',') : ['portrait', 'dog', 'product', 'busy']
 
 function diff(a, b) {
   if (!a || !b || a.length !== b.length) return null

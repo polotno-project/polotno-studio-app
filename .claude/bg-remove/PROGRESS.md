@@ -293,6 +293,52 @@ Quality, against BiRefNet (checked by eye on a contact sheet, and with the numbe
 - Four images is too few to call it. IS-Net is clearly weaker on subject-vs-scene decisions, and close on clean
   single-subject photos, which is the typical "remove background" input.
 
+### IS-Net vs BiRefNet on 30 Unsplash photos (2026-10-21)
+Test set:
+- 30 photos from the same source as the app's Photos panel: Unsplash via Polotno's proxy, through the vendored
+  `polotno-design` skill. Fetched by `bench/fetch_unsplash.mjs`.
+- One photo per query (first result, 1080 px). Queries cover people (10), animals (4) and products/objects (16).
+- Queries and URLs are in `bench/unsplash-manifest.json`; the image files are gitignored.
+
+Run: `BENCH_ORDER=<names> BENCH_OUT=out-unsplash node run.mjs …`, on ORT-web native WebGPU.
+
+| case | median infer per image (30 images) | max | VRAM Δ MB | GPU proc MB |
+|---|---|---|---|---|
+| BiRefNet chunked fp32 | 711 ms | 1,992 (first) | 5,531 | 6,273 |
+| IS-Net fp16 | **78 ms** | 170 (first) | **811** | 1,048 |
+| IS-Net fp32 | 96 ms | 285 (first) | 1,413 | 1,657 |
+
+No NaN anywhere. IS-Net fp16 and fp32 agree with each other.
+
+Agreement, IS-Net fp16 against BiRefNet:
+- Median IoU 0.978. 25/30 images are at IoU ≥ 0.9.
+- Outliers: potted-plant 0.69, birthday-cake 0.73, wine-glass 0.55, bicycle 0.90, flower-bouquet 0.90.
+
+Quality, checked by eye on contact sheets (original | BiRefNet | IS-Net) for all 30:
+
+| | good | minor flaws | clearly wrong |
+|---|---|---|---|
+| BiRefNet chunked fp32 | 28 | 2 (wine-glass keeps a blurry background sleeve; some green fringe in the child's flyaway hair) | 0 |
+| IS-Net fp16 | 21 | 6 | **3** |
+
+- IS-Net's minor flaws:
+  - curly-hair: black T-shirt partly see-through.
+  - child: green fringe in hair.
+  - group silhouettes: fuzz at the feet.
+  - bicycle: fainter spokes.
+  - wine-glass: drops most of the hands, leftmost glass faint.
+  - bouquet: drops the lower leaves.
+- **IS-Net's failures share one pattern: a large, uniform part of the subject whose colour is close to the background
+  turns semi-transparent.**
+  - long-hair-wind: the black jacket is see-through.
+  - potted-plant: the green pot on a dark wall is a white ghost.
+  - birthday-cake: the cake body is gone and only the drips remain.
+- Clean single-subject product and pet shots are equal for both models. That covers sneakers, perfume, coffee,
+  headphones, watch, handbag, armchair, car, burger, laptop, dog, cat, parrot, horse, and most portraits.
+
+Takeaway: on stock-photo content, IS-Net is good enough for about 70% of images and visibly wrong on about 10%.
+BiRefNet is right on essentially all of them, at about 9× the time and about 7× the VRAM.
+
 ### Recommendation
 1. **WebGPU does not work without patching.** The stock export fails on every in-browser path: the native EP hits the
    storage-buffer limit, and JSEP/WASM hit bad_alloc. transformers.js's `background-removal` pipeline fails the same way.
@@ -320,6 +366,7 @@ Quality, against BiRefNet (checked by eye on a contact sheet, and with the numbe
    - IS-Net fp16: 88 MB, ~80 ms and ~0.7 GB VRAM on WebGPU, 1.7–3.2 s on WASM. It should run on iGPUs, and it has a
      CPU fallback inside the browser with no native module.
    - Its quality is close on clean single subjects but clearly worse on harder scenes (dog body, busy scene).
+     On 30 Unsplash photos it was clearly wrong on 3 (BiRefNet: 0) and had minor flaws on 6.
    - Option: IS-Net by default, BiRefNet chunked as a "high quality" mode or on strong GPUs (choose from
      `requestAdapter()` info).
    - Both models are blocked on the same DIS5K / weights-licence question.
@@ -328,8 +375,8 @@ Quality, against BiRefNet (checked by eye on a contact sheet, and with the numbe
 - Run the harness on a low-VRAM or integrated-GPU Windows machine, and on mac/linux.
 - Per-node fp16 block list (find the overflowing Convs). On the chunked graph this would give ~120 MB at ~0.56 s and
   ~3.1 GB VRAM Δ, if it holds.
-- IS-Net vs BiRefNet on a larger, typical image set (20–50 product/person/pet photos), so the quality call isn't
-  made on 4 images. Also time IS-Net WASM on a 4-core laptop.
+- Done: IS-Net vs BiRefNet on 30 Unsplash photos (above).
+- Still to do: time IS-Net WASM and WebGPU on a 4-core laptop with an iGPU.
 - Legal: licence of `isnet-general-use.pth` (none stated) and DIS5K terms, for both models.
 - Report or work around the `storageBufferCacheMode: 'disabled'` crash upstream. With exact buffer release, VRAM
   should approach the ~1.2 GB lower bound.
