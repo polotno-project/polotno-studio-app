@@ -138,29 +138,71 @@ Exact errors:
   - So one or more fp16 Conv kernels overflow. I didn't try to narrow it down to specific Conv nodes.
 - JSEP is wrong at fp32 too, so its problem isn't precision. Treat JSEP as unusable for this model.
 
+### Deformable-conv chunking (2026-10-21)
+Why the VRAM: `bench/mem_profile.py` (static shape inference at 1024², liveness sweep in graph order) puts the weights
+at 232 MB but the activations' lower-bound peak at **4.02 GB**, even if every tensor is freed right after its last use.
+- The peak is one layer: `decoder_block1/dec_att/aspp_deforms.2`, a 7×7 deformable conv (C=64, 256×256).
+- The export has no DeformConv op, so it spells it out as 4 bilinear-corner `GatherND`s of `[1,1,49·256·256,64]`,
+  weighted `Sum`, modulator `Mul`, then Reshape/Transpose to `[1,64,1792,1792]` and one Conv with stride 7.
+- Each of those tensors is 784 MB, and several are live at once.
+
+Fix: `bench/deform_chunk.py` (run before `patch_webgpu.py`) rewrites the 10 deform convs with kernel > 1×1.
+- That stride-7 Conv equals the sum over kernel rows r of `Conv(W[:,:,r:r+1,:], stride (1,7))` on row r's samples,
+  so each row gets its own sampling plus Conv, and the results are accumulated with Add.
+- Sampled tensors drop from 784 MB to 112 MB. The lower-bound peak drops from 4.02 GB to **0.94 GB**, now set by the
+  ordinary 1024² decoder convs.
+- Outputs are identical: on ORT CPU, max |Δlogit| is 7e-5 on logits up to 15. The alpha matches the fp32 reference at
+  the same MAD 0.15 / IoU 0.995 as the unchunked graph.
+- Size: 245 MB, 6,505 nodes (was 4,715).
+
+| case (same session) | load ms | 1st infer ms | warm median ms | renderer MB | GPU proc MB | VRAM Δ MB | max MAD | worst IoU |
+|---|---|---|---|---|---|---|---|---|
+| ORT-web WebGPU native, own patched fp32 (rerun) | 1,763 | 2,184 | 1,378 | 1,185 | 8,597 | 6,912 | 0.15 | 0.995 |
+| **ORT-web WebGPU native, chunked fp32** | 2,314 | 1,874 | **699** | 1,266 | 6,178 | **5,541** | 0.15 | 0.995 |
+| ORT-web WebGPU native, chunked fp32, `storageBufferCacheMode: 'lazyRelease'` | 2,243 | 1,627 | 851 | 1,221 | 4,873 | **4,229** | 0.15 | 0.995 |
+| ORT-web WebGPU native, chunked mixed fp16 | 2,223 | 1,190 | 558 | 804 | 3,673 | 3,122 | 193 | 0.000 (portrait all-NaN) |
+| **ORT-web WASM ×4 threads, chunked fp32** | 1,235 | 10,339 | 10,471 | 2,993 | 152 | — | 0.15 | 0.995 |
+| ORT-node DirectML, chunked fp32 | 2,344 | 4,359 | 4,091 | — | — | 5,657 | 0.00 | 1.000 |
+
+- **WebGPU is 2× faster** than the unchunked fp32 graph (699 vs 1,378 ms warm), and VRAM Δ falls by 1.4 GB.
+- **WASM now runs** (it used to hit bad_alloc), but at 10.5 s per image. It's a fallback of last resort.
+- DirectML fp32 no longer runs out of memory, but it's slow (4.1 s).
+- Measured VRAM (4.2–5.5 GB) is still far above the 0.94 + 0.23 GB lower bound. The rest is ORT-web's WebGPU buffer
+  cache, not the model.
+  - Cache modes: `bucket` (the default) gives 5.5 GB at 699 ms, `lazyRelease` 4.2 GB at 851 ms, and `simple` 6.9 GB
+    at 1,489 ms.
+  - `disabled` crashes: `WebGPU validation failed. [Buffer (unlabeled)] used in submit while destroyed`.
+  - `enableMemPattern` true/false makes no difference.
+- fp16 still produces all-NaN on the portrait with the chunked graph, so the overflow isn't in the deform-conv path.
+
 ### Recommendation
 1. **WebGPU does not work without patching.** The stock export fails on every in-browser path: the native EP hits the
    storage-buffer limit, and JSEP/WASM hit bad_alloc. transformers.js's `background-removal` pipeline fails the same way.
-2. **Ship candidate: onnxruntime-web native WebGPU EP (`onnxruntime-web/webgpu`) in a worker + our own patched fp32 graph**
-   (244 MB, MIT weights).
-   - It's the only in-browser path that is correct on all test images.
-   - On the RTX 3070: ~1.3 s warm, ~1.8 s session create, 2–4 s first inference (shader compile).
+2. **Ship candidate: onnxruntime-web native WebGPU EP (`onnxruntime-web/webgpu`) in a worker + our own patched fp32 graph,
+   built with `deform_chunk.py` then `patch_webgpu.py`** (245 MB, MIT weights). See "Deformable-conv chunking" above.
+   - It's correct on all test images.
+   - On the RTX 3070: ~0.7 s warm, ~2.3 s session create, ~1.9 s first inference (shader compile).
+   - Unchunked it was ~1.3 s warm.
    - No native module, so it sidesteps the onnxruntime-node darwin/x64 gap noted above.
    - We'd host the patched graph ourselves: the runes repo only ships fp16.
 3. **Don't ship fp16 yet.** The runes fp16 graph is 1.8× faster (~0.7 s) at half the download, but it returns NaN on a
    real photo (the portrait). Fixing it needs per-Conv mixed precision and a bigger image set. Worth a follow-up because
    it halves the download.
-4. **There's no in-browser CPU fallback at 1024².** For machines without usable WebGPU, the remaining option is
-   onnxruntime-node from the main process (DirectML fp16 ~1.8 s, CPU ~4.7 s, both correct). That needs a native module
-   per platform. The other way out is a smaller model.
-5. **Memory is the main risk.**
-   - The working WebGPU case peaks at ~6.7 GB VRAM Δ (GPU process ~8.6 GB private) on an 8 GB card, and DirectML fp32
-     runs out of memory on the same card.
-   - It will likely fail on 4 GB discrete GPUs and may struggle on integrated GPUs.
-   - The likely cause is BiRefNet's unrolled deformable convolutions (~784 MB tensors, per the runes card).
-   - Before committing to this model: release the session after each use, and test on an iGPU / 4 GB GPU.
+4. **The in-browser CPU fallback is too slow.** With the chunked graph, ORT-web WASM works, but at ~10.5 s per image.
+   For machines without usable WebGPU, the better option is onnxruntime-node from the main process (DirectML fp16
+   ~1.8 s, CPU ~4.7 s, both correct). That needs a native module per platform. The other way out is a smaller model.
+5. **Memory is still the main risk, but smaller.**
+   - The chunked WebGPU case peaks at ~5.5 GB VRAM Δ (bucket cache) or ~4.2 GB (`lazyRelease`, about 20% slower).
+     That's down from ~6.9 GB, against a model lower bound of ~1.2 GB.
+   - The remaining overhead is ORT-web's buffer cache.
+   - 4 GB discrete GPUs and integrated GPUs are still unproven.
+   - Before committing to this model: release the session after each use, and test on an iGPU / 4 GB GPU with both
+     cache modes.
 
 ### Follow-ups
 - Run the harness on a low-VRAM or integrated-GPU Windows machine, and on mac/linux.
-- Per-node fp16 block list (find the overflowing Convs) → ~120 MB model at ~0.7 s, if it holds.
+- Per-node fp16 block list (find the overflowing Convs). On the chunked graph this would give ~120 MB at ~0.56 s and
+  ~3.1 GB VRAM Δ, if it holds.
+- Report or work around the `storageBufferCacheMode: 'disabled'` crash upstream. With exact buffer release, VRAM
+  should approach the ~1.2 GB lower bound.
 - Still open from above: DIS5K training-data terms.
