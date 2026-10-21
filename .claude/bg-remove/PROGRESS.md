@@ -51,7 +51,8 @@ From agent research (sources in its report, not re-verified by me):
 ## Next steps (not started)
 - Decide: ship Vision-only first (mac 14+), or both at once.
 - Benchmark BiRefNet_lite WebGPU vs WASM inside Electron 39 (mac/win/linux). Windows done 2026-10-20, see below.
-- Legal: DIS5K terms. Facts gathered 2026-10-21 (see "Licensing facts" below); needs a lawyer or written permission.
+- Legal: DIS5K terms. Decided 2026-10-21 (see "Licensing facts" below): OK for the free app with attribution. The SDK
+  needs a lawyer or written permission first.
 
 ## Licensing facts (2026-10-21, not legal advice)
 - BiRefNet_lite weights: MIT (huggingface.co/ZhengPeng7/BiRefNet_lite). The card says it "is trained on DIS-TR and
@@ -63,12 +64,28 @@ From agent research (sources in its report, not re-verified by me):
     authors, commercial use of this dataset is prohibited even after copying, editing, processing or any operations of
     this database. Please contact us for commercial use or if you are uncertain about the decision."
   - §4 forbids redistributing the dataset itself, "in whole or in part".
-- Open question: whether trained weights count as "processing" the dataset. A conservative reading says both models
-  inherit the restriction.
-  - The terms only permit research or educational use, so a free app is not obviously covered either.
-  - Shipping in the paid Polotno SDK is plainly commercial use.
-- Cleanest path: written permission from the DIS5K authors, covering commercial use of models trained on DIS5K
-  (IS-Net weights and BiRefNet). The terms invite exactly this request.
+- Open question: whether trained weights count as "processing" the dataset.
+  - Cautious reading: both models inherit the restriction. The terms permit only research or educational use, and the
+    paid Polotno SDK would be plainly commercial.
+  - Counterpoints:
+    - The terms are a registration contract, binding those who downloaded DIS5K (the model authors), not users of the
+      models.
+    - Weights are not copies of the images or annotations.
+    - BiRefNet reaches us under MIT from its author.
+    - IS-Net's weights are published openly "for general use" by the dataset owners themselves.
+- **Decision (2026-10-21): the app can ship either model.** The feature is app-only for now and the app is free, so the
+  practical risk is low.
+  - Prefer BiRefNet where possible, since it has the explicit MIT licence.
+  - IS-Net's remaining gap is that its weights have no explicit licence (they sit next to Apache-2.0 code).
+  - Optional insurance: email Xuebin Qin to confirm that the IS-Net weights may be used in a free app.
+- Attribution: list the shipped model(s) in the app's third-party notices.
+  - BiRefNet: MIT licence text, plus the Zheng et al. "Bilateral Reference for High-Resolution Dichotomous Image
+    Segmentation" citation.
+  - IS-Net: the github.com/xuebinqin/DIS repo, plus the Qin et al., ECCV 2022 "Highly Accurate Dichotomous Image
+    Segmentation" citation.
+- **Before this feature reaches the Polotno SDK, review again.** Get a lawyer's sign-off or written permission from the
+  DIS5K authors covering commercial use of models trained on DIS5K. That is when commercial use and customer licence
+  audits come in, and the terms invite exactly this request ("Please contact us for commercial use").
 
 ## Implementation: Apple Vision on macOS 14+ (branch nikigan/bg-remove-mac) — started 2026-10-20
 Scope: mac-only. ONNX/BiRefNet path stays in BACKLOG.md.
@@ -265,7 +282,7 @@ Provenance and licence:
 - Weights: `isnet-general-use.pth` from the README's Google Drive link in github.com/xuebinqin/DIS (commit b6764e2).
 - Code and metric: "Our code and evaluation metric use Apache License 2.0".
 - **The weights have no stated licence.** Like BiRefNet, IS-Net is trained on DIS5K, so it has the same open
-  DIS5K-terms question (see Legal above). Needs sign-off before shipping either model.
+  DIS5K-terms question. Resolved for the free app; the SDK needs a review first (see "Licensing facts").
 
 Export (`bench/export_isnet.py`, torch 2.14 CPU, opset 17):
 - Fixed 1×3×1024×1024 input, output `sigmoid(d1)`.
@@ -386,7 +403,7 @@ BiRefNet is right on essentially all of them, at about 9× the time and about 7�
      On 30 Unsplash photos it was clearly wrong on 3 (BiRefNet: 0) and had minor flaws on 6.
    - Option: IS-Net by default, BiRefNet chunked as a "high quality" mode or on strong GPUs (choose from
      `requestAdapter()` info).
-   - Both models are blocked on the same DIS5K / weights-licence question.
+   - Licensing: OK for the free app with attribution. The SDK needs a separate review (see "Licensing facts").
 
 ### Follow-ups
 - Run the harness on a low-VRAM or integrated-GPU Windows machine, and on mac/linux.
@@ -394,7 +411,8 @@ BiRefNet is right on essentially all of them, at about 9× the time and about 7�
   ~3.1 GB VRAM Δ, if it holds.
 - Done: IS-Net vs BiRefNet on 30 Unsplash photos (above).
 - Still to do: time IS-Net WASM and WebGPU on a 4-core laptop with an iGPU.
-- Legal: licence of `isnet-general-use.pth` (none stated) and DIS5K terms, for both models.
+- Legal: settled for the app. Before any SDK use, get a lawyer's sign-off or DIS5K authors' permission. Optional: confirm
+  the `isnet-general-use.pth` licence with its author.
 - Report or work around the `storageBufferCacheMode: 'disabled'` crash upstream. With exact buffer release, VRAM
   should approach the ~1.2 GB lower bound.
 - Still open from above: DIS5K training-data terms.
