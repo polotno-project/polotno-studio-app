@@ -14,7 +14,7 @@ User-facing changes in each release of Polotno App. Downloads are on
   on-device model, downloaded once (about 85 MB) the first time. Undo restores
   the original; Cancel stops it.
 - **Precise background removal.** When a cutout isn't right, _Try precise_
-  next to _AI edit_ in the image toolbar reruns the image with a larger, more accurate model
+  in the message after the first removal of a session reruns the image with a larger, more accurate model
   (about 235 MB, downloaded once; needs a graphics card with WebGPU, and 16 GB
   of memory on Apple silicon). It takes a few seconds and is its own undo
   step. To always use it, check _File → Precise Background Removal_.

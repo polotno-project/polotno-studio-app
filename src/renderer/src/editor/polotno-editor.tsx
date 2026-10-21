@@ -21,7 +21,6 @@ import { TemplatesSection } from './sections/templates-section'
 import { AiSection } from './sections/ai-section'
 import { PageSlot } from './agent-cursor'
 import { CodexNotice } from './codex-notice'
-import { ImageEditWithPrecise } from './precise-background-button'
 
 // Our Templates section replaces the stock one (same slot) to add the
 // "My designs" tab. Every other stock section, upload included, stays. The
@@ -34,8 +33,6 @@ const SECTIONS = [
 
 // Each page's slot carries the agent cursors (agent-cursor.tsx).
 const WORKSPACE_COMPONENTS = { PageControls: PageSlot }
-// Polotno's image toolbar items, replaced by name.
-const TOOLBAR_COMPONENTS = { ImageEdit: ImageEditWithPrecise }
 
 // The editor remounts per tab, and Polotno's SidePanel opens its default
 // section on mount. Each tab reopens the section it had (kept in its store);
@@ -115,7 +112,7 @@ export const PolotnoEditor = observer(function PolotnoEditor({
           <SidePanel store={store} sections={SECTIONS} defaultSection={section} />
         </SidePanelWrap>
         <WorkspaceWrap>
-          <Toolbar store={store} components={TOOLBAR_COMPONENTS} />
+          <Toolbar store={store} />
           <Workspace store={store} components={WORKSPACE_COMPONENTS} />
           <ZoomButtons store={store} />
           <PagesTimeline store={store} />

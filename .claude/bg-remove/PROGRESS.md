@@ -563,10 +563,7 @@ _File → Precise Background Removal_ (moved from Edit at the user's request) wi
 39 renders symbols at 30 pt 1x, so menu.ts adds a 2x copy and makes it a template). Code keeps `hq` as the identifier.
 The toggle lives in the File menu (no Settings window exists).
 
-### 2026-10-21: no toast after each removal
-The user found the "Try precise" toast after every removal noisy. It's gone: `ImageEditWithPrecise`
-(precise-background-button.tsx) wraps Polotno's `ImageEdit` toolbar item (`<Toolbar components={{ ImageEdit }}>`) and
-shows _Try precise_ next to _AI edit_ while the image still shows a Vision/standard result (`quickCutouts` in
-ai-image-tools.ts, compared with element.src, so undo/redo hide and show it). Custom `Image*` toolbar keys would go
-last, into the overflow menu. Verified via CDP: button appears after removal, precise run 3.2 s, gone after, back on
-undo to the first result, gone on undo to the original.
+### 2026-10-21: "Try precise" toast once per launch
+The toast after every removal was noisy; a toolbar button next to _AI edit_ (5f10183) wasn't clear to the user and was
+reverted. The toast now shows only after the first Vision/standard result of an app launch (`offeredPrecise` in
+ai-image-tools.ts); later the File menu toggle is the way to precise mode.

@@ -8,7 +8,7 @@ import {
 } from 'polotno/config'
 import type { ImageEditResult, RemoveBackgroundRequest } from 'polotno/config'
 import type { StoreType } from 'polotno/model/store'
-import { observable, reaction } from 'mobx'
+import { reaction } from 'mobx'
 import { padImageForFrame, prepareImageInput } from 'polotno/utils/image-edit'
 import { toast } from 'sonner'
 import { agent } from './agent-model'
@@ -31,8 +31,7 @@ import type {
 // Background removal doesn't go to Codex (an image model redraws the subject
 // instead of cutting it out): it runs on the device (src/main/
 // remove-background.ts), through Apple Vision on macOS 14+ and our own
-// models elsewhere, with a heavier model to retry when a result is wrong
-// (the image toolbar's "Try precise", precise-background-button.tsx).
+// models elsewhere, with a heavier model to retry when a result is wrong.
 // Upscale is not offered: image models can't.
 
 const MAGENTA = [255, 0, 255]
@@ -357,27 +356,29 @@ async function ensureModel(
   }
 }
 
-// Images showing a result of Vision or the standard model, by element id,
-// with the image before it: the image toolbar offers the precise retry while
-// the element still shows that result (undo hides the offer, redo brings it
-// back).
-const quickCutouts = observable.map<string, { result: string; original: string }>()
+// After the first result of Vision or the standard model in an app launch
+// (on every one it gets in the way): the heavier model reruns on the
+// original image, as a separate undo step.
+let offeredPrecise = false
 
-export function preciseRetryAvailable(element: { id: string; src: string }): boolean {
-  return quickCutouts.get(element.id)?.result === element.src
-}
-
-// The heavier model reruns on the original image, as a separate undo step.
-export function retryPrecise(store: StoreType, element: { id: string; src: string }): void {
-  const cutout = quickCutouts.get(element.id)
-  if (!cutout || cutout.result !== element.src) return
-  if (!store.canUseTool('remove-background', element.id)) return
-  const options: RemoveBackgroundOptions = { quality: 'hq', original: cutout.original }
-  // A failure shows on the image itself.
-  store
-    .setTool('remove-background', { elementId: element.id })
-    .run({ options: { ...options } })
-    .catch(() => undefined)
+function offerHighQuality(store: StoreType, elementId: string, original: string): void {
+  toast(backgroundRemovalText('done'), {
+    description: backgroundRemovalText('notRight'),
+    // Long enough to look at the result first.
+    duration: 10_000,
+    action: {
+      label: backgroundRemovalText('tryHq'),
+      onClick: () => {
+        if (!store.canUseTool('remove-background', elementId)) return
+        const options: RemoveBackgroundOptions = { quality: 'hq', original }
+        // A failure shows on the image itself.
+        store
+          .setTool('remove-background', { elementId })
+          .run({ options: { ...options } })
+          .catch(() => undefined)
+      }
+    }
+  })
 }
 
 // Polotno hands over the image's src; the engines want its bytes. The result
@@ -431,13 +432,15 @@ async function removeBackground(
       )[result.state]
     )
   }
-  const { dataUrl } = result
-  const offer = engine !== 'hq' && engines.hqUsable && elementId
+  const offer = engine !== 'hq' && engines.hqUsable && store && elementId
   return {
-    src: dataUrl,
+    src: result.dataUrl,
     apply: ({ applyDefault }) => {
       applyDefault()
-      if (offer) quickCutouts.set(elementId, { result: dataUrl, original: source })
+      if (offer && !offeredPrecise) {
+        offeredPrecise = true
+        offerHighQuality(store, elementId, source)
+      }
     }
   }
 }
