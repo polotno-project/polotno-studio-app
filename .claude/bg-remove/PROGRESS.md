@@ -584,3 +584,16 @@ under the app's names, since the release doesn't exist yet. Results:
 Not checked on Windows: the native confirm dialog (files were preinstalled), the download progress toast UI and a
 successful real download (need the release), low-VRAM behaviour, the File menu item's visibility (native menu, not in
 CDP screenshots).
+
+### 2026-10-21: Linux checks (Proxmox VM 108, Ubuntu 24.04, kernel 7.0, 4 vCPU Celeron N5095 without AVX, no GPU)
+CI build of d6e743c (run 39650840332), our exact model files served from a `file://` folder on the VM, app driven over
+CDP through an SSH tunnel. deb (sandboxed, AppArmor profile loaded) and AppImage (`--no-sandbox`, page from the squashfs
+mount):
+- first use: download 88 MB in 0.7-1 s, SHA-256 matched, file renamed into place.
+- WebGPU: "Failed to create WebGPU Context Provider" → WASM; page `crossOriginIsolated: true`; no precise toast, engines
+  report the GPU missing (so no File menu item).
+- WASM is slow on this CPU: 21 s warm, 32-38 s cold per 1080x720 image (no AVX on the N5095; the Windows PC does 3.7 s).
+  Real low-end machines without a GPU can expect this order; the image shows Polotno's pending state meanwhile.
+- cancel mid-run → "canceled in 2946 ms", next run works.
+- closing the editor with the hidden page alive quits the app (8 → 0 processes).
+VM shut down afterwards; it still has polotno-app 0.2.0 installed (roll back to `clean-install` before the next round).
