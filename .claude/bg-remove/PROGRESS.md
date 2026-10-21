@@ -51,7 +51,24 @@ From agent research (sources in its report, not re-verified by me):
 ## Next steps (not started)
 - Decide: ship Vision-only first (mac 14+), or both at once.
 - Benchmark BiRefNet_lite WebGPU vs WASM inside Electron 39 (mac/win/linux). Windows done 2026-10-20, see below.
-- Legal: DIS5K terms.
+- Legal: DIS5K terms. Facts gathered 2026-10-21 (see "Licensing facts" below); needs a lawyer or written permission.
+
+## Licensing facts (2026-10-21, not legal advice)
+- BiRefNet_lite weights: MIT (huggingface.co/ZhengPeng7/BiRefNet_lite). The card says it "is trained on DIS-TR and
+  validated on DIS-TEs and DIS-VD", which are all DIS5K splits.
+- IS-Net (`isnet-general-use.pth`): the repo code is Apache-2.0. The weights have no licence of their own. They are
+  published by the DIS5K authors themselves (Xuebin Qin et al.).
+- DIS5K terms of use (`DIS5K-Dataset-Terms-of-Use.pdf` in github.com/xuebinqin/DIS):
+  - §2: "available for non-commercial use in research or educational purpose … Without permission from the original
+    authors, commercial use of this dataset is prohibited even after copying, editing, processing or any operations of
+    this database. Please contact us for commercial use or if you are uncertain about the decision."
+  - §4 forbids redistributing the dataset itself, "in whole or in part".
+- Open question: whether trained weights count as "processing" the dataset. A conservative reading says both models
+  inherit the restriction.
+  - The terms only permit research or educational use, so a free app is not obviously covered either.
+  - Shipping in the paid Polotno SDK is plainly commercial use.
+- Cleanest path: written permission from the DIS5K authors, covering commercial use of models trained on DIS5K
+  (IS-Net weights and BiRefNet). The terms invite exactly this request.
 
 ## Implementation: Apple Vision on macOS 14+ (branch nikigan/bg-remove-mac) — started 2026-10-20
 Scope: mac-only. ONNX/BiRefNet path stays in BACKLOG.md.
