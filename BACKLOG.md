@@ -68,4 +68,4 @@
 - [ ] 2026-10-21 — Background removal on Windows/Linux: verify on real machines (checklist in .claude/bg-remove/PROGRESS.md "Handback: Windows / Linux checks") — only macOS was tested here
 - [ ] 2026-10-21 — Edit menu "High-Quality Background Removal" is English-only like the rest of the app menu; localize when the menu gets i18n
 - [ ] 2026-10-21 — BiRefNet fp16 with a per-Conv fp32 block list (halves the 245 MB download and ~30% faster) — fp16 NaNs on some photos in ORT-web's WebGPU convs; needs the overflowing Convs found and a bigger image set
-- [ ] 2026-10-21 — Background removal "Try high quality" toast shows after every Vision/standard result; if it feels noisy, show it only for the first N uses or when the mask looks doubtful (e.g. large semi-transparent areas)
+- [x] 2026-10-21 — Background removal "Try high quality" toast shows after every Vision/standard result; if it feels noisy, show it only for the first N uses or when the mask looks doubtful (e.g. large semi-transparent areas)
