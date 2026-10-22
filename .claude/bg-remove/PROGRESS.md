@@ -603,5 +603,9 @@ VM shut down afterwards; it still has polotno-app 0.2.0 installed (roll back to 
   local byte-for-byte build; SHA-256 of the public downloads matches `MODELS` in background-models.ts. "Latest" is still
   0.2.0.
 - fr, id, pt-BR, zh-CN strings for the error messages and the `backgroundRemoval` section.
-- Next: test a real first-use download (standard on Windows/Linux, precise anywhere) without
-  `POLOTNO_BACKGROUND_MODELS_URL`, and click through the native confirm dialog.
+- Real first-use downloads from the release, fresh profiles, no `POLOTNO_BACKGROUND_MODELS_URL`:
+  - Windows (win-unpacked of d6e743c, RU UI): standard 88 MB in 12 s → hash OK → WebGPU cutout 1.9 s. Toast → _Точный
+    режим_ → native confirm (Enter = Download, the default button) → progress toast "Скачивание точной модели · 17 из
+    234 МБ · Отмена" → 245 MB in 29 s → hash OK → precise 4.9 s (load 2.9 s). A second launch doesn't download again.
+  - Linux VM 108 (deb of d6e743c): standard 88 MB in 10 s → hash OK → WASM cutout 36 s cold. VM shut down.
+- Still not checked: the confirm dialog's checkbox, low-VRAM.
