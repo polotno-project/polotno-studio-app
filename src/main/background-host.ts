@@ -120,6 +120,7 @@ function hostSession(): Electron.Session {
 
 interface Pending {
   model: BackgroundModel
+  job: HostJob
   resolve: (result: RemoveBackgroundResult) => void
   timer: NodeJS.Timeout
   started: number
@@ -149,8 +150,12 @@ function closeHost(
   reason: string,
   result: (model: BackgroundModel) => RemoveBackgroundResult
 ): void {
-  clearTimeout(idleTimer)
   for (const [id, job] of pending) settle(id, result(job.model), reason)
+  destroyHost()
+}
+
+function destroyHost(): void {
+  clearTimeout(idleTimer)
   const window = host
   host = null
   ready = null
@@ -209,6 +214,25 @@ function openHost(): Promise<void> {
   return ready
 }
 
+function send(job: HostJob): void {
+  host?.webContents.send('background-host:job', job)
+}
+
+// Closes the page and gives the jobs still pending a fresh one: after a
+// failure the worker may be dead or the GPU device lost, and a canceled or
+// timed-out job can't be stopped inside onnxruntime.
+function restartHost(reason: string): void {
+  destroyHost()
+  if (pending.size === 0) return
+  log.info(`reopening the page for ${pending.size} job(s): ${reason}`)
+  const jobs = [...pending.values()].map(({ job }) => job)
+  heldHq = jobs.some((job) => job.model === 'hq')
+  openHost().then(
+    () => jobs.filter((job) => pending.has(job.id)).forEach(send),
+    () => undefined
+  )
+}
+
 ipcMain.on('background-host:result', (event, { id, result, detail }: HostResult) => {
   if (!host || event.sender !== host.webContents) return
   const job = pending.get(id)
@@ -219,14 +243,12 @@ ipcMain.on('background-host:result', (event, { id, result, detail }: HostResult)
   } else {
     settle(id, result, detail)
   }
-  if (pending.size > 0) return
-  // After a failure start the next job on a fresh page (the worker may be
-  // dead, the GPU device lost).
-  if (result.state === 'failed') {
-    return closeHost('reset after a failure', () => ({ state: 'failed' }))
+  if (result.state === 'failed' || result.state === 'gpuMemory') {
+    return restartHost('reset after a failure')
   }
+  if (pending.size > 0) return
   // Let BiRefNet's GPU memory go right away.
-  if (heldHq) return closeHost('released after hq', () => ({ state: 'failed' }))
+  if (heldHq) return destroyHost()
   clearTimeout(idleTimer)
   idleTimer = setTimeout(() => closeHost('idle', () => ({ state: 'failed' })), IDLE_MS)
 })
@@ -239,29 +261,34 @@ export async function runBackgroundModel(
   if (!modelInstalled(model)) return { state: 'failed' }
   clearTimeout(idleTimer)
   if (model === 'hq') heldHq = true
+  const job: HostJob = { id, model, modelUrl: `${ORIGIN}/models/${modelFile(model)}`, image }
   const result = new Promise<RemoveBackgroundResult>((resolve) => {
     const timer = setTimeout(() => {
-      // A job can't be interrupted inside onnxruntime: drop the whole page.
-      closeHost(`timed out after ${TIMEOUT_MS} ms`, () => ({ state: 'failed' }))
+      settle(id, { state: 'failed' }, `timed out after ${TIMEOUT_MS} ms`)
+      restartHost('a job timed out')
     }, TIMEOUT_MS)
-    pending.set(id, { model, resolve, timer, started: Date.now() })
+    pending.set(id, { model, job, resolve, timer, started: Date.now() })
   })
   try {
     await openHost()
   } catch {
+    // The page was closed while loading; restartHost sends the job if it
+    // still waits.
     return result
   }
-  const job: HostJob = { id, model, modelUrl: `${ORIGIN}/models/${modelFile(model)}`, image }
-  host?.webContents.send('background-host:job', job)
+  if (pending.has(id)) send(job)
   return result
 }
 
-// onnxruntime can't stop a run halfway, so canceling closes the page (the
-// next job opens a fresh one).
+// The page runs jobs in the order they came, so the oldest pending one is
+// running. onnxruntime can't stop a run halfway: canceling it reopens the page
+// for the rest; a queued job is just dropped from the page's queue.
 export function cancelBackgroundModel(id: string): boolean {
   if (!pending.has(id)) return false
+  const running = pending.keys().next().value === id
   settle(id, { state: 'canceled' }, '')
-  closeHost('another job was canceled', () => ({ state: 'failed' }))
+  if (running) restartHost('the running job was canceled')
+  else host?.webContents.send('background-host:cancel', id)
   return true
 }
 

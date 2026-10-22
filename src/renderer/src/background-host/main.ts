@@ -19,7 +19,7 @@ worker.onmessage = ({ data }: MessageEvent<HostResult>) => {
 }
 
 // A crashed worker answers nothing: fail what waits, so main isn't left
-// waiting for its timeout.
+// waiting for its timeout (main then reopens the page for the rest).
 worker.onerror = (event) => {
   console.error('background removal worker failed', event.message ?? event)
   for (const [id, resolve] of waiting) {
@@ -29,9 +29,14 @@ worker.onerror = (event) => {
 }
 
 let queue: Promise<unknown> = Promise.resolve()
+// Jobs main canceled before their turn.
+const canceled = new Set<string>()
+
+window.backgroundHost.onCancel((id) => canceled.add(id))
 
 window.backgroundHost.onJob((job: HostJob) => {
   queue = queue.then(async () => {
+    if (canceled.delete(job.id)) return
     const result = await new Promise<HostResult>((resolve) => {
       waiting.set(job.id, resolve)
       worker.postMessage(job, [job.image.buffer])

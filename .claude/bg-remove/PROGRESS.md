@@ -609,3 +609,16 @@ VM shut down afterwards; it still has polotno-app 0.2.0 installed (roll back to 
     234 МБ · Отмена" → 245 MB in 29 s → hash OK → precise 4.9 s (load 2.9 s). A second launch doesn't download again.
   - Linux VM 108 (deb of d6e743c): standard 88 MB in 10 s → hash OK → WASM cutout 36 s cold. VM shut down.
 - Still not checked: the confirm dialog's checkbox, low-VRAM.
+
+### 2026-10-22: fixes from a Codex review
+- Download: the write stream's errors (disk full, EISDIR) escaped the try as an uncaught main-process error, and the
+  backpressure wait could hang. Now `stream/promises` `pipeline`. Checked: a directory at the `.part` path → "failed",
+  app alive.
+- Download cancel → immediate retry joined the aborted download (`canceled`). The canceled one leaves the map at once
+  and a new one starts after its `.part` cleanup. Checked: cancel at 50 ms, retry → done.
+- Host: canceling a queued job closed the page and failed the running one; canceling the running one failed the queue;
+  a failure (or a crashed worker) with jobs queued left them to the 180 s timeout; a timeout failed every job. Now the
+  oldest pending job is the running one: canceling it, a failure/gpuMemory result or a timeout reopens the page and
+  resends the rest (`restartHost`); a queued job is dropped from the page's queue (`background-host:cancel`). Checked:
+  cancel queued → A done; cancel running at 40 ms → B done; corrupt model with 3 jobs → all failed in 0.7 s; standard,
+  hq, standard → all done, page closed after.

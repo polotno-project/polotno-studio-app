@@ -1,6 +1,7 @@
 import { app, net } from 'electron'
 import { createHash } from 'node:crypto'
 import { createWriteStream, existsSync, promises as fs } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
 import { join } from 'node:path'
 import logger from 'electron-log/main'
 import type { BackgroundModel, ModelDownloadResult } from '../shared/ipc-contract'
@@ -72,6 +73,9 @@ interface Download {
 // One download per model; a second request for the same model waits for the
 // first. A download is canceled when every request waiting on it is.
 const downloads = new Map<BackgroundModel, Download & { waiting: number }>()
+// Canceled downloads still removing their .part file; a new download of the
+// same model starts after that, so it never shares the file.
+const canceling = new Map<BackgroundModel, Promise<unknown>>()
 
 async function fetchModel(
   model: BackgroundModel,
@@ -89,26 +93,26 @@ async function fetchModel(
     if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`)
     const total = Number(response.headers.get('content-length')) || bytes
     const hash = createHash('sha256')
-    const out = createWriteStream(part)
     let received = 0
     let reported = 0
-    try {
-      for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-        hash.update(chunk)
-        received += chunk.byteLength
-        if (!out.write(chunk))
-          await new Promise<void>((resolve) => out.once('drain', () => resolve()))
-        // About every 1%, not on each 64 KB chunk.
-        if (received - reported > total / 100 || received === total) {
-          reported = received
-          for (const listener of download.listeners) listener(received, total)
+    // pipeline handles backpressure and rejects on a write error (disk full),
+    // which a bare stream would throw outside this try.
+    await pipeline(
+      response.body as unknown as AsyncIterable<Uint8Array>,
+      async function* (chunks: AsyncIterable<Uint8Array>) {
+        for await (const chunk of chunks) {
+          hash.update(chunk)
+          received += chunk.byteLength
+          // About every 1%, not on each 64 KB chunk.
+          if (received - reported > total / 100 || received === total) {
+            reported = received
+            for (const listener of download.listeners) listener(received, total)
+          }
+          yield chunk
         }
-      }
-    } finally {
-      await new Promise<void>((resolve, reject) =>
-        out.end((error?: Error | null) => (error ? reject(error) : resolve()))
-      )
-    }
+      },
+      createWriteStream(part)
+    )
     const digest = hash.digest('hex')
     if (digest !== sha256) throw new Error(`SHA-256 mismatch: got ${digest}, ${received} bytes`)
     await fs.rename(part, target)
@@ -138,7 +142,12 @@ export function downloadModel(
       listeners: new Set<Progress>(),
       waiting: 0
     } as Download & { waiting: number }
-    created.done = fetchModel(model, created).finally(() => downloads.delete(model))
+    const previous = canceling.get(model) ?? Promise.resolve()
+    created.done = previous
+      .then(() => fetchModel(model, created))
+      .finally(() => {
+        if (downloads.get(model) === created) downloads.delete(model)
+      })
     downloads.set(model, created)
     download = created
   }
@@ -152,7 +161,15 @@ export function downloadModel(
     }
     const cancel = (): void => {
       leave()
-      if (--current.waiting === 0) current.controller.abort()
+      if (--current.waiting === 0) {
+        // A retry right away starts a new download instead of joining this one.
+        if (downloads.get(model) === current) downloads.delete(model)
+        canceling.set(model, current.done)
+        void current.done.finally(() => {
+          if (canceling.get(model) === current.done) canceling.delete(model)
+        })
+        current.controller.abort()
+      }
       resolve('canceled')
     }
     if (signal.aborted) return cancel()

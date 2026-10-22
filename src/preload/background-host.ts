@@ -7,6 +7,9 @@ const backgroundHost = {
   onJob(listener: (job: HostJob) => void): void {
     ipcRenderer.on('background-host:job', (_event, job: HostJob) => listener(job))
   },
+  onCancel(listener: (id: string) => void): void {
+    ipcRenderer.on('background-host:cancel', (_event, id: string) => listener(id))
+  },
   ready(): void {
     ipcRenderer.send('background-host:ready')
   },
