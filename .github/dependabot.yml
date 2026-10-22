@@ -1,0 +1,31 @@
+# Opens one PR a day bumping polotno and @polotno/* together, so the SDK and
+# its export/import packages move in lockstep and CI (build.yml) checks them
+# as a set. Other npm dependencies are not touched here.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: daily
+    allow:
+      - dependency-name: polotno
+      - dependency-name: '@polotno/*'
+    # Rewrite the ranges in package.json too: @polotno/* are 0.x, where ^0.13.0
+    # never reaches 0.15, so a lockfile-only update would miss most releases.
+    versioning-strategy: increase
+    groups:
+      polotno:
+        patterns:
+          - polotno
+          - '@polotno/*'
+        update-types: [major, minor, patch]
+    # First-party packages: pick up releases as soon as they're published
+    # instead of after Dependabot's default 3-day cooldown.
+    cooldown:
+      default-days: 3
+      exclude:
+        - polotno
+        - '@polotno/*'
+    commit-message:
+      prefix: deps
+    open-pull-requests-limit: 2
