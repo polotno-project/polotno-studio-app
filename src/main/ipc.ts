@@ -46,6 +46,13 @@ import {
 } from './agents/codex/provider'
 import { deleteChatsOf, renameChatsOf } from './agents/chats'
 import {
+  cancelRemoveBackground,
+  downloadBackgroundModel,
+  removeBackground,
+  removeBackgroundEngines,
+  setRemoveBackgroundQuality
+} from './remove-background'
+import {
   readDesignFile,
   readDesignFileBase64,
   writeDesignFile,
@@ -236,4 +243,32 @@ export function registerIpcHandlers(): void {
     editImageWithCodex(id, png, instruction)
   )
   handle('imageEdit:cancel', (_event, { id }) => cancelImageEdit(id))
+  handle('removeBackground:engines', (_event, { webgpu }) => removeBackgroundEngines(webgpu))
+  handle('removeBackground:download', (event, { id, model }) =>
+    downloadBackgroundModel(id, model, (received, total) => {
+      if (!event.sender.isDestroyed()) {
+        event.sender.send('removeBackground:progress', { id, received, total })
+      }
+    })
+  )
+  handle('removeBackground:confirmHq', async (event, labels) => {
+    const { response, checkboxChecked } = await dialog.showMessageBox(windowOf(event), {
+      title: 'Polotno',
+      type: 'question',
+      message: labels.message,
+      detail: labels.detail,
+      buttons: [labels.confirmLabel, labels.cancelLabel],
+      checkboxLabel: labels.alwaysLabel,
+      defaultId: 0,
+      cancelId: 1
+    })
+    return { confirmed: response === 0, always: response === 0 && checkboxChecked }
+  })
+  handle('removeBackground:setQuality', (_event, { quality }) =>
+    setRemoveBackgroundQuality(quality)
+  )
+  handle('removeBackground:run', (_event, { id, image, engine }) =>
+    removeBackground(id, image, engine)
+  )
+  handle('removeBackground:cancel', (_event, { id }) => cancelRemoveBackground(id))
 }

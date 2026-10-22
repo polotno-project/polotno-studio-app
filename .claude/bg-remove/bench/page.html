@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>bench</title>
+<script type="module">
+  const cfg = JSON.parse(new URLSearchParams(location.search).get('cfg'))
+  const env = { crossOriginIsolated, hardwareConcurrency: navigator.hardwareConcurrency, userAgent: navigator.userAgent }
+  try {
+    const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' })
+    if (adapter) {
+      const { vendor, architecture, device, description } = adapter.info
+      const L = adapter.limits
+      env.gpuAdapter = {
+        vendor, architecture, device, description,
+        isFallbackAdapter: adapter.info.isFallbackAdapter ?? adapter.isFallbackAdapter,
+        shaderF16: adapter.features.has('shader-f16'),
+        limits: {
+          maxStorageBuffersPerShaderStage: L.maxStorageBuffersPerShaderStage,
+          maxStorageBufferBindingSize: L.maxStorageBufferBindingSize,
+          maxBufferSize: L.maxBufferSize,
+          maxComputeWorkgroupStorageSize: L.maxComputeWorkgroupStorageSize
+        }
+      }
+    } else env.gpuAdapter = navigator.gpu ? 'requestAdapter() returned null' : 'navigator.gpu undefined'
+  } catch (e) {
+    env.gpuAdapter = 'error: ' + e
+  }
+  const worker = new Worker('./worker.mjs', { type: 'module' })
+  worker.onerror = (e) => window.bench.done({ env, error: 'worker error: ' + (e.message || e) })
+  // serialize so 'done' never overtakes pending saves
+  let chain = Promise.resolve()
+  worker.onmessage = ({ data }) => {
+    chain = chain.then(async () => {
+      if (data.type === 'log') window.bench.log(data.msg)
+      else if (data.type === 'save') await window.bench.save(data.name, data.bytes)
+      else if (data.type === 'done') window.bench.done({ env, ...data.result })
+    })
+  }
+  worker.postMessage(cfg)
+</script>

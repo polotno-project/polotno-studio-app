@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain, nativeTheme, shell } from 'electron'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { closeBackgroundHost } from './background-host'
 
 let editorWindow: BrowserWindow | null = null
 
@@ -70,6 +71,8 @@ export function createEditorWindow(options: { hidden?: boolean } = {}): BrowserW
     win.on('closed', () => nativeTheme.removeListener('updated', syncOverlay))
   }
   editorWindow.on('closed', () => {
+    // Its hidden background removal page would keep the app running.
+    closeBackgroundHost()
     editorWindow = null
   })
 

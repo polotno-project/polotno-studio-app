@@ -120,7 +120,12 @@
     "reset": "Atur Ulang"
   },
   "error": {
-    "removeBackground": "Ops! Ada yang salah. Latar Belakang tidak dapat dihapus."
+    "removeBackground": "Ops! Ada yang salah. Latar Belakang tidak dapat dihapus.",
+    "removeBackgroundNoSubject": "Tidak ada subjek yang ditemukan.",
+    "removeBackgroundUnreadable": "Gambar ini tidak dapat dibaca.",
+    "removeBackgroundFailed": "Latar belakang tidak dapat dihapus.",
+    "removeBackgroundGpuMemory": "Memori GPU tidak cukup untuk mode presisi.",
+    "removeBackgroundDownload": "Model tidak dapat diunduh."
   },
   "sidePanel": {
     "templates": "Template",
@@ -175,5 +180,19 @@
     "addPage": "Tambah Halaman",
     "duplicatePage": "Duplikasi Halaman",
     "removeAudio": "Hapus Audio"
+  },
+  "backgroundRemoval": {
+    "downloading": "Mengunduh model penghapus latar belakang",
+    "downloadingHq": "Mengunduh model presisi",
+    "progress": "{received} dari {total} MB",
+    "cancel": "Batal",
+    "done": "Latar belakang dihapus",
+    "notRight": "Kurang pas? Coba mode presisi.",
+    "preciseSetting": "Untuk selalu memakainya: File → Precise Background Removal",
+    "tryHq": "Coba presisi",
+    "confirmHq": "Gunakan penghapusan latar belakang presisi?",
+    "confirmHqDetail": "Model yang lebih besar yang mempertahankan rambut, bulu, dan bagian tipis dengan lebih akurat. Diunduh sekali ({size} MB), butuh beberapa detik per gambar, dan memerlukan kartu grafis yang mumpuni.",
+    "download": "Unduh",
+    "alwaysHq": "Selalu gunakan mode presisi"
   }
 }

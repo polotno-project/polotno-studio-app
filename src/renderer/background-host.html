@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Polotno background removal</title>
+    <!-- Hidden page that runs the background removal models
+         (src/main/background-host.ts). Nothing here reaches the network. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; connect-src 'self'"
+    />
+  </head>
+  <body>
+    <script type="module" src="/src/background-host/main.ts"></script>
+  </body>
+</html>

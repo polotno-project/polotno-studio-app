@@ -120,7 +120,12 @@
     "reset": "Redefinir"
   },
   "error": {
-    "removeBackground": "Ops! Algo deu errado. Não foi possível remover o fundo."
+    "removeBackground": "Ops! Algo deu errado. Não foi possível remover o fundo.",
+    "removeBackgroundNoSubject": "Nenhum objeto encontrado.",
+    "removeBackgroundUnreadable": "Não foi possível ler esta imagem.",
+    "removeBackgroundFailed": "Não foi possível remover o fundo.",
+    "removeBackgroundGpuMemory": "Memória de GPU insuficiente para o modo preciso.",
+    "removeBackgroundDownload": "Não foi possível baixar o modelo."
   },
   "sidePanel": {
     "templates": "Modelos",
@@ -175,5 +180,19 @@
     "addPage": "Adicionar página",
     "duplicatePage": "Duplicar página",
     "removeAudio": "Remover áudio"
+  },
+  "backgroundRemoval": {
+    "downloading": "Baixando o modelo de remoção de fundo",
+    "downloadingHq": "Baixando o modelo preciso",
+    "progress": "{received} de {total} MB",
+    "cancel": "Cancelar",
+    "done": "Fundo removido",
+    "notRight": "Não ficou bom? Experimente o modo preciso.",
+    "preciseSetting": "Para usar sempre: File → Precise Background Removal",
+    "tryHq": "Modo preciso",
+    "confirmHq": "Usar a remoção de fundo precisa?",
+    "confirmHqDetail": "Um modelo maior que preserva cabelo, pelos e partes finas com mais precisão. Ele é baixado uma vez ({size} MB), leva alguns segundos por imagem e precisa de uma placa de vídeo capaz.",
+    "download": "Baixar",
+    "alwaysHq": "Sempre usar o modo preciso"
   }
 }
