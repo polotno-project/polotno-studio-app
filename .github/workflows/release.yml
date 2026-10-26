@@ -89,5 +89,32 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+  # electron-builder creates the draft with an empty body. Fill it with the
+  # version's CHANGELOG section; notes already written by hand are kept.
+  notes:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - run: |
+          if [ -n "$(gh release view "$TAG" --json body --jq .body)" ]; then
+            echo "::notice::$TAG already has release notes, keeping them"
+            exit 0
+          fi
+          node scripts/changelog-notes.mjs "${TAG#v}" > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::warning::No CHANGELOG.md section for ${TAG#v}"
+            exit 0
+          fi
+          gh release edit "$TAG" --notes-file notes.md
+
 # Publishing the draft release on GitHub is the manual go-live gate:
 # electron-updater only sees published releases.
