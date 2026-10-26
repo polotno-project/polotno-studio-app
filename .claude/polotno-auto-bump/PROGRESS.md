@@ -21,5 +21,6 @@ Decisions: release is a draft (publishing stays manual); release even if master 
 - Dependabot bumped polotno 4.16.1→4.18.0 only in package-lock.json (range stayed ^4.16.1) — the package.json-based script would have missed it
 - Codex review: direction OK; asked for atomic push, lockfile versions, retry paths, exact PR match, npm test in CI, pinned actions, minor/patch allowlist. Prefers a GitHub App; user chose the deploy key. User: the daily run releases any Polotno change since the last tag, including majors merged by hand
 - [x] Branch nikigan/polotno-release-fix: lockfile-based script (+ tests), polotno-release on workflow_run + daily schedule + dispatch, deploy-key checkout, `git push --atomic`; release.yml workflow_call → workflow_dispatch(tag) + tag/package.json check; auto-merge minor/patch allowlist; actions pinned to SHAs; npm test in Build (Linux)
-- [ ] User: run scratchpad setup-release-key.sh (deploy key, RELEASE_DEPLOY_KEY secret, DeployKey bypass)
-- [ ] Delete the orphan remote tag v0.3.1, then run "Polotno patch release" by hand → expect draft v0.3.1 with all installers
+- [x] Deploy key "Polotno patch release" (read-write), RELEASE_DEPLOY_KEY secret, DeployKey bypass on ruleset 25631988
+- [x] 2026-10-26 Orphan tag v0.3.1 deleted; manual run → Release 0.3.1 (6c8b56d) + tag pushed with the deploy key, tag push started release.yml, draft v0.3.1 with all 13 assets (same set as v0.3.0)
+- [ ] Next Dependabot bump: confirm the automatic path end to end (workflow_run → wait → release) without a manual run

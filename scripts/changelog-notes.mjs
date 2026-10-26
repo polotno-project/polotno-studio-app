@@ -15,7 +15,7 @@ export function changelogSection(changelog, version) {
     .trim()
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const notes = changelogSection(readFileSync('CHANGELOG.md', 'utf8'), process.argv[2])
   if (notes) console.log(notes)
 }
