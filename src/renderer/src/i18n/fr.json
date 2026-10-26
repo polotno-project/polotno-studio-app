@@ -120,7 +120,12 @@
     "reset": "Réinit."
   },
   "error": {
-    "removeBackground": "Erreur! Suppr. fond impossible."
+    "removeBackground": "Erreur! Suppr. fond impossible.",
+    "removeBackgroundNoSubject": "Aucun sujet trouvé.",
+    "removeBackgroundUnreadable": "Impossible de lire cette image.",
+    "removeBackgroundFailed": "Impossible de supprimer l'arrière-plan.",
+    "removeBackgroundGpuMemory": "Mémoire GPU insuffisante pour le mode précis.",
+    "removeBackgroundDownload": "Impossible de télécharger le modèle."
   },
   "sidePanel": {
     "templates": "Modèles",
@@ -175,5 +180,19 @@
     "addPage": "Ajouter une page",
     "duplicatePage": "Dupliquer la page",
     "removeAudio": "Supprimer l'audio"
+  },
+  "backgroundRemoval": {
+    "downloading": "Téléchargement du modèle de suppression d'arrière-plan",
+    "downloadingHq": "Téléchargement du modèle précis",
+    "progress": "{received} sur {total} Mo",
+    "cancel": "Annuler",
+    "done": "Arrière-plan supprimé",
+    "notRight": "Pas tout à fait ça ? Essayez le mode précis.",
+    "preciseSetting": "Pour l'utiliser toujours : File → Precise Background Removal",
+    "tryHq": "Mode précis",
+    "confirmHq": "Utiliser la suppression précise de l'arrière-plan ?",
+    "confirmHqDetail": "Un modèle plus grand qui conserve plus fidèlement les cheveux, la fourrure et les parties fines. Il se télécharge une fois ({size} Mo), prend quelques secondes par image et nécessite une carte graphique performante.",
+    "download": "Télécharger",
+    "alwaysHq": "Toujours utiliser le mode précis"
   }
 }

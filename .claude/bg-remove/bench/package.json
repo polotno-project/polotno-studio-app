@@ -1,0 +1,11 @@
+{
+  "name": "birefnet-bench",
+  "private": true,
+  "type": "module",
+  "description": "Throwaway BiRefNet_lite benchmark harness (not shipped)",
+  "dependencies": {
+    "onnxruntime-web": "1.30.0",
+    "onnxruntime-node": "1.30.0",
+    "@huggingface/transformers": "4.3.1"
+  }
+}

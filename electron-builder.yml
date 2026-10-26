@@ -8,8 +8,11 @@ files:
   - '!scripts/*'
   - '!mcpb/*'
   - '!vendor/*'
+  - '!native/*'
+  # Shipped through mac.extraResources, not inside app.asar.
+  - '!out/helpers/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md,THIRD_PARTY_NOTICES.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
@@ -21,6 +24,8 @@ extraResources:
     to: Polotno.mcpb
   - from: vendor/skills
     to: skills
+  - from: THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
 fileAssociations:
   - ext: polotno
     name: Polotno Design
@@ -53,6 +58,13 @@ nsis:
   createDesktopShortcut: always
 mac:
   entitlementsInherit: build/entitlements.mac.plist
+  # Background removal helper (scripts/build-remove-background.mjs, macOS 14+).
+  # Already universal, so the universal merge keeps it as is. osx-sign signs
+  # every Mach-O in the bundle, so it gets the hardened runtime and
+  # entitlementsInherit like Electron's own helpers.
+  extraResources:
+    - from: out/helpers/remove-background
+      to: helpers/remove-background
   # zip is required — electron-updater consumes it; dmg is for humans.
   target:
     - target: dmg

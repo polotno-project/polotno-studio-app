@@ -115,7 +115,12 @@
     "reset": "Reset"
   },
   "error": {
-    "removeBackground": "Ops! Something went wrong. Background can not be removed."
+    "removeBackground": "Ops! Something went wrong. Background can not be removed.",
+    "removeBackgroundNoSubject": "No subject found.",
+    "removeBackgroundUnreadable": "Can't read this image.",
+    "removeBackgroundFailed": "Couldn't remove the background.",
+    "removeBackgroundGpuMemory": "Not enough GPU memory for precise mode.",
+    "removeBackgroundDownload": "Couldn't download the model."
   },
   "sidePanel": {
     "templates": "Templates",
@@ -171,5 +176,19 @@
     "addPage": "Add page",
     "duplicatePage": "Duplicate page",
     "removeAudio": "Remove audio"
+  },
+  "backgroundRemoval": {
+    "downloading": "Downloading the background removal model",
+    "downloadingHq": "Downloading the precise model",
+    "progress": "{received} of {total} MB",
+    "cancel": "Cancel",
+    "done": "Background removed",
+    "notRight": "Not quite right? Try precise mode.",
+    "preciseSetting": "To always use it: File → Precise Background Removal",
+    "tryHq": "Try precise",
+    "confirmHq": "Use precise background removal?",
+    "confirmHqDetail": "A larger model that keeps hair, fur and thin parts more accurately. It downloads {size} MB once, takes a few seconds per image and needs a capable graphics card.",
+    "download": "Download",
+    "alwaysHq": "Always use precise mode"
   }
 }

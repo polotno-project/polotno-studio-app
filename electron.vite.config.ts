@@ -36,6 +36,15 @@ export default defineConfig({
   preload: {
     build: {
       sourcemap,
+      // index: the editor window. background-host: the hidden background
+      // removal page (src/main/background-host.ts). They share no module, so
+      // each still builds to one file, as sandboxed preloads must.
+      rollupOptions: {
+        input: {
+          index: resolve('src/preload/index.ts'),
+          'background-host': resolve('src/preload/background-host.ts')
+        }
+      },
       // The window is sandboxed: its preload can't require() from
       // node_modules, so the Sentry IPC bridge must be bundled in.
       externalizeDeps: { exclude: ['@sentry/electron'] }
@@ -43,7 +52,20 @@ export default defineConfig({
     plugins: [sentry]
   },
   renderer: {
-    build: { sourcemap },
+    build: {
+      sourcemap,
+      rollupOptions: {
+        input: {
+          index: resolve('src/renderer/index.html'),
+          'background-host': resolve('src/renderer/background-host.html')
+        }
+      }
+    },
+    // The background removal worker loads onnxruntime-web, which code-splits.
+    worker: { format: 'es' },
+    // Pre-bundling breaks onnxruntime-web's new URL(…, import.meta.url) for
+    // its .wasm file.
+    optimizeDeps: { exclude: ['onnxruntime-web'] },
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),
