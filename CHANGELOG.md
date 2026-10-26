@@ -3,6 +3,12 @@
 User-facing changes in each release of Polotno App. Downloads are on
 [GitHub Releases](https://github.com/polotno-project/polotno-studio-app/releases).
 
+## 0.3.1 — 2026-10-26
+
+### Changed
+
+- Polotno SDK update: `@polotno/pdf-export` 0.15.2 (from 0.13.0), `@polotno/pdf-import` 0.12.0 (from 0.9.0), `@polotno/schema` 0.9.1 (from 0.7.0), `@polotno/svg-import` 0.2.3 (from 0.2.2), `@polotno/video-export` 0.5.1 (from 0.4.0), `polotno` 4.18.0 (from 4.16.1).
+
 ## 0.3.0 — 2026-10-22
 
 ### Added
