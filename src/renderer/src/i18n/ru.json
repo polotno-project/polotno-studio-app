@@ -120,7 +120,12 @@
     "reset": "Сброс"
   },
   "error": {
-    "removeBackground": "Ой! Что-то пошло не так. Невозможно удалить фон."
+    "removeBackground": "Ой! Что-то пошло не так. Невозможно удалить фон.",
+    "removeBackgroundNoSubject": "Объект не найден.",
+    "removeBackgroundUnreadable": "Не удаётся прочитать изображение.",
+    "removeBackgroundFailed": "Не удалось удалить фон.",
+    "removeBackgroundGpuMemory": "Не хватает видеопамяти для точного режима.",
+    "removeBackgroundDownload": "Не удалось скачать модель."
   },
   "sidePanel": {
     "templates": "Шаблоны",
@@ -176,5 +181,19 @@
     "addPage": "Добавить страницу",
     "duplicatePage": "Дублировать страницу",
     "removeAudio": "Удалить аудио"
+  },
+  "backgroundRemoval": {
+    "downloading": "Скачивание модели для удаления фона",
+    "downloadingHq": "Скачивание точной модели",
+    "progress": "{received} из {total} МБ",
+    "cancel": "Отмена",
+    "done": "Фон удалён",
+    "notRight": "Не совсем то? Попробуйте точный режим.",
+    "preciseSetting": "Включить его: File → Precise Background Removal",
+    "tryHq": "Точный режим",
+    "confirmHq": "Удалять фон в точном режиме?",
+    "confirmHqDetail": "Более крупная модель точнее сохраняет волосы, мех и тонкие детали. Один раз скачается {size} МБ. Каждое изображение займёт несколько секунд, нужна производительная видеокарта.",
+    "download": "Скачать",
+    "alwaysHq": "Всегда использовать точный режим"
   }
 }

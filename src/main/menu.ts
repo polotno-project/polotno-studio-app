@@ -1,17 +1,48 @@
-import { app, dialog, Menu, BrowserWindow } from 'electron'
+import { app, dialog, Menu, BrowserWindow, nativeImage } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import type { MenuAction } from '../shared/ipc-contract'
 import { documents } from './documents'
 import { execCommand } from './bridge-router'
 import { checkForUpdatesInteractive } from './updater'
+import { getEditorWindow } from './window'
+import {
+  onRemoveBackgroundQualityChange,
+  removeBackgroundQualityMenu,
+  setRemoveBackgroundQuality
+} from './remove-background'
 
 function sendMenuAction(action: MenuAction): void {
-  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  const win = BrowserWindow.getFocusedWindow() ?? getEditorWindow()
   win?.webContents.send('menu:action', { action })
+}
+
+let rebuildOnQualityChange = true
+
+// macOS: the SF Symbol Preview and Photos use for removing a background.
+// Electron renders it at 30 pt and 1x only, so it gets a 2x copy for Retina
+// and becomes a template (tinted for light and dark menus).
+function removeBackgroundIcon(): Electron.NativeImage | undefined {
+  if (process.platform !== 'darwin') return undefined
+  const symbol = nativeImage.createFromNamedImage('person.and.background.dotted')
+  if (symbol.isEmpty()) return undefined
+  const icon = nativeImage.createEmpty()
+  for (const scaleFactor of [1, 2]) {
+    icon.addRepresentation({
+      scaleFactor,
+      buffer: symbol.resize({ height: 16 * scaleFactor, quality: 'best' }).toPNG()
+    })
+  }
+  icon.setTemplateImage(true)
+  return icon
 }
 
 export function installAppMenu(): void {
   const isMac = process.platform === 'darwin'
+  if (rebuildOnQualityChange) {
+    rebuildOnQualityChange = false
+    onRemoveBackgroundQualityChange(installAppMenu)
+  }
+  const removeBackgroundQuality = removeBackgroundQualityMenu()
 
   const checkForUpdatesItem: Electron.MenuItemConstructorOptions = {
     label: 'Check for Updates…',
@@ -75,6 +106,20 @@ export function installAppMenu(): void {
           accelerator: 'CmdOrCtrl+E',
           click: () => sendMenuAction('export')
         },
+        // Shown once the editor found a GPU that can run it.
+        ...(removeBackgroundQuality.visible
+          ? [
+              { type: 'separator' as const },
+              {
+                label: 'Precise Background Removal',
+                type: 'checkbox' as const,
+                icon: removeBackgroundIcon(),
+                checked: removeBackgroundQuality.checked,
+                click: (item: Electron.MenuItem) =>
+                  void setRemoveBackgroundQuality(item.checked ? 'high' : 'standard')
+              }
+            ]
+          : []),
         { type: 'separator' },
         {
           label: 'Close Tab',
@@ -89,12 +134,7 @@ export function installAppMenu(): void {
     // swallow the keystroke before the page sees it.
     {
       label: 'Edit',
-      submenu: [
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' }
-      ]
+      submenu: [{ role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }]
     },
     { role: 'viewMenu' },
     // The Windows/Linux windowMenu role has a Close item on Ctrl+W, which

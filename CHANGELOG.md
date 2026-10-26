@@ -3,6 +3,23 @@
 User-facing changes in each release of Polotno App. Downloads are on
 [GitHub Releases](https://github.com/polotno-project/polotno-studio-app/releases).
 
+## 0.3.0 — 2026-10-22
+
+### Added
+
+- **Remove background, on every platform.** The image AI menu cuts the
+  subject out on your computer, with no sign-in and nothing uploaded. On
+  macOS 14+ it uses Apple's Vision (the same as Remove Background in Preview),
+  usually in under a second. On Windows, Linux and older macOS it uses an
+  on-device model, downloaded once (about 85 MB) the first time. Undo restores
+  the original; Cancel stops it.
+- **Precise background removal.** When a cutout isn't right, _Try precise_ in
+  the message after the first removal of a session reruns the image with a
+  larger, more accurate model (about 235 MB, downloaded once; needs a graphics
+  card with WebGPU, and 16 GB of memory on Apple silicon). It takes a few
+  seconds and is its own undo step. To always use it, check
+  _File → Precise Background Removal_.
+
 ## 0.2.0 — 2026-10-20
 
 ### Added
