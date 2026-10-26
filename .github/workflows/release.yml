@@ -3,6 +3,14 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # Called by polotno-release.yml: a tag pushed with GITHUB_TOKEN doesn't
+  # trigger the push event above.
+  workflow_call:
+    inputs:
+      ref:
+        description: Tag to build, e.g. v0.3.1
+        type: string
+        required: true
 
 jobs:
   release:
@@ -13,6 +21,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Empty on tag pushes: checks out the pushed tag.
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
