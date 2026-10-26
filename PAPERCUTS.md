@@ -73,3 +73,4 @@
 - 2026-10-21 [claude-opus-5-5] electron-vite 5.0.0 build.isolatedEntries crashes with 'process.stdout.clearLine is not a function' when stdout isn't a TTY (agents, CI); left it off
 - 2026-10-21 [claude-opus-5-5] npm ci on the Windows PC failed in postinstall (electron-builder ERR_REQUIRE_ESM): its system Node is 20.9 while package.json wants >=22.13, and npm only warns on engines — engine-strict=true in .npmrc would fail fast with a clear message
 - 2026-10-21 [claude-opus-5-5] restarting the app on VM 108 over SSH: a launch right after 'kill' lost the single-instance lock race and quit silently; wait until 'pgrep -x polotno' is empty before starting again
+- 2026-10-22 [claude-opus-5-5] pushing the auto-bump branch: the worktree branch had been renamed mid-session (nikigan/anemone → nikigan/auto-bump-polotno), so 'git push origin nikigan/anemone' failed with 'src refspec does not match'; check 'git branch --show-current' before pushing

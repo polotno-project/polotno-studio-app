@@ -1,0 +1,85 @@
+# Cuts a patch release after the grouped polotno / @polotno/* Dependabot PR
+# is auto-merged (dependabot-auto-merge.yml): bumps the patch version, adds a
+# CHANGELOG entry, tags it and runs release.yml, which uploads the installers
+# to a draft release. Publishing the draft stays manual.
+#
+# Runs on workflow_run because the auto-merge is done with GITHUB_TOKEN, and
+# events from GITHUB_TOKEN (the merge's push to master) start no workflows.
+# workflow_run isn't restricted for Dependabot, so Actions secrets reach the
+# release build. Pushing the release commit to master needs GitHub Actions
+# on the bypass list of the "master: require Build" ruleset.
+name: Polotno patch release
+
+on:
+  workflow_run:
+    workflows: [Build]
+    types: [completed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: polotno-release
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]' &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/npm_and_yarn/polotno-')
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      # Auto-merge lands the PR right after Build passes. A major bump is never
+      # auto-merged, so it stays open and gets no release here.
+      - name: Wait for the PR to merge
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          for _ in $(seq 30); do
+            state=$(gh pr list -R "$GITHUB_REPOSITORY" --head "$BRANCH" --state all \
+              --json state --jq '.[0].state')
+            if [ "$state" = MERGED ]; then echo merged=true >> "$GITHUB_OUTPUT"; exit 0; fi
+            if [ "$state" != OPEN ]; then break; fi
+            sleep 10
+          done
+          echo "::notice::$BRANCH was not merged (state: ${state:-none}), no release"
+      - if: steps.pr.outputs.merged == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+      - if: steps.pr.outputs.merged == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - if: steps.pr.outputs.merged == 'true'
+        id: release
+        run: |
+          version=$(node scripts/polotno-patch-release.mjs)
+          if [ -z "$version" ]; then
+            echo "::notice::Polotno packages match the last release, nothing to release"
+            exit 0
+          fi
+          npm version "$version" --no-git-tag-version
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am "Release $version"
+          git tag "v$version"
+          git push origin "HEAD:$DEFAULT_BRANCH" "v$version"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
+  release:
+    needs: bump
+    if: needs.bump.outputs.tag != ''
+    uses: ./.github/workflows/release.yml
+    with:
+      ref: ${{ needs.bump.outputs.tag }}
+    secrets: inherit
