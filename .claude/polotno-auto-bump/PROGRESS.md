@@ -11,6 +11,7 @@
 Decisions: release is a draft (publishing stays manual); release even if master has other unreleased commits.
 
 - [x] scripts/polotno-patch-release.mjs (+ test): compares Polotno deps with tag v<version>, writes CHANGELOG entry, prints next patch version (empty = skip). Dry-run on origin/master: no change → skip; simulated bump → 0.3.1, CHANGELOG + package.json + lockfile updated
-- [x] .github/workflows/polotno-release.yml: workflow_run on Build (Dependabot polotno group PR) → waits for the auto-merge → bump commit + tag pushed to master → calls release.yml (now also workflow_call with `ref`) with secrets: inherit
-- [ ] Ruleset 25631988: add GitHub Actions (Integration 15368) to bypass_actors so the release commit can be pushed to master — blocked for the agent, user to run
-- [ ] After merge: first real run — check the group branch really starts with dependabot/npm_and_yarn/polotno-, the workflow_run run gets Actions secrets, and the draft release has all installers
+- [x] .github/workflows/polotno-release.yml: workflow_run on Build (Dependabot polotno group PR) → waits for the auto-merge → bump commit + tag pushed to master with the RELEASE_DEPLOY_KEY deploy key → the tag push starts release.yml (draft)
+- [x] Ruleset bypass for GitHub Actions (Integration 15368) is impossible: 422 "Actor GitHub Actions integration must be part of the ruleset source or owner organization". Switched to a write deploy key (ruleset bypass `DeployKey`), which also makes the tag push start release.yml, so the workflow_call path was dropped
+- [ ] User: create the deploy key (write), RELEASE_DEPLOY_KEY Actions secret, DeployKey on the ruleset bypass list
+- [ ] After merge: first real run — check the group branch really starts with dependabot/npm_and_yarn/polotno-, the workflow_run run gets Actions secrets (RELEASE_DEPLOY_KEY), and the draft release has all installers
