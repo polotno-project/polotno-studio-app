@@ -3,11 +3,10 @@ name: Release
 on:
   push:
     tags: ['v*']
-  # Called by polotno-release.yml: a tag pushed with GITHUB_TOKEN doesn't
-  # trigger the push event above.
-  workflow_call:
+  # Rebuilds an existing tag, e.g. after a failed release run.
+  workflow_dispatch:
     inputs:
-      ref:
+      tag:
         description: Tag to build, e.g. v0.3.1
         type: string
         required: true
@@ -23,7 +22,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           # Empty on tag pushes: checks out the pushed tag.
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.tag }}
+      # electron-builder names the release after package.json's version.
+      - name: Tag matches package.json
+        shell: bash
+        run: test "v$(node -p 'require("./package.json").version')" = "$TAG"
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc

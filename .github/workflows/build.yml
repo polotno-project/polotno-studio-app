@@ -19,6 +19,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # Unit tests are platform-independent: one OS is enough.
+      - if: runner.os == 'Linux'
+        run: npm test
       - run: npm run build
         env:
           VITE_POLOTNO_KEY: ${{ secrets.VITE_POLOTNO_KEY }}

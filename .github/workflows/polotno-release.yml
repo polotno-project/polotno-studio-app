@@ -1,22 +1,34 @@
-# Cuts a patch release after the grouped polotno / @polotno/* Dependabot PR
-# is auto-merged (dependabot-auto-merge.yml): bumps the patch version, adds a
-# CHANGELOG entry, tags it and runs release.yml, which uploads the installers
-# to a draft release. Publishing the draft stays manual.
+# Cuts a patch release when polotno / @polotno/* changed since the last
+# release: bumps the patch version, adds a CHANGELOG entry, then pushes the
+# release commit and its tag. The tag push starts release.yml, which uploads
+# the installers to a draft release. Publishing the draft stays manual.
 #
-# Runs on workflow_run because the auto-merge is done with GITHUB_TOKEN, and
-# events from GITHUB_TOKEN (the merge's push to master) start no workflows.
-# workflow_run isn't restricted for Dependabot, so Actions secrets reach the
-# release build. Pushing the release commit to master needs GitHub Actions
-# on the bypass list of the "master: require Build" ruleset.
+# Runs right after the grouped Dependabot PR is auto-merged
+# (dependabot-auto-merge.yml), daily as a safety net (a merge that landed
+# late, a bump merged by hand, a failed run), and on demand. Every run
+# compares master with the last release tag, so extra runs are harmless.
+#
+# workflow_run, not push: the auto-merge is done with GITHUB_TOKEN, and its
+# push to master starts no workflows. workflow_run isn't restricted for
+# Dependabot, so the RELEASE_DEPLOY_KEY secret is available. That write
+# deploy key is on the bypass list of the "master: require Build" ruleset,
+# and unlike GITHUB_TOKEN its pushes start workflows (release.yml).
+#
+# Nothing from the PR is checked out or run: the job only reads the PR's
+# state and works on master.
 name: Polotno patch release
 
 on:
   workflow_run:
     workflows: [Build]
     types: [completed]
+  schedule:
+    - cron: '30 6 * * *'
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pull-requests: read
 
 concurrency:
   group: polotno-release
@@ -25,41 +37,47 @@ concurrency:
 jobs:
   bump:
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.actor.login == 'dependabot[bot]' &&
-      startsWith(github.event.workflow_run.head_branch, 'dependabot/npm_and_yarn/polotno-')
+      github.event_name != 'workflow_run' || (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.actor.login == 'dependabot[bot]' &&
+        startsWith(github.event.workflow_run.head_branch, 'dependabot/npm_and_yarn/polotno-')
+      )
     runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.release.outputs.tag }}
     steps:
-      # Auto-merge lands the PR right after Build passes. A major bump is never
-      # auto-merged, so it stays open and gets no release here.
+      # Auto-merge lands the PR right after Build passes. If it hasn't merged
+      # within 5 minutes (a major bump, or a merge by hand later), the daily
+      # run picks it up once it's on master.
       - name: Wait for the PR to merge
         id: pr
+        if: github.event_name == 'workflow_run'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          PR: ${{ github.event.workflow_run.pull_requests[0].number }}
+          BASE: ${{ github.event.repository.default_branch }}
         run: |
+          if [ -z "$PR" ]; then echo "::notice::No PR on this run"; echo merged=false >> "$GITHUB_OUTPUT"; exit 0; fi
           for _ in $(seq 30); do
-            state=$(gh pr list -R "$GITHUB_REPOSITORY" --head "$BRANCH" --state all \
-              --json state --jq '.[0].state')
-            if [ "$state" = MERGED ]; then echo merged=true >> "$GITHUB_OUTPUT"; exit 0; fi
-            if [ "$state" != OPEN ]; then break; fi
+            merged=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq \
+              "select(.user.login == \"dependabot[bot]\" and .base.ref == \"$BASE\"
+                and .head.repo.full_name == \"$GITHUB_REPOSITORY\") | .merged")
+            if [ "$merged" = true ]; then echo merged=true >> "$GITHUB_OUTPUT"; exit 0; fi
+            if [ -z "$merged" ]; then break; fi
             sleep 10
           done
-          echo "::notice::$BRANCH was not merged (state: ${state:-none}), no release"
-      - if: steps.pr.outputs.merged == 'true'
-        uses: actions/checkout@v4
+          echo "::notice::PR #$PR is not merged (yet), leaving it to the daily run"
+          echo merged=false >> "$GITHUB_OUTPUT"
+      - if: steps.pr.outputs.merged != 'false'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
-      - if: steps.pr.outputs.merged == 'true'
-        uses: actions/setup-node@v4
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+      - if: steps.pr.outputs.merged != 'false'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
-      - if: steps.pr.outputs.merged == 'true'
-        id: release
+      - if: steps.pr.outputs.merged != 'false'
         run: |
           version=$(node scripts/polotno-patch-release.mjs)
           if [ -z "$version" ]; then
@@ -71,15 +89,9 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -am "Release $version"
           git tag "v$version"
-          git push origin "HEAD:$DEFAULT_BRANCH" "v$version"
-          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          # Both or neither: a rejected master push must not leave a tag behind.
+          # If master moved meanwhile this fails, and the next run starts over.
+          git push --atomic origin "HEAD:$DEFAULT_BRANCH" "v$version"
+          echo "::notice::Pushed v$version, release.yml builds the draft"
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-
-  release:
-    needs: bump
-    if: needs.bump.outputs.tag != ''
-    uses: ./.github/workflows/release.yml
-    with:
-      ref: ${{ needs.bump.outputs.tag }}
-    secrets: inherit
