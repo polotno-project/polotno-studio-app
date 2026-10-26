@@ -16,8 +16,12 @@ jobs:
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - id: metadata
-        uses: dependabot/fetch-metadata@v3
-      - if: steps.metadata.outputs.dependency-group == 'polotno' && steps.metadata.outputs.update-type != 'version-update:semver-major'
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+      # update-type is the highest bump in the group.
+      - if: >-
+          steps.metadata.outputs.dependency-group == 'polotno' &&
+          contains(fromJSON('["version-update:semver-minor", "version-update:semver-patch"]'),
+            steps.metadata.outputs.update-type)
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}

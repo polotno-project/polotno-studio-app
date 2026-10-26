@@ -14,3 +14,12 @@ Decisions: release is a draft (publishing stays manual); release even if master 
 - [x] .github/workflows/polotno-release.yml: workflow_run on Build (Dependabot polotno group PR) → waits for the auto-merge → bump commit + tag pushed to master → calls release.yml (now also workflow_call with `ref`) with secrets: inherit
 - [ ] Ruleset 25631988: add GitHub Actions (Integration 15368) to bypass_actors so the release commit can be pushed to master — blocked for the agent, user to run
 - [ ] After merge: first real run — check the group branch really starts with dependabot/npm_and_yarn/polotno-, the workflow_run run gets Actions secrets, and the draft release has all installers
+
+## First real run and fixes (2026-10-26)
+
+- PR #11 was merged before the deploy-key commit (ce94dc2), so master ran the GITHUB_TOKEN version. Dependabot PR #12 (9 updates) auto-merged fine; polotno-release computed 0.3.1, the master push was rejected (GH013, required checks), but the tag v0.3.1 was pushed anyway (orphan commit 1dfe764, no release)
+- Dependabot bumped polotno 4.16.1→4.18.0 only in package-lock.json (range stayed ^4.16.1) — the package.json-based script would have missed it
+- Codex review: direction OK; asked for atomic push, lockfile versions, retry paths, exact PR match, npm test in CI, pinned actions, minor/patch allowlist. Prefers a GitHub App; user chose the deploy key. User: the daily run releases any Polotno change since the last tag, including majors merged by hand
+- [x] Branch nikigan/polotno-release-fix: lockfile-based script (+ tests), polotno-release on workflow_run + daily schedule + dispatch, deploy-key checkout, `git push --atomic`; release.yml workflow_call → workflow_dispatch(tag) + tag/package.json check; auto-merge minor/patch allowlist; actions pinned to SHAs; npm test in Build (Linux)
+- [ ] User: run scratchpad setup-release-key.sh (deploy key, RELEASE_DEPLOY_KEY secret, DeployKey bypass)
+- [ ] Delete the orphan remote tag v0.3.1, then run "Polotno patch release" by hand → expect draft v0.3.1 with all installers
