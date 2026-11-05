@@ -86,7 +86,7 @@
     "@modelcontextprotocol/server": "^2.3.1",
     "@polotno/pdf-export": "^0.15.3",
     "@polotno/pdf-import": "^0.12.1",
-    "@polotno/schema": "^0.10.0",
+    "@polotno/schema": "^0.11.0",
     "@polotno/svg-import": "^0.2.3",
     "@polotno/video-export": "^0.5.1",
     "@sentry/electron": "^8.3.0",
