@@ -1,4 +1,5 @@
 import Konva from 'konva'
+import { resolveVariables } from '@polotno/schema/variables'
 import type { DesignStore } from './store'
 
 export interface LintFinding {
@@ -156,7 +157,11 @@ async function probeAssets(pages: PageJson[]): Promise<Map<string, boolean>> {
 }
 
 export async function lintDesign(store: DesignStore, onlyPageId?: string): Promise<LintFinding[]> {
-  const json = store.toJSON() as unknown as { width: number; height: number; pages: PageJson[] }
+  // Lint what the canvas draws: template variables filled with their stored
+  // values, as every exporter fills them, not the {{tokens}} and bindings.
+  const { design: json } = resolveVariables(
+    store.toJSON() as unknown as { width: number; height: number; pages: PageJson[] }
+  )
   const findings: LintFinding[] = []
   const pages = json.pages.filter((page) => !onlyPageId || page.id === onlyPageId)
   const reachable = await probeAssets(pages)
