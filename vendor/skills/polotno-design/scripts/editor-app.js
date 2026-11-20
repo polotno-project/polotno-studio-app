@@ -5,8 +5,9 @@ import { createElement as h } from 'react'
 import { createRoot } from 'react-dom/client'
 import { PolotnoContainer, SidePanelWrap, WorkspaceWrap } from 'polotno'
 import { createStore } from 'polotno/model/store'
+import { setAnimationsEnabled } from 'polotno/config'
 import { Workspace } from 'polotno/canvas/workspace'
-import { SidePanel } from 'polotno/side-panel'
+import { DEFAULT_SECTIONS, SidePanel, VariablesSection } from 'polotno/side-panel'
 import { Toolbar } from 'polotno/toolbar/toolbar'
 import { ZoomButtons } from 'polotno/toolbar/zoom-buttons'
 import { PagesTimeline } from 'polotno/pages-timeline'
@@ -16,6 +17,9 @@ const store = createStore({ key: window.__POLOTNO_KEY__, showCredit: true })
 // (createInstance({ url }) can point at this page).
 window.store = store
 
+const usesTime = (design) =>
+  design.audios?.length > 0 || /"(animations|type)":\s*(\[\s*\{|"video")/.test(JSON.stringify(design))
+
 let loading = false
 let dirty = false
 let saveTimer = null
@@ -24,6 +28,9 @@ async function load() {
   loading = true
   try {
     const design = await (await fetch('/design.json')).json()
+    // The editor hides its animation UI unless this flag is on. A static design
+    // keeps the plain editor.
+    if (usesTime(design)) setAnimationsEnabled(true)
     store.loadJSON(design)
     await store.waitLoading()
   } finally {
@@ -57,7 +64,8 @@ createRoot(document.getElementById('root')).render(
   h(
     PolotnoContainer,
     { style: { width: '100vw', height: '100vh' } },
-    h(SidePanelWrap, null, h(SidePanel, { store })),
+    // The Variables section is opt-in: it lets the human edit template values.
+    h(SidePanelWrap, null, h(SidePanel, { store, sections: [...DEFAULT_SECTIONS, VariablesSection] })),
     h(
       WorkspaceWrap,
       null,

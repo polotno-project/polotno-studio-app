@@ -21,17 +21,29 @@ const crypto = require('crypto');
 
 const { execFileSync } = require('child_process');
 
+const { ensureDependencies } = require('./dependencies');
 const { KEY } = require('./key');
 
 // The editor bundle is built locally from editor-app.js (no CDN at runtime).
-// Rebuild when missing or older than its source.
-function ensureBundle() {
+// Rebuild it after a source or dependency change.
+function ensureBundle(dependencyFingerprint) {
   const bundle = path.join(__dirname, '.editor/editor.js');
-  const source = path.join(__dirname, 'editor-app.js');
+  const dependencyFile = path.join(__dirname, '.editor/dependencies.json');
+  const sources = ['editor-app.js', 'build-editor.mjs'].map((fileName) =>
+    path.join(__dirname, fileName)
+  );
+  let bundleDependencies;
+  try {
+    bundleDependencies = fs.readFileSync(dependencyFile, 'utf8').trim();
+  } catch {
+    bundleDependencies = null;
+  }
   const fresh =
-    fs.existsSync(bundle) && fs.statSync(bundle).mtimeMs >= fs.statSync(source).mtimeMs;
+    fs.existsSync(bundle) &&
+    sources.every((source) => fs.statSync(bundle).mtimeMs >= fs.statSync(source).mtimeMs) &&
+    bundleDependencies === dependencyFingerprint;
   if (fresh) return bundle;
-  console.error('building editor bundle (first run, ~10s)…');
+  console.error('building editor bundle (~10s)…');
   execFileSync(process.execPath, [path.join(__dirname, 'build-editor.mjs')], {
     stdio: ['ignore', 'inherit', 'inherit']
   });
@@ -47,9 +59,10 @@ if (!file) {
 const portIdx = args.indexOf('--port');
 const PORT = portIdx !== -1 ? Number(args[portIdx + 1]) : 0;
 const designPath = path.resolve(file);
+const dependencyFingerprint = ensureDependencies();
 
 const EMPTY_DESIGN = {
-  schemaVersion: 4,
+  schemaVersion: 5,
   width: 1080,
   height: 1080,
   fonts: [],
@@ -134,7 +147,7 @@ const server = http.createServer((req, res) => {
   }
 });
 
-ensureBundle();
+ensureBundle(dependencyFingerprint);
 
 server.listen(PORT, '127.0.0.1', () => {
   const { port } = server.address();

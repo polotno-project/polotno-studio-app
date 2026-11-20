@@ -1,0 +1,9 @@
+{
+  "name": "polotno-design-pptx",
+  "private": true,
+  "description": "PowerPoint export for Polotno design production. It installs on first use.",
+  "dependencies": {
+    "@polotno/pptx-export": "^0.14.0",
+    "jszip": "^3.10.0"
+  }
+}

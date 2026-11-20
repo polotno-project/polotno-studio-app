@@ -22,7 +22,8 @@
  *   RESOLVE (auto — first result, for bulk or degraded runs):
  *     node resolve-assets.js resolve <design.json> [output.json]
  *   Swaps every ${photo:query} / ${icon:query} placeholder for the first search
- *   result (icons inlined as data URLs); drops the element if nothing is found.
+ *   result (icons inlined as data URLs). If nothing is found, it drops the
+ *   element, names it in the report, and exits with code 1.
  *
  * Query rules that actually return results:
  *   - photo: 3–5 plain words. "latte art coffee cup", NOT a long mood sentence.
@@ -163,13 +164,35 @@ async function resolveDesign(input, output) {
   }
 
   const resolved = await walk(design);
-  // drop elements whose src failed to resolve
+  // Drop each element whose src failed to resolve, in groups too, and name it:
+  // a run must never lose an image without saying so.
+  const dropped = [];
+  const prune = (children, pageId) =>
+    children.filter((child) => {
+      if (child.src === null) {
+        dropped.push({ pageId, elementId: child.id });
+        return false;
+      }
+      if (Array.isArray(child.children)) child.children = prune(child.children, pageId);
+      return true;
+    });
   for (const page of resolved.pages || []) {
-    if (page.children) page.children = page.children.filter((c) => c.src !== null);
+    if (page.children) page.children = prune(page.children, page.id);
   }
   fs.writeFileSync(output, JSON.stringify(resolved, null, 2));
-  const unresolved = [...cache.values()].filter((v) => v === null).length;
-  console.log(JSON.stringify({ resolved: cache.size - unresolved, dropped: unresolved }, null, 2));
+  const unresolved = [...cache.entries()].filter(([, value]) => value === null);
+  console.log(
+    JSON.stringify(
+      {
+        resolved: cache.size - unresolved.length,
+        unresolved: unresolved.map(([placeholder]) => placeholder),
+        dropped
+      },
+      null,
+      2
+    )
+  );
+  if (dropped.length) process.exitCode = 1;
 }
 
 async function main() {

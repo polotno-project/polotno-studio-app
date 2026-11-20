@@ -1,74 +1,79 @@
-# Layout archetypes & design tokens
+# Layout recipes and design tokens
 
-Generation starts from an **archetype** — a composition skeleton a human designer
-would reach for — not a blank canvas. Pick one that fits the brief, then fill its
-zones. The archetype carries the taste; you supply the content. This is what makes
-from-scratch output look designed instead of arranged.
+Start a new design with a layout recipe. A recipe defines content zones and
+relationships. It does not define a finished style.
 
-Zones are described as fractions of the canvas. Coordinates below assume a
-1080×1080 canvas — scale to the real size.
+Choose the recipe from the message structure and available assets.
 
-## Choosing an archetype
+## Recipe selection
 
-| Brief smells like… | Archetype |
-|---|---|
-| Quote, announcement, bold statement, sale | **Centered hero** |
-| Product, real estate, food, travel, portrait | **Image bleed + caption** |
-| Event, profile, before/after, two ideas | **Split** |
-| Menu, lineup, schedule, price list, steps | **Stacked list** |
-| Logo, badge, certificate, monogram, emblem | **Framed emblem** |
+| Content pattern | Recipe |
+| --- | --- |
+| One statement, quote, announcement, or offer | Type field |
+| Product, place, food, portrait, or event image | Full-bleed media |
+| Two subjects, phases, or contrasting ideas | Split field |
+| Menu, schedule, price list, or ordered facts | Ordered rows |
+| Certificate, monogram, seal, or formal invitation | Framed mark |
 
-When a brief has no strong photo need (invitation, menu, certificate, quote,
-minimal/abstract), prefer **vector-only**: typography + figures + gradients + icons.
-It is the most reliable lane and needs no photo search.
+If imagery adds no useful information, use a type field. Type, figures,
+gradients, and icons produce reliable editable designs.
 
-## The archetypes
+## Visual quality bar
 
-### Centered hero
-A single dominant headline on a solid/gradient field; everything else defers.
-- Background: full-canvas solid or gradient figure.
-- Hero headline: centered, ~y 0.36–0.58, width ~0.8, the largest element by far.
-- Eyebrow (small label) above the hero; one supporting line + accent rule below.
-- Wide outer margins (≥0.08). Let the field breathe — do not fill the corners.
+Apply these rules to each new design:
 
-### Image bleed + caption
-One hero photo dominates; text sits in a calm zone over or beside it.
-- Hero image: full-bleed, or covering ~0.62 of one side/top.
-- Text zone over the image gets a scrim (figure, fill #000 opacity 0.25–0.45) OR
-  sits on an adjacent solid band. Never raw text on a busy photo.
-- Headline + 1–2 details stacked in the calm zone, left-aligned on one margin.
+- **Focus:** Select one dominant entry point. Use size, contrast, position, or
+  isolation to separate it from all secondary content.
+- **Hierarchy:** If the content has three or more levels, make each adjacent
+  level visibly different. Do not give unrelated elements equal emphasis.
+- **Restraint:** If the brief or brand system does not require more, use at most
+  two font families. Give each color and type role a purpose.
+- **Space:** Use one spacing rhythm and deliberate alignment. Preserve empty
+  space that supports focus or grouping. Do not fill space without a content
+  purpose.
+- **Intent:** Make one visual decision that connects to the message, audience,
+  or source media. Generic decoration does not meet this rule.
 
-### Split
-Canvas divided ~50/50 (vertical or horizontal) into two fields.
-- One field: image or bold color block. Other field: text on a clean background.
-- Hold one shared margin across the seam. Headline in the text field, detail below.
-- Optional accent shape straddling the seam to tie the halves together.
+## Recipes
 
-### Stacked list
-A title block over evenly-rhythmed rows (menu, lineup, schedule).
-- Title zone: top ~0.22, with the strongest type.
-- Rows: 5–8 items in the remaining space, consistent row height and baseline grid,
-  name left / price-or-time right on a shared right margin.
-- A thin divider or alternating row tint for rhythm. Keep generous side margins.
+### Type field
 
-### Framed emblem
-Symmetric, centered, contained — for badges, certificates, monograms.
-- Decorative frame/border with even inset (~0.1 all sides).
-- Centered stack: top flourish, central name/monogram (hero), date/tagline below.
-- Strict vertical symmetry. Negative space inside the frame is the point.
+Make one headline or number the visual entry point. Place supporting copy on
+the same axis. Keep secondary decoration away from the reading path.
 
-## Design tokens (decide once, before writing JSON)
+### Full-bleed media
 
-- **Palette:** pick 2–4 colors — one dominant, one accent, plus neutrals. State the
-  hexes. Accent goes only on the one thing to notice. Echo the hero photo's colors
-  if there is one.
-- **Type scale:** pick a base size, build levels by ~1.5–2×
-  (e.g. 24 / 40 / 72). Headline at the top level, body at the base, nothing in
-  between competing.
-- **Type pairing:** one display/headline font + one body font (≤2 total). Pair a
-  characterful display with a neutral body. See `design-format.md` for known fonts.
-- **Margin & rhythm:** one outer margin (≥8% of the short edge) and one spacing unit
-  (e.g. 24) that multiples (24/48/96) derive from. Reuse them everywhere.
+Let one image control the composition. Put text in a calm image area or on a
+separate field. If the image cannot supply enough contrast, add a scrim.
 
-Write these tokens down explicitly, then honor them in every element you author —
-that consistency is half of what reads as "designed."
+### Split field
+
+Give each side one clear purpose. Use one shared alignment across the split.
+Let content length determine the split instead of forcing equal halves.
+
+### Ordered rows
+
+Reserve the first zone for the title and context. Give each row a repeated
+height, alignment, and gap. Align comparable values on one common edge.
+
+### Framed mark
+
+Build a centered content stack inside a deliberate frame. Use repeated inset
+distances. Keep enough empty area to preserve the formal structure.
+
+## Design tokens
+
+Define these values before you author elements:
+
+- **Color roles:** surface, ink, emphasis, and optional support. Give each role
+  one value. If another color has a new content function, add it.
+- **Type roles:** display, body, and optional utility. Select clear size and
+  weight differences. Use no more font families than these roles require.
+- **Outer margin:** derive it from the format, safe area, and selected recipe.
+  Set one concrete value for each edge pattern.
+- **Spacing unit:** select one base gap. Use simple multiples for related and
+  unrelated content.
+- **Media rule:** record the focal subject, crop mode, and permitted edge bleed.
+
+Use the same token values throughout one design. If the delivery contract or
+proof gives a specific reason, change a token.

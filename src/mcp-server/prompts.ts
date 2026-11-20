@@ -33,7 +33,7 @@ export function registerPrompts(server: McpServer): void {
   if (!skillDir) return
   server.registerPrompt(
     'design-skill',
-    { description: 'Load the Polotno design skill (rules, workflows, rubric) into context' },
+    { description: 'Load the Polotno design skill (rules, workflows, proof checks) into context' },
     () => {
       const skill = readFileSync(join(skillDir, 'SKILL.md'), 'utf8')
       const runtime = readFileSync(join(skillDir, 'reference/runtimes/local-app.md'), 'utf8')

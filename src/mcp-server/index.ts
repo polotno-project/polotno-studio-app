@@ -27,7 +27,7 @@ shares their undo stack.
 
 Before your first design, read the resource polotno://skill/SKILL.md (and
 polotno://skill/reference/runtimes/local-app.md) — it teaches the document
-model, composition archetypes, and the quality rubric.
+model, composition archetypes, and the proof checks.
 
 Workflow:
 1. list_designs / create_design (new designs appear as background tabs).

@@ -1,132 +1,131 @@
 ---
 name: polotno-design
 description: >-
-  Generate, render, and bulk-produce Polotno designs from a brief. Use when
-  the user wants to create a design, poster, flyer, social post, ad,
-  invitation, menu, or marketing image; render Polotno JSON to PNG/PDF
-  (including print-ready PDF); import a PDF/PSD/SVG into an editable design;
-  or bulk-generate variants from data. Works against whichever Polotno
-  runtime is available — the desktop app (live, human co-edits), a
-  skill-served local editor, or fully headless — picked by the runtime
-  ladder inside. For building an editor UI, use the polotno-sdk skill.
+  Create, transform, render, and bulk-produce editable Polotno designs.
+  Use for posters, social posts, ads, menus, slide decks, reports, proposals,
+  catalogs, carousels, and animated or video designs. Also use for Polotno JSON,
+  PNG, PDF, PowerPoint, GIF, or MP4 output, templates, brand rules, localization,
+  resizing, data-driven variants, and PDF, PSD, or PowerPoint import.
 ---
 
-# Polotno design generation
+# Polotno design production
 
-Produce shippable Polotno designs from a text brief: a Polotno JSON design
-plus rendered output.
+Produce an editable Polotno JSON document and the requested output files.
 
-Talk to the user about designs, not about this skill: what you made, what
-you changed, what you need from them. The ladder, archetypes, rubric, and
-validation are your internal process — mention them only if asked. After
-installing, one line ("Ready — what should I design?") beats a summary of
-this document. The core is a closed loop: start from an
-**archetype** (a composition skeleton, never a blank canvas), render it,
-**look** at the render with your own eyes, and critique it against a fixed
-**rubric** until it passes. Looking is the whole point — generating without
-seeing produces competent-but-soulless output. **You are not done until you
-have looked at a render and it passes the rubric.**
+Talk about the design and its files. Keep runtime details and internal checks
+out of the user response unless they affect the result.
 
-## Step 0 — pick your runtime (first match wins)
+## Completion contract
 
-Probe in order; read ONLY the matching file in `reference/runtimes/`. The
-tier is dynamic — probe at the start of a task, re-probe only when a call
-fails or the user asks to switch. An explicit user preference beats the
-ladder ("do it headless" wins even with the app running).
+The following conditions define a complete design task:
 
-1. **Polotno desktop app, MCP** — tools named `create_design`,
-   `render_page`, `lint_design` are in your tool list →
-   `runtimes/local-app.md`. The human co-edits live.
-2. **Polotno desktop app, HTTP** — you have a terminal and the app's
-   discovery file exists (paths in `local-app.md`) and its health URL
-   answers → same file, HTTP transport. Dead health check = the app is
-   closed; fall through (and mention the user can open the app).
-3. **Local editor server** — `scripts/serve.js` exists, `node` works, a
-   human is present to open a browser, AND their browser can reach this
-   machine (running in a cloud/remote sandbox? only if your environment
-   can expose a local port at a public URL — see `local-server.md`) →
-   start it, then `runtimes/local-server.md`.
-4. **Studio bridge** — reserved, not yet available
-   (`runtimes/studio-bridge.md`). Fall through.
-5. **Headless** — terminal + node (or the Cloud Render API when Chromium
-   can't run) → `runtimes/headless.md`. Bulk/unattended jobs may pick this
-   tier deliberately even when a higher one is available.
-6. **No terminal at all** — you can't run the loop. Author the JSON
-   (steps 1–3 below), give it to the user with polotno.com/studio import
-   instructions, and say plainly it was not visually verified.
+- The JSON passes schema validation and preflight.
+- All required assets are present.
+- You viewed a current render of every page.
+- Every page passes `reference/proof-checks.md`.
+- Each requested output file exists.
 
-## One vocabulary
+If you cannot view the render, state that the design has no visual proof.
+Do not describe its appearance as verified.
 
-Every runtime speaks the same verbs — `create_design`, `list_designs`,
-`get_design_json`, `patch_design_json`, `add_element`, `update_element`,
-`remove_element`, `move_element`, `set_page`, `set_design_size`, `render`,
-`export`, `lint`, `save` — defined once in `reference/commands.md`. Your
-runtime file only maps verbs to a transport. Never invent a verb; never
-guess a transport.
+## Select a runtime
 
-## Design core (all runtimes)
+Use the first available runtime. Read only its file in `reference/runtimes/`.
+An explicit user choice takes priority.
 
-`reference/archetypes.md` (skeletons + tokens), `reference/design-format.md`
-(JSON cheat sheet), `reference/rubric.md` (the bar every render must pass).
-Before promising print output or file import, read `reference/print-pdf.md`
-/ `reference/import.md` — they contain hard capability limits.
+1. **Desktop app.** If `create_design`, `render_page`, and `lint_design` exist,
+   or `node scripts/find-app.js` reports `running: true`, read `local-app.md`.
+2. **Local browser editor.** If a person is present and their browser can reach
+   this machine, read `local-server.md`.
+3. **Headless scripts.** If no person is present, read `headless.md`.
+4. **No terminal.** Author the JSON and give Studio import instructions.
+   State that no visual proof was possible.
 
-## Workflow A — generate from a brief
+To run this skill inside a service or pipeline, read `backend.md`.
 
-Default mode is **standard** (iterate to a passing rubric, cap 3 looks).
-For **quick**, do one look and one fix. For **best**, generate 3 candidates
-through step 5, then iterate only the strongest.
+Each runtime file maps the shared verbs to its tools or scripts. Use only those
+verbs and transports.
 
-1. **Frame the brief.** The design-defining inputs are: purpose/topic,
-   format/size, style direction, brand constraints (colors/fonts/logo), and
-   the actual text content. If **two or more** are neither stated nor
-   safely inferable, ask ONE round of questions — concrete options plus an
-   explicit "you decide" — before authoring. Otherwise build now and report
-   afterward which ones you chose yourself. Never a second round;
-   bulk/unattended runs never ask. Then read `reference/archetypes.md`,
-   pick the canvas size, one archetype, and explicit design tokens
-   (palette of 2–4 colors, type scale, ≤2 fonts, margin + spacing unit).
-   *Done when:* archetype named and every token has a concrete value.
-2. **Author minimal Polotno JSON**, filling the archetype's zones with the
-   brief's content and your tokens. Reference images/icons you don't have
-   as `${photo:3-5 words}` / `${icon:1-2 nouns}`. See
-   `reference/design-format.md`.
-   *Done when:* every archetype zone has real content.
-3. **Validate and lint** (your runtime's `lint` verb). Fix each reported
-   error and re-run.
-   *Done when:* the report is clean.
-4. **Resolve assets.** For each placeholder, search and *look* before
-   choosing (asset search per your runtime file; auto-pick only for
-   unattended runs).
-   *Done when:* no `${photo:…}` / `${icon:…}` placeholders remain.
-5. **Render and LOOK** (`render`). Actually view the pixels.
-   *Done when:* you have viewed the render, not just the JSON.
-6. **Critique against the rubric and fix.** Score the render on every axis
-   in `reference/rubric.md` and write its scorecard; fix the worst axis
-   first and return to step 3.
-   *Done when:* every applicable axis scores 8+, or you have completed
-   3 looks — whichever comes first. State the final scorecard including
-   its closing brief line.
-7. **Export** (`export`) the final output and report the design + files.
-   For PDF/print, follow `reference/print-pdf.md`.
+## Read only the needed references
 
-## Workflow B — bulk variants from data
+| Task | Read in `reference/` |
+| --- | --- |
+| New design | `archetypes.md`, `design-format.md` |
+| Final visual proof | `proof-checks.md` |
+| Several pages: deck, report, proposal, catalog, carousel | `multipage.md` |
+| Chart, table, or text from data | `data-content.md` |
+| Customer template, template variables, brand rules, or custom font | `templates-brand.md` |
+| PowerPoint output | `pptx.md` |
+| Animation, GIF, or video | `animation.md` |
+| Resize, localization, brand update, or bulk variants | `transformations.md` |
+| Print or PDF output | `print-pdf.md` |
+| PDF, PSD, PowerPoint, or SVG import | `import.md` |
 
-Use a design that already passed Workflow A as the template.
+## Create a new design
 
-1. **Mark slots.** Tag each element that varies with
-   `custom: { slot: "<name>" }` (e.g. `headline`, `hero`, `price`). Fixed
-   brand elements get no slot.
-2. **Map data to slots.** Each CSV/list row is one variant; confirm every
-   column maps to a slot or is set aside.
-3. **Generate each variant** — one design per row with slotted content
-   filled from the row (your runtime file's Bulk section says how), then
-   `lint` and `render` each.
-4. **Spot-check by looking.** View the first variant and one random later
-   one against the rubric. Report any rows that dropped elements — never
-   report a clean batch silently.
+### 1. Define the delivery contract
+
+Record the message, content, output use, canvas size, required brand assets,
+and asset restrictions.
+
+If a missing fact can make the output incorrect or unusable, ask immediately.
+Do not use a fixed question count.
+
+Select unspecified visual details from the brief. Record these selections in
+the final delivery note. If several directions have different tradeoffs, make
+small first-page proofs before the full build.
+
+For unattended work, use only supplied values and documented defaults. Report
+each important default in the delivery note.
+
+### 2. Plan the composition
+
+Select one layout recipe from `reference/archetypes.md`. Apply the visual quality
+bar in that file. Define concrete color, type, spacing, margin, and media tokens.
+
+### 3. Compose the JSON
+
+Write the smallest Polotno JSON that expresses the planned composition. Fill
+every layout zone with final content or an asset placeholder.
+
+Run schema validation. The validator reads the source without changing it.
+
+### 4. Resolve assets
+
+Search for each placeholder. View each candidate before selection. Automatic
+selection is permitted only for unattended work.
+
+### 5. Run preflight
+
+Run `lint` after asset resolution. Fix each error. Review each warning and
+record the reason for any warning that remains.
+
+### 6. Make a visual proof
+
+Render the current design and view the pixels. Apply
+`reference/proof-checks.md` to the render and JSON. Fix each overflow that the
+render reports.
+
+Repair blocking defects first. After each content or geometry repair, run
+preflight again and make a new proof. If no blocking defect remains, stop.
+
+### 7. Package the result
+
+Export the requested files. Report the editable design, exported files,
+remaining warnings, and important visual selections.
+
+## Transform an existing design
+
+Read `reference/transformations.md` before a resize, localization, brand update,
+content update, or bulk run.
+
+Capture the source JSON and a source render. Declare the allowed changes and
+protected properties. Derive each result from the source design.
+
+Run preflight on every result. Compare its proof with the source proof. Report
+each deliberate change to a protected property.
 
 ## Scope
 
-This skill produces designs. It does **not** build editor UIs, wire up
-React/MobX, or answer SDK API questions — that is the `polotno-sdk` skill.
+This skill produces designs and design outputs. Use the `polotno-sdk` skill for
+editor development, React integration, Store APIs, or SDK questions.

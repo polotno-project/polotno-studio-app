@@ -8,8 +8,9 @@ bug.
 
 | Need | Use |
 |---|---|
-| Screen/office PDF (raster pages is fine) | polotno-node (`render.js --pdf`) |
-| Vector PDF (selectable text), print-ready: CMYK, PDF/X, spot colors | `@polotno/pdf-export` |
+| Screen/office PDF, raster pages are acceptable | polotno-node (`render.js out.pdf`) |
+| Vector PDF: selectable text, embedded fonts, small file. Use it for decks and reports | `render.js out.pdf --vector` |
+| Print-ready: CMYK, PDF/X, spot colors | `@polotno/pdf-export` |
 | No local Chromium / server-side batch | Cloud Render API |
 | Either kind, from a design the human has open | Polotno desktop app (`runtimes/local-app.md`) |
 
@@ -17,7 +18,7 @@ The desktop app gives both kinds under two format names — `pdf` is vector,
 `pdf-flat` is raster — but none of the print options below. For CMYK, PDF/X,
 bleed or crop marks, use `@polotno/pdf-export` or the Cloud Render API.
 
-## Raster PDF — polotno-node (`render.js --pdf`)
+## Raster PDF — polotno-node (`render.js out.pdf`)
 
 Pages are rendered as images and wrapped in a PDF. Options: `dpi`, `unit`
 (`pt`/`mm`/`cm`/`in`), `pageIds`, `parallel`, `cropMarkSize`,
@@ -26,8 +27,10 @@ CMYK, no PDF/X** — text is pixels.
 
 ## Vector + print-ready PDF — `@polotno/pdf-export`
 
-Node and browser (`@polotno/pdf-export/browser`) entries. Real vector
-output plus the print features:
+Node 22.13+ and browser (`@polotno/pdf-export/browser`) entries.
+`render.js out.pdf --vector` runs it with the `--dpi`, `--unit`, `--bleed`, and
+`--crop-marks` options. It installs on first use. Call the package for the
+print features:
 
 - `pdfx: 'x-4' | 'x-1a'` — PDF/X output. **Requires `outputIntent`**
   (an ICC profile + identifier); PDF/X without an output intent is invalid.
@@ -63,5 +66,4 @@ options: `vector: true` (alpha — uses pdf-export server-side), `pdfx`,
 
 - Vector or CMYK PDF from polotno-node — its PDF is raster, always.
 - CMYK png/gif — no path supports it.
-- PPTX/IDML *import* (export to PPTX exists; see `import.md`).
-- `textOverflow: 'ellipsis'` in PDF export — unsupported there.
+- IDML *import* — no supported path.

@@ -10,7 +10,7 @@ design with the polotno MCP tools; do not create other designs unless asked.
 - For changes to the design, start with get_design_json. For a new design
   or a redesign, first read these resources:
   polotno://skill/reference/archetypes.md
-  polotno://skill/reference/rubric.md
+  polotno://skill/reference/proof-checks.md
   (polotno://skill/reference/design-format.md has the JSON shape).
 - Several changes at once: one patch_design_json beats many small calls.
 ${

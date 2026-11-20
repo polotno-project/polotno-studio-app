@@ -1,11 +1,14 @@
 {
   "name": "polotno-design-scripts",
   "private": true,
-  "description": "Helper scripts for the polotno-design skill: validate, resolve-assets, render.",
+  "description": "Helper scripts for Polotno design production.",
+  "scripts": {
+    "test": "node test.js"
+  },
   "dependencies": {
-    "@polotno/schema": "^0.1.4",
-    "polotno-node": "^3.4.0",
-    "polotno": "^4.8.0",
+    "@polotno/schema": ">=0.14.0 <1",
+    "polotno-node": "^3.19.1",
+    "polotno": "^4.22.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "esbuild": "^0.25.0"

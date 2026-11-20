@@ -1,0 +1,8 @@
+{
+  "name": "polotno-design-pdf",
+  "private": true,
+  "description": "Vector PDF export for Polotno design production. It installs on first use.",
+  "dependencies": {
+    "@polotno/pdf-export": "^0.18.0"
+  }
+}
