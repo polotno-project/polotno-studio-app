@@ -5,7 +5,7 @@ import { observer } from 'mobx-react-lite'
 import { PolotnoContainer, SidePanelWrap, WorkspaceWrap } from 'polotno'
 import { Workspace } from 'polotno/canvas/workspace'
 import { PagesTimeline } from 'polotno/pages-timeline'
-import { DEFAULT_SECTIONS, SidePanel, type Section } from 'polotno/side-panel'
+import { DEFAULT_SECTIONS, SidePanel, VariablesSection, type Section } from 'polotno/side-panel'
 import { Toolbar } from 'polotno/toolbar/toolbar'
 import { ZoomButtons } from 'polotno/toolbar/zoom-buttons'
 import { selectImage } from 'polotno/side-panel/select-image'
@@ -24,11 +24,15 @@ import { CodexNotice } from './codex-notice'
 
 // Our Templates section replaces the stock one (same slot) to add the
 // "My designs" tab. Every other stock section, upload included, stays. The
-// AI section (Codex) sits on top.
+// AI section (Codex) sits on top. Variables is opt-in in the SDK, which keeps
+// it from apps whose end users don't author templates; here the user is the
+// author, and an agent's {{tokens}} and bindings need a place to be seen and
+// filled.
 const SECTIONS = [
   AiSection,
   TemplatesSection,
-  ...DEFAULT_SECTIONS.filter((section) => section.name !== 'templates')
+  ...DEFAULT_SECTIONS.filter((section) => section.name !== 'templates'),
+  VariablesSection
 ] as Section[]
 
 // Each page's slot carries the agent cursors (agent-cursor.tsx).
