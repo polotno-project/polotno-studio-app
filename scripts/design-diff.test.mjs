@@ -89,6 +89,28 @@ test('page background and size', () => {
   ])
 })
 
+test('template variables merge like any edit instead of reloading the design', () => {
+  const name = { name: 'name', value: 'Anna' }
+  const city = { name: 'city', value: 'Kyiv' }
+  const before = design([text('a')], { variables: [name] })
+  const after = design([text('a', { text: 'Hi {{name}} from {{city}}' })], {
+    variables: [name, city]
+  })
+  assert.deepEqual(diffDesign(before, after).changes, [
+    { kind: 'variables', variables: [name, city], base: [name] },
+    {
+      kind: 'set',
+      target: 'element',
+      id: 'a',
+      props: { text: 'Hi {{name}} from {{city}}' },
+      base: { text: 'a' }
+    }
+  ])
+  assert.deepEqual(diffDesign(before, design([text('a')])).changes, [
+    { kind: 'variables', variables: undefined, base: [name] }
+  ])
+})
+
 test('added page arrives whole; removed page goes', () => {
   const before = design([text('a')])
   const after = { ...before, pages: [{ id: 'p2', background: 'white', children: [text('x')] }] }

@@ -25,6 +25,8 @@ export type DesignChange =
       height: number
       base: { width: number; height: number }
     }
+  // The design's template variables registry, replaced whole.
+  | { kind: 'variables'; variables: Json[] | undefined; base: Json[] | undefined }
 
 // Edits this diff does not map to store operations; the caller falls back to
 // loading the whole design.
@@ -80,7 +82,7 @@ function childIds(node: { children?: Node[] }): string[] {
 
 export function diffDesign(before: Design, after: Design): DiffResult {
   for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
-    if (key === 'pages' || key === 'width' || key === 'height') continue
+    if (['pages', 'width', 'height', 'variables'].includes(key)) continue
     if (!isEqual(before[key], after[key])) return { fallback: `design "${key}" changed` }
   }
 
@@ -91,6 +93,13 @@ export function diffDesign(before: Design, after: Design): DiffResult {
       width: after.width as number,
       height: after.height as number,
       base: { width: before.width as number, height: before.height as number }
+    })
+  }
+  if (!isEqual(before.variables, after.variables)) {
+    changes.push({
+      kind: 'variables',
+      variables: after.variables as Json[] | undefined,
+      base: before.variables as Json[] | undefined
     })
   }
 

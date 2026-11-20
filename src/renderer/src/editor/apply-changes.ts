@@ -1,3 +1,4 @@
+import type { VariableDefinition } from '@polotno/schema'
 import { isEqual, type DesignChange } from '../../../shared/design-diff'
 import type { DesignStore } from './store'
 
@@ -53,6 +54,15 @@ export async function applyChanges(
               props: ['width', 'height'],
               reason: 'resized by the user'
             })
+          break
+        }
+        case 'variables': {
+          const live = store.variables
+          if (isEqual(live, change.base) || isEqual(live, change.variables)) {
+            store.setVariables(change.variables as VariableDefinition[] | undefined)
+          } else {
+            skipped.push({ id: 'design', props: ['variables'], reason: 'changed by the user' })
+          }
           break
         }
         case 'set': {
